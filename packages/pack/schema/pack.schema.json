@@ -29,7 +29,9 @@
       "type": "object", "additionalProperties": false,
       "properties": {
         "mde": { "type": "number", "exclusiveMinimum": 0 },
-        "budget": { "type": "integer", "minimum": 1 }
+        "budget": { "type": "integer", "minimum": 1, "description": "deprecated: Thresholdout budget; only read by the thresholdout gate plugin" },
+        "rotate_after_promotions": { "type": "integer", "minimum": 1, "default": 1 },
+        "max_rounds": { "type": "integer", "minimum": 1, "default": 20 }
       }
     },
     "surfaces": {

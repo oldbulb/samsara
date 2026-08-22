@@ -93,8 +93,8 @@ tasks:
   version: 3                                     # bump requires a changelog entry; bump is a settlement event
 holdout:
   mde: 0.05                                      # minimum effect the pack cares about (same units as the primary metric)
-  budget: 8                                      # promotion-relevant revelations the holdout may serve before rotation
-                                                 # framework checks n against (mde, budget) at startup and fails fast
+  rotate_after_promotions: 1                     # promotions served by one holdout before rotation (S7)
+  max_rounds: 20                                 # age cap in rounds; framework fails fast if n cannot support mde
 surfaces:                                        # machine-checkable boundaries per surface this pack exposes
   skill:  { globs: ["skill/**"] }
   prompt: { globs: ["harness/prompt/*.md"] }
@@ -162,7 +162,7 @@ Science
 - **S4** early stop is futility-only; one pre-registered holdout test; Holm across all proposals in a round; no cross-round maxima.
 - **S5** proposal diffs are scanned for task ids and literals; prediction-vs-outcome is a gate input.
 - **S6** settlement pins the truth snapshot (`truth_sha` + source partition); revisions re-score ancestors, append-only.
-- **S7** holdout accounting: each promotion-relevant revelation of a holdout aggregate debits a pack-declared budget; the framework checks at startup that `n` supports `(mde, budget)` and fails fast; a spent budget forces rotation to entity-disjoint, newly settled tasks. If the Thresholdout bound is infeasible at the pack's `n`, the default degrades to a parameter-free Ladder threshold with promotion-count rotation — documented, never silent.
+- **S7** holdout accounting (calibrated in `docs/design/notes/holdout-feasibility.md`): the holdout exposes to the proposer only a parameter-free Ladder signal ("beat best-so-far by > std/√n: yes/no" plus the rounded best-so-far); raw per-sibling holdout means live in judge-isolated storage and never reach the proposer. The accounting unit is the **promotion**, not the query: `pack.yaml` declares `holdout.mde`, `holdout.rotate_after_promotions` (default 1) and `holdout.max_rounds` (default 20); the book rotates to entity-disjoint, newly settled tasks never seen by any ancestor of the champion when either limit is hit. Startup fail-fast: `n ≥ ((z_α+z_β)·sd_floor/mde)²` with the measured noise floor, and a rotation pool ≥ n; otherwise the tier is `hold:underpowered` (S2) and does not run. Thresholdout is **not** the default — at tens to hundreds of tasks its bound fails by orders of magnitude and in simulation it inflates false-keep while burning its budget on noise within 3–11 rounds; it remains a documented gate plugin with its scale preconditions.
 - **S8** the gate's objective includes cost: verdicts are on solve-rate at a declared cost budget or on a Pareto front; every pack emits a per-task cost metric; a challenger that is not distinguishable from the champion on both quality and cost is `drop`, not `hold`.
 
 S1–S4, S7, S8 are the behaviour of `gate-default`; a user-supplied gate policy may replace them, and the ledger records which policy produced each verdict. E1–E8, S5, S6 are framework invariants no policy can disable.
