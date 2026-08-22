@@ -18,7 +18,8 @@
 7. **`packs/pricing` 是私有内容，直接放本仓库**；开源发布时再单独考量迁移（拆 submodule / 镜像剥离）。发布前本仓库不对外
 
 ## 硬约束
-`docs/design/architecture.md` 的 E1–E7（工程：无历史依赖、sign-off 不可伪造、env_sha、子进程 effect、凭据、TMPDIR、热应用验证）与 S1–S6（科学：MDE 口径、n_eff 下限、分层打分、futility-only 早停、diff 扫描、真值钉快照）。实现任何一步前先对照；它们来自对抗评审，不是建议。
+`docs/design/architecture.md` 的 E1–E8（工程：无历史依赖、sign-off 不可伪造、env_sha、子进程 effect、凭据、TMPDIR、热应用验证、裁判机器隔离 + surface 边界）与 S1–S8（科学：MDE 口径、n_eff 下限、分层打分、futility-only 早停、diff 扫描、真值钉快照、holdout 预算、门含成本）。E1–E8、S5、S6 是框架不变量；S1–S4、S7、S8 是 `gate-default` 的行为，可被替换但 ledger 必须记录。实现任何一步前先对照；它们来自对抗评审与 2026-08-23 的文献校准，不是建议。
+一个 challenger 只触一个 surface（v1）；surface 分类以 architecture.md 的 13 项表为准。
 
 ## 词汇（公开、领域中性）
 book · task · settlement · champion · challenger · surface · scope · attempt · loop · tier(smoke/holdin/holdout/live) · gate · sign-off · ledger · pack。不用 experiment/case/cutoff/consent/cm_id 等 legacy 时代词汇（research 文档除外）。
@@ -27,6 +28,12 @@ book · task · settlement · champion · challenger · surface · scope · atte
 - 按 `architecture.md` 的启动序走，每步有可观测门；做完一步与用户同步再继续
 - 分析优先于实现；先读现有代码再写；不加未要求的功能；最简单方案
 - 已定决策（勿重开）：TS host、唯一 ledger 在 dsh storageDomain、v1 loops-dsh 先 CC 第二、v1 proposer 外部 CLI、UI 独立路由、结构化输出由 host 用 pack 契约校验、v1 不发 npm
+
+## 与 dsh 的关系
+- 形态：dsh bundle（`samsara` patch 层）+ profile 模板（`host`）；身份：dsh 的 RSI 层；不 fork
+- 拥抱 cordis service 但不过度——只有真正需要被替换/注入的边界才做成 service，纯函数（统计、校验、哈希）保持纯函数。设计兼顾 cordis 的模式与哲学：进程内 seam（gate / proposer / loop / book …）就是 cordis service——`inject`/`provide`、schemastery `Config`、Definition + Provider + Consumer 一起发布、按 dsh 的角色词汇（Registry/Runtime/Provider/Backend/Policy）命名；替换策略 = 改一行 `cordis.patch.yml`，不自造插件机制
+- 只有跨进程/跨语言的数据契约（`pack.yaml`、命令 stdout、ledger 行、训练导出）不含 dsh 类型——pack 作者与外部 proposer CLI 无需知道 dsh 存在
+- 持续跟踪 dsh 演进：每次 re-pin 记录我们适配了什么、dsh 哪些变化对我们有利/不利；接口稳定后（P4 之后）把通用件（gate seam、settlement 事件等）作为有价值的 PR 提给 dsh，不是现在
 
 ## Environment
 - Node + pnpm；dsh 钉 `b150a551`（需要源码时重新 clone 并 checkout）
