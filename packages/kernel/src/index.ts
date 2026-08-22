@@ -56,3 +56,16 @@ export type { TokenUsage } from '@deepseek-ai/dsh-llm'
 export type { CredentialRef, ResolvedCredential } from '@deepseek-ai/dsh-credentials'
 export { parseCmdline } from '@deepseek-ai/dsh-cmdline'
 export { Command } from 'commander'
+
+// ---------------------------------------------------------------------------
+// Storage: the hub (`ctx.storage`), the domain data form (`ctx.storageDomain`)
+// and the json backend. Importing storage-domain installs the `storageDomain`
+// Context augmentation; the ledger declares its domain with `defineDomain`.
+import '@deepseek-ai/dsh-storage-domain'
+
+export { default as Storage, storageBackendServiceKey, StorageError } from '@deepseek-ai/dsh-storage'
+export type { StorageBackend, KvFacet, KvUnit, KvUnitDescriptor } from '@deepseek-ai/dsh-storage'
+export { defineDomain, domainTable, DomainFacility, DomainError } from '@deepseek-ai/dsh-storage-domain'
+export type { Domain, KvTable, DomainSpec, DomainTableSpec, TableKeyOf, TableValueOf, DomainChanged } from '@deepseek-ai/dsh-storage-domain'
+export { JsonStorageBackend } from '@deepseek-ai/dsh-storage-json'
+export { z } from 'zod'

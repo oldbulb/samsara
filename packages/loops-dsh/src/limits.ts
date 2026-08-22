@@ -53,7 +53,7 @@ export function priceUsage(usage: TokenUsage, price: PriceTable): number {
   const cacheRead = usage.cacheReadTokens ?? 0
   const cacheReadPrice = price.cacheRead ?? price.input
   return (
-    ((usage.inputTokens - cacheRead) * price.input + cacheRead * cacheReadPrice + usage.outputTokens * price.output) / 1e6
+    (Math.max(usage.inputTokens - cacheRead, 0) * price.input + cacheRead * cacheReadPrice + usage.outputTokens * price.output) / 1e6
   )
 }
 

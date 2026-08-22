@@ -9,6 +9,8 @@
     { "path": "packages/workdir" },
     { "path": "packages/loops-dsh" },
     { "path": "packages/loops-claude-code" },
-    { "path": "packages/runner" }
+    { "path": "packages/runner" },
+    { "path": "packages/gate" },
+    { "path": "packages/ledger" }
   ]
 }
