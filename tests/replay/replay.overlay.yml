@@ -1,0 +1,36 @@
+# `dsh --profile host --patch <rendered copy of this file>`: the keyless replay
+# overlay for tests/replay. Rendered per test run (the three {{…}} tokens become
+# absolute paths) and applied after profiles/host/cordis.patch.yml.
+#
+# - llm-pi-ai: disabled, and its only route re-pointed at an unroutable host, so
+#   a model call that escapes replay cannot reach the gateway.
+# - session-title-llm: disabled; it streams under the agent's own sessionId and
+#   would consume the first recorded call before the agent's first step.
+# - session-persistence-jsonl: raw (uncompressed) logs under the test's tmp dir,
+#   so the test can read the replayed session back and the user's $DSH_HOME
+#   session store stays untouched.
+# - llm-replay: mounted by absolute path (the host profile does not ship it);
+#   without `providers` it installs the catch-all `llm/stream` waterfall that
+#   short-circuits before any adapter lookup.
+- id: llm-pi-ai
+  disabled: true
+  config:
+    providers:
+      gateway:
+        displayName: gateway (replay, unroutable)
+        api: anthropic-messages
+        baseURL: http://127.0.0.1:9
+        apiKeyEnv: LLM_GATEWAY_API_KEY
+        models:
+          - id: deepseek-v4-flash
+- id: session-title-llm
+  disabled: true
+- id: session-persistence-jsonl
+  config:
+    root: '{{sessions}}'
+    compression: none
+- insert:
+    - id: llm-replay
+      name: '{{llmReplay}}'
+      config:
+        file: '{{fixture}}'

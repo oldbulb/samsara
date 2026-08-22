@@ -6,12 +6,13 @@
 import { resolve } from 'node:path'
 import { Schema, type Context } from '@samsara/kernel'
 import type {} from '@samsara/loops'
+import type {} from '@samsara/ledger'
 import { runSet, type RouteConfig } from './run.ts'
 import { formatSummary } from './summary.ts'
 import { SAMSARA_RUN_SERVICE, type SamsaraRunValues } from './startup.ts'
 
 export const name = 'samsara-runner'
-export const inject = [SAMSARA_RUN_SERVICE, 'loops', 'agentDefaultModel']
+export const inject = [SAMSARA_RUN_SERVICE, 'loops', 'agentDefaultModel', 'ledger']
 
 export interface Config {
   /** Per-attempt base URL handed to the loop (route.baseUrl); empty = provider default. */
@@ -28,8 +29,8 @@ export const Config: Schema<Config> = Schema.object({
   lane: Schema.string(),
 })
 
-export { runSet, readSubmit, submitToolName, sanitizeId, newRunId } from './run.ts'
-export type { RunRequest, RunDeps, RunResult, AttemptRow, ScoreLine, RouteConfig, Loops, Materialize } from './run.ts'
+export { runSet, readSubmit, submitToolName, sanitizeId, newRunId, championProposal } from './run.ts'
+export type { RunRequest, RunDeps, RunResult, AttemptRow, ScoreLine, RouteConfig, Loops, LedgerSink, Materialize } from './run.ts'
 export { summarize, formatSummary } from './summary.ts'
 
 interface Io {
@@ -60,7 +61,8 @@ async function run(ctx: Context, config: Config, io: Io): Promise<void> {
   const req = ctx.get(SAMSARA_RUN_SERVICE) as SamsaraRunValues | undefined
   const loops = ctx.get('loops')
   const defaultModel = ctx.get('agentDefaultModel')
-  if (req === undefined || loops === undefined || defaultModel === undefined) return
+  const ledger = ctx.get('ledger')
+  if (req === undefined || loops === undefined || defaultModel === undefined || ledger === undefined) return
   if (loops.get(req.loop) === undefined) {
     throw new Error(`no loop provider named "${req.loop}" is registered (is its plugin enabled in the profile?)`)
   }
@@ -71,6 +73,7 @@ async function run(ctx: Context, config: Config, io: Io): Promise<void> {
       { ...req, out: resolve(req.out) },
       {
         loops,
+        ledger,
         route: routeOf(defaultModel.currentSelection(), config),
         signal: controller.signal,
         log: (line) => io.stderr.write(line + '\n'),

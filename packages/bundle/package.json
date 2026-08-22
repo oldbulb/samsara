@@ -17,6 +17,8 @@
     }
   },
   "dependencies": {
+    "@samsara/gate": "workspace:*",
+    "@samsara/ledger": "workspace:*",
     "@samsara/loops": "workspace:*",
     "@samsara/loops-claude-code": "workspace:*",
     "@samsara/loops-dsh": "workspace:*",

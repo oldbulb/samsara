@@ -2,6 +2,8 @@
   "name": "dsh-profile-host",
   "private": true,
   "dependencies": {
+    "@samsara/gate": "link:../../packages/gate",
+    "@samsara/ledger": "link:../../packages/ledger",
     "@samsara/loops": "link:../../packages/loops",
     "@samsara/loops-claude-code": "link:../../packages/loops-claude-code",
     "@samsara/loops-dsh": "link:../../packages/loops-dsh",

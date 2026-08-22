@@ -6,10 +6,11 @@
 import { createWriteStream, mkdirSync, readFileSync, appendFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createBook, type Book, type TaskSet } from '@samsara/book'
+import { attemptRowOf, sha256, canonicalJson, type ChallengerProposal, type Ledger, type Tier } from '@samsara/ledger'
 import { factsSha, type AttemptSpec, type FinishedEvent, type LoopEvent, type LoopProvider, type LoopRun, type TokenUsage } from '@samsara/loops'
 import { loadPack, runCommand, validateSubmit, PackError, type PackDefinition, type TaskLine } from '@samsara/pack'
 import { submitPath } from '@samsara/submit'
-import { materialize as materializeWorkdir, SKILLS_DIR, type MaterializeOptions, type Workdir } from '@samsara/workdir'
+import { materialize as materializeWorkdir, hashDir, SKILLS_DIR, type MaterializeOptions, type Workdir } from '@samsara/workdir'
 
 /** The slice of `ctx.loops` the runner needs (structural, so tests pass a fake). */
 export interface Loops {
@@ -18,6 +19,9 @@ export interface Loops {
 }
 
 export type Materialize = (opts: MaterializeOptions) => Promise<Workdir>
+
+/** The slice of `ctx.ledger` the runner writes through (structural, so tests pass a fake). */
+export type LedgerSink = Pick<Ledger, 'propose' | 'recordAttempt' | 'appendScores'>
 
 export interface RunRequest {
   pack: string
@@ -44,6 +48,8 @@ export interface RunDeps {
   route: RouteConfig
   /** Defaults to @samsara/workdir's materialize; tests substitute. */
   materialize?: Materialize
+  /** When present, every attempt and its scores are also recorded under a champion challenger row. */
+  ledger?: LedgerSink
   signal?: AbortSignal
   /** Injected for deterministic ids in tests. */
   runId?: string
@@ -80,6 +86,8 @@ export interface RunResult {
   pack: string
   set: TaskSet
   tasksetSha: string
+  /** Set when a ledger recorded the run. */
+  challengerId?: string
   rows: AttemptRow[]
   attemptsPath: string
 }
@@ -237,11 +245,71 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
   return row
 }
 
+const NONE_SHA = sha256('')
+
+/**
+ * The champion as a challenger row: no patch, no parents, no optimizer; its
+ * coordinates are the harness facts, the route + limits, the skill directory
+ * and the task set, so the same deployment always lands on the same id.
+ */
+export function championProposal(def: PackDefinition, book: Book, req: RunRequest, deps: RunDeps): ChallengerProposal {
+  const provider = deps.loops.get(req.loop)
+  const harness_sha = provider ? factsSha(provider.harnessFacts) : NONE_SHA
+  const limits = { maxTurns: req.maxTurns, maxDurationMs: Math.round(req.maxMinutes * 60_000) }
+  const effort = deps.route.reasoning?.['effort']
+  const skill_sha = hashDir(def.skillDir)
+  return {
+    parent_ids: [],
+    patch_sha: NONE_SHA,
+    harness_sha,
+    env_sha: sha256(canonicalJson({ route: deps.route, limits })),
+    skill_sha,
+    taskset_sha: book.tasksetSha(req.set),
+    route: {
+      loop: req.loop,
+      loop_adapter_version: provider?.harnessFacts.version.loop ?? '',
+      model_id: deps.route.model,
+      ...(effort !== undefined ? { effort: String(effort) } : {}),
+      model_pool_sha: sha256(canonicalJson({ provider: deps.route.provider, model: deps.route.model })),
+      base_url_kind: deps.route.baseUrl ? 'proxy' : 'direct',
+    },
+    optimizer_config_sha: NONE_SHA,
+    lineage: 'main',
+    surface: 'skill',
+    patch: { skill_ref: `skill:${skill_sha}` },
+    intent: 'champion',
+    prediction: { metric: '', direction: 'up' },
+    scorer_version: String(def.manifest.tasks.version ?? 0),
+    task_version: def.manifest.tasks.version ?? 0,
+    truth_snapshot_id: book.tasksetSha(req.set),
+    report_rule_version: '0',
+    runtime: { timeout_s: Math.round(req.maxMinutes * 60), step_cap: req.maxTurns },
+    tasksets: { smoke: book.tasksetSha('smoke'), holdin: book.tasksetSha('holdin'), holdout: book.tasksetSha('holdout') },
+    budget: def.manifest.holdout?.budget ?? 0,
+  }
+}
+
+async function recordInLedger(ledger: LedgerSink, row: AttemptRow, challengerId: string, tier: Tier, scorerVersion: string): Promise<void> {
+  await ledger.recordAttempt(attemptRowOf(row, { challengerId, loop: row.loop, tier, scorerVersion }))
+  const truth_snapshot_id = row.truth.truth_sha ?? 'unsettled'
+  await ledger.appendScores(row.scores.map((s) => ({
+    attempt_id: row.attemptId,
+    scorer_version: scorerVersion,
+    truth_snapshot_id,
+    metric: s.metric,
+    value: s.value,
+    kind: s.kind,
+    ...(s.stratum !== undefined ? { stratum: s.stratum } : {}),
+  })))
+}
+
 export async function runSet(req: RunRequest, deps: RunDeps): Promise<RunResult> {
   const def = loadPack(req.pack)
   const book = bookOf(def)
   const runId = deps.runId ?? newRunId()
   const log = deps.log ?? (() => {})
+  const proposal = deps.ledger ? championProposal(def, book, req, deps) : undefined
+  const challengerId = deps.ledger && proposal ? await deps.ledger.propose(proposal) : undefined
   const tasks = book.tasks(req.set).slice(0, req.limit ?? undefined)
   mkdirSync(resolve(req.out, 'attempts'), { recursive: true })
   const attemptsPath = resolve(req.out, 'attempts.jsonl')
@@ -252,9 +320,10 @@ export async function runSet(req: RunRequest, deps: RunDeps): Promise<RunResult>
       if (deps.signal?.aborted) break
       const row = await runOne(def, task as TaskLine, r, req, deps, runId)
       appendFileSync(attemptsPath, JSON.stringify(row) + '\n')
+      if (deps.ledger && challengerId && proposal) await recordInLedger(deps.ledger, row, challengerId, req.set, proposal.scorer_version)
       rows.push(row)
       log(`  ${row.attemptId}: ${row.status}/${row.stopReason} valid=${row.output.valid} ${row.error ?? ''}`.trimEnd())
     }
   }
-  return { runId, pack: def.name, set: req.set, tasksetSha: book.tasksetSha(req.set), rows, attemptsPath }
+  return { runId, pack: def.name, set: req.set, tasksetSha: book.tasksetSha(req.set), ...(challengerId ? { challengerId } : {}), rows, attemptsPath }
 }

@@ -7,6 +7,8 @@ import { factsSha } from '@samsara/loops'
 import { runSet, readSubmit, submitToolName, sanitizeId, newRunId, type Loops } from '../src/run.ts'
 import { formatSummary, summarize } from '../src/summary.ts'
 import { loadPack } from '@samsara/pack'
+import { challengerId, attemptRowSchema, scoreRowSchema, type AttemptRow as LedgerAttemptRow, type ChallengerProposal, type ScoreRow } from '@samsara/ledger'
+import type { LedgerSink } from '../src/run.ts'
 
 const MINI = resolve(import.meta.dirname, '..', '..', 'pack', 'tests', 'fixtures', 'minipack')
 
@@ -102,6 +104,28 @@ describe('runSet', () => {
     expect(spec.skill.dir).toBe(resolve(spec.workdir, '.agents', 'skills', 'mini'))
     expect(existsSync(resolve(spec.workdir, '.claude', 'skills', 'mini', 'SKILL.md'))).toBe(true)
     expect(spec.prompt).toBe(readFileSync(resolve(MINI, 'skill', 'SKILL.md'), 'utf8'))
+  })
+
+  it('records the champion challenger once and every attempt + score in the ledger', async () => {
+    const out = mkdtempSync(resolve(tmpdir(), 'runner-'))
+    const proposals: ChallengerProposal[] = []
+    const attempts: LedgerAttemptRow[] = []
+    const scores: ScoreRow[] = []
+    const ledger: LedgerSink = {
+      async propose(p) { proposals.push(p); return challengerId(p) },
+      async recordAttempt(r) { attempts.push(attemptRowSchema.parse(r)); return r.id },
+      async appendScores(rows) { for (const r of rows) scores.push(scoreRowSchema.parse(r)); return rows.map((r) => r.metric) },
+    }
+    const res = await runSet(req(out, { set: 'holdin', repeat: 2 }), { loops: fakeLoops({ submit: { summary: 'done' } }), route: ROUTE, runId: 'rl', ledger })
+    expect(proposals).toHaveLength(1)
+    expect(res.challengerId).toBe(challengerId(proposals[0]!))
+    expect(proposals[0]!.harness_sha).toBe(factsSha(FACTS))
+    expect(proposals[0]!.taskset_sha).toBe(res.tasksetSha)
+    expect(proposals[0]!.route.loop).toBe('fake')
+    expect(attempts).toHaveLength(res.rows.length)
+    expect(attempts.every((a) => a.challenger_id === res.challengerId && a.tier === 'holdin')).toBe(true)
+    expect(scores).toHaveLength(res.rows.reduce((n, r) => n + r.scores.length, 0))
+    expect(scores.every((s) => s.truth_snapshot_id === res.rows[0]!.truth.truth_sha)).toBe(true)
   })
 
   it('marks a missing or contract-violating submit as output.valid=false but still scores settled truth', async () => {

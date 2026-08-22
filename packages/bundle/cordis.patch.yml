@@ -4,6 +4,42 @@
 # that the startup row provides, never from config.
 
 - insert:
+    # Storage: dsh-base mounts none, so the bundle brings the hub, the json
+    # backend and the domain facility. The ledger domain (`samsara_ledger`)
+    # lands at `<root>/samsara_ledger.json`; `root` is a literal path resolved
+    # against the cwd the host was launched from (E3: no !!js), i.e. the repo's
+    # gitignored data/ dir when running from the checkout. Override `root` in
+    # the profile's own patch layer to pin an absolute location.
+    - id: storage
+      name: '@deepseek-ai/dsh-storage'
+
+    - id: storage-json
+      name: '@deepseek-ai/dsh-storage-json'
+      inject: [storage]
+      config:
+        root: data/ledger
+
+    - id: storage-domain
+      name: '@deepseek-ai/dsh-storage-domain'
+      inject: [storage]
+      config:
+        backend: json
+        routes:
+          samsara_ledger: json
+
+    # ctx.ledger: the one control-plane record, on the samsara_ledger domain.
+    - id: ledger
+      name: '@samsara/ledger'
+      inject: [storageDomain]
+
+    # ctx.gate: the registry of gate policies; gate-default registers on it.
+    - id: gate
+      name: '@samsara/gate'
+
+    - id: gate-default
+      name: '@samsara/gate/plugin-default'
+      inject: [gate]
+
     # ctx.loops: the registry every loop provider registers on.
     - id: loops
       name: '@samsara/loops'
@@ -35,7 +71,7 @@
     # Runs the set; waits on the samsaraRun service instead of reading config.
     - id: samsara-runner
       name: '@samsara/runner'
-      inject: [samsaraRun]
+      inject: [samsaraRun, ledger]
       config:
         baseUrl: ''
         credentialRef: ''

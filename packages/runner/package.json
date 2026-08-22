@@ -26,6 +26,7 @@
   "dependencies": {
     "@samsara/book": "workspace:*",
     "@samsara/kernel": "workspace:*",
+    "@samsara/ledger": "workspace:*",
     "@samsara/loops": "workspace:*",
     "@samsara/pack": "workspace:*",
     "@samsara/submit": "workspace:*",

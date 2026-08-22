@@ -22,6 +22,12 @@ importers:
 
   packages/bundle:
     dependencies:
+      '@samsara/gate':
+        specifier: workspace:*
+        version: link:../gate
+      '@samsara/ledger':
+        specifier: workspace:*
+        version: link:../ledger
       '@samsara/loops':
         specifier: workspace:*
         version: link:../loops
@@ -166,6 +172,9 @@ importers:
       '@samsara/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@samsara/ledger':
+        specifier: workspace:*
+        version: link:../ledger
       '@samsara/loops':
         specifier: workspace:*
         version: link:../loops

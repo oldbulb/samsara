@@ -1,0 +1,13 @@
+# Re-record a replay fixture with the real model (needs the gateway credential):
+#
+#   dsh --profile host --patch tests/replay/record.overlay.yml \
+#     run --pack packs/coding-tasks --loop dsh --set smoke --limit 1 --out /tmp/samsara-record
+#   cp /tmp/samsara-record-sessions/*/*/session.jsonl tests/fixtures/replay/dsh-beer-song/session.jsonl
+#   node tests/replay/project-fixture.ts tests/fixtures/replay/dsh-beer-song/session.jsonl
+#
+# Only the persistence row changes: raw JSONL under a fixed root instead of
+# zstd frames under $DSH_HOME/sessions.
+- id: session-persistence-jsonl
+  config:
+    root: /tmp/samsara-record-sessions
+    compression: none
