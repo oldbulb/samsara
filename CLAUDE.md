@@ -2,7 +2,7 @@
 
 **一句话**：建立在 dsh 上的通用递归自改进（RSI）框架——每个改动是一个 challenger，在可处置的子 scope 里求值，只凭回路之外的真值经统计门晋升为 champion，人类 sign-off 走回路够不到的通道。**最终目标是开源发布。** pricing 只是它的一个消费者（pack），与框架不耦合。
 
-先读 `docs/design/philosophy.md`（理念与边界）、`docs/design/architecture.md`（仓库/插件/契约/约束/启动序）、`docs/design/packs.md`（两个消费者）。本文只放纪律。
+先读 `docs/design/philosophy.md`（理念与边界）、`docs/design/architecture.md`（仓库/插件/契约/约束/启动序）、`docs/design/packs.md`（两个消费者）、`docs/design/migration.md`（legacy 基建各自归位）。本文只放纪律。
 
 ## Language
 - 与用户用中文交流；代码、commit message、PR 描述、设计文档用英文；技术术语保留英文
@@ -12,7 +12,7 @@
 1. **框架不认识领域。** `packages/` 里不得出现任何表名、字段、业务词、具体指标名、中文业务术语；CI 泄露 grep 必须为空
 2. **框架与 pack 只通过 `pack.yaml` + 命令 stdout 通信。** 不跨线 import；pack 命令永远是子进程
 3. **两个 pack 同时成立。** 一个框架改动若只对 coding-tasks 或只对 pricing 有意义，先怀疑抽象错了
-4. **legacy 不是依赖。** pricing pack 可以 vendor legacy 代码实现自己的命令；legacy 的 store / runner / 原则 / CLAUDE.md 不进框架
+4. **legacy 不是依赖。** pricing pack 可以 vendor legacy 代码实现自己的命令；legacy 的 store / runner / 原则 / CLAUDE.md 不进框架。LLM proxy 由 gateway 接管，samsara 只经 base_url 使用，不实现 proxy
 5. **三个不动点在回路之外**：book（真值）、gate、signoff。回路内任何东西不能写它们；optimizer 自己可以被优化，裁判和签字权不行
 6. **dsh 只经 `packages/kernel` 进入。** 其他包不直接 import dsh 内部路径；重新 pin 是一个文件的事
 7. **`packs/pricing` 是私有内容，直接放本仓库**；开源发布时再单独考量迁移（拆 submodule / 镜像剥离）。发布前本仓库不对外

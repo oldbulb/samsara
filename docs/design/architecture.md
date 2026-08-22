@@ -29,6 +29,7 @@ samsara/
 │   ├── coding-tasks/    PUBLIC  immediate-truth pack; CI runs it; doubles as the demo
 │   └── pricing/         PRIVATE, in-repo for now; delayed-truth pack; vendors legacy code for its commands
 ├── examples/            minimal host profiles wiring one pack + one loop
+├── ops/                 pod deployment: storage layering, bootstrap, restart, archive (see docs/design/migration.md)
 ├── tests/               framework tests run against packs/coding-tasks and dsh-llm-replay fixtures
 ├── docs/design/  docs/research/
 └── data/ (gitignored)   $SAMSARA_HOME default: ledger sqlite + attempt artifacts, one dir per profile
@@ -50,7 +51,7 @@ The private pack lives in this repo while the repo is internal. Publishing is a 
 | `signoff` | `request(rowId) → pending`, `confirm(proof)`; proof = nonce signed by a key in a 0600 file / unix socket | — | HTTP endpoints are not proofs (E2) |
 | `loops` | `register(provider) → disposer`; `start(AttemptSpec) → LoopRun{events, result, cancel}` | — | provider set == enabled plugins |
 | `loops-dsh` | in-process child agent with `meta.cwd`, restricted tools, submit tool attached | `loops`, `agents`, `tools` | |
-| `loops-claude-code` | Claude SDK `query` under dsh's subprocess projection; per-attempt base_url for cost | `loops`, `subprocess` | credentials injected explicitly (E5) |
+| `loops-claude-code` | Claude SDK `query` under dsh's subprocess projection; per-attempt base_url for cost | `loops`, `subprocess` | credentials injected explicitly (E5); the LLM proxy is external (gateway), reached only via base_url |
 | `workdir` | `materialize({attemptId, claims, skill, mode}) → {path, dispose}`; `.task/token.json` 0400; `.agents/skills/<name>/` snapshot; per-attempt `TMPDIR` (E6); `tools/pre-execute` deny patterns | `tools` | |
 | `submit` | `submit_<name>` tool; optional one-shot `steer()` on turn-stopping | `tools` | schema is a hint; the host validates with the pack's contract |
 | `proposers` | `claude-p`, `codex-exec`, `human-ui`, `gepa` adapters → `Proposal` | `ledger` | external in v1; an in-host optimizer is itself a challenger surface later |
