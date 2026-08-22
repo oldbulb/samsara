@@ -25,6 +25,14 @@ export function replaceStrings(value: unknown, from: string, to: string): unknow
 }
 
 /** Raw persisted log text → projected fixture text (trailing newline). */
+/** The recorded cwd plus its /private-prefixed and -stripped spellings, longest first. */
+export function cwdSpellings(cwd: string): string[] {
+  const set = new Set<string>([cwd])
+  if (cwd.startsWith('/private/')) set.add(cwd.slice('/private'.length))
+  else set.add('/private' + cwd)
+  return [...set].sort((a, b) => b.length - a.length)
+}
+
 export function projectSessionLog(raw: string): string {
   const lines = raw.split(/\r?\n/).filter((line) => line.trim().length > 0)
   const header = JSON.parse(lines[0] ?? '') as Record<string, unknown>
@@ -38,7 +46,11 @@ export function projectSessionLog(raw: string): string {
     delete record['time']
     delete record['seq0']
     delete record['time0']
-    out.push(JSON.stringify(replaceStrings(record, cwd, CWD_TOKEN)))
+    // macOS: the header holds the logical cwd while tool arguments may carry the
+    // realpath (/private prefix) or vice versa; replace every spelling, longest first.
+    let projected: unknown = record
+    for (const spelling of cwdSpellings(cwd)) projected = replaceStrings(projected, spelling, CWD_TOKEN)
+    out.push(JSON.stringify(projected))
   }
   return out.join('\n') + '\n'
 }

@@ -86,7 +86,7 @@ function findFile(dir: string, name: string): string | undefined {
 
 describe('loops-dsh replays a recorded transcript through `dsh --profile host run`', () => {
   const tmp = mkdtempSync(join(tmpdir(), 'samsara-replay-'))
-  afterAll(() => rmSync(tmp, { recursive: true, force: true }))
+  afterAll(() => { if (process.env['SAMSARA_REPLAY_KEEP'] === undefined) rmSync(tmp, { recursive: true, force: true }) })
 
   it(`${SCENARIO}: 1 attempt, COMPLETED, valid submit, pass_rate 1, no network`, { timeout: 180_000 }, async (ctx) => {
     const dsh = findDsh()

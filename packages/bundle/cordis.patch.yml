@@ -13,19 +13,19 @@
     - id: storage
       name: '@deepseek-ai/dsh-storage'
 
-    - id: storage-json
-      name: '@deepseek-ai/dsh-storage-json'
+    - id: storage-sqlite
+      name: '@deepseek-ai/dsh-storage-sqlite'
       inject: [storage]
       config:
-        root: data/ledger
+        path: data/ledger/samsara_ledger.sqlite
 
     - id: storage-domain
       name: '@deepseek-ai/dsh-storage-domain'
       inject: [storage]
       config:
-        backend: json
+        backend: sqlite
         routes:
-          samsara_ledger: json
+          samsara_ledger: sqlite
 
     # ctx.ledger: the one control-plane record, on the samsara_ledger domain.
     - id: ledger

@@ -1,0 +1,26 @@
+# ops — local and pod deployment notes
+
+## dsh CLI install
+
+- `npm i -g @deepseek-ai/dsh@0.1.1-rc.2` (flat layout). `pnpm add -g` produces an isolated layout in which the loader cannot resolve sibling packages.
+- The CLI ships `dsh-storage`, `dsh-storage-domain` and `dsh-storage-json` but **not** `dsh-storage-sqlite`. The ledger uses sqlite (E6: single writer, WAL, backup API), so install it *into the dsh installation* — not into the profile, where a second copy of `dsh-storage`/`cordis` would shadow the CLI's own:
+
+  ```sh
+  cd "$(npm root -g)/@deepseek-ai/dsh" && npm i @deepseek-ai/dsh-storage-sqlite@0.1.1-rc.2
+  ```
+
+  Upstream candidate: ship `dsh-storage-sqlite` in the CLI's dependencies (tracked for the post-P4 PR list).
+
+## Host profile
+
+- `profiles/host` is symlinked to `~/.dsh/profiles/host`; after a fresh clone run `dsh plugin --profile host install` (links `packages/bundle` and the `@samsara/*` packages; `profiles/host/node_modules` is gitignored).
+- Credentials: `~/.dsh/.credentials.yaml` → `refs.LLM_GATEWAY_API_KEY`. Never in the repo.
+- The ledger lives at `<cwd>/data/ledger/samsara_ledger.sqlite` (cwd-relative because bundle rows are `!!js`-free); run `dsh --profile host run ...` from the repo root or pin an absolute `path` in `profiles/host/cordis.patch.yml`.
+
+## Running attempts
+
+```sh
+dsh --profile host run --pack packs/coding-tasks --loop null|dsh|claude-code --set smoke --limit 2 --out <dir>
+```
+
+`null` never calls a model. `dsh` and `claude-code` call deepseek-v4-flash through gateway; keep real runs to smoke/holdin subsets and record fixtures (`tests/replay/record.overlay.yml`) afterwards so tests stay offline.

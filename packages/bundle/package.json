@@ -17,6 +17,7 @@
     }
   },
   "dependencies": {
+    "@deepseek-ai/dsh-storage-sqlite": "0.1.1-rc.2",
     "@samsara/gate": "workspace:*",
     "@samsara/ledger": "workspace:*",
     "@samsara/loops": "workspace:*",

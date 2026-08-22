@@ -22,6 +22,9 @@ importers:
 
   packages/bundle:
     dependencies:
+      '@deepseek-ai/dsh-storage-sqlite':
+        specifier: 0.1.1-rc.2
+        version: 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))(@deepseek-ai/dsh-storage@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))
       '@samsara/gate':
         specifier: workspace:*
         version: link:../gate
@@ -455,6 +458,13 @@ packages:
 
   '@deepseek-ai/dsh-storage-json@0.1.1-rc.2':
     resolution: {integrity: sha512-UNq6yn/iCh6T1TJ+4XN1Gofam3oqqNgENxAcnajRaD8KIsryVstS7Nke+j3vLdu6MDiGjCsilxyZYtqduE+Dog==, tarball: http://registry.npmjs.org/nexus/repository/npm-public/@deepseek-ai/dsh-storage-json/-/dsh-storage-json-0.1.1-rc.2.tgz}
+    peerDependencies:
+      '@deepseek-ai/cordis': ^4.0.1
+      '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
+      '@deepseek-ai/dsh-storage': ^0.1.1-rc.2
+
+  '@deepseek-ai/dsh-storage-sqlite@0.1.1-rc.2':
+    resolution: {integrity: sha512-NsaZ/8sUhlOCJ+aJXb9vP0pQ+7A73pDzScM8HqkyjnxJbcry0rFJosFqki49GAXIgudvLvJAf3rbQXgyHHM0KA==, tarball: http://registry.npmjs.org/nexus/repository/npm-public/@deepseek-ai/dsh-storage-sqlite/-/dsh-storage-sqlite-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
@@ -1661,6 +1671,13 @@ snapshots:
       zod: 4.4.3
 
   '@deepseek-ai/dsh-storage-json@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))(@deepseek-ai/dsh-storage@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))':
+    dependencies:
+      '@deepseek-ai/cordis': 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
+      '@deepseek-ai/dsh-invariants': 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)
+      '@deepseek-ai/dsh-storage': 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))
+      '@deepseek-ai/schemastery': 3.18.1
+
+  '@deepseek-ai/dsh-storage-sqlite@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))(@deepseek-ai/dsh-storage@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))':
     dependencies:
       '@deepseek-ai/cordis': 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@deepseek-ai/dsh-invariants': 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)
