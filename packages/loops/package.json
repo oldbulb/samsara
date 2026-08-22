@@ -1,0 +1,30 @@
+{
+  "name": "@samsara/loops",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The loop-provider seam: a registry of agent loops and the AttemptSpec/LoopEvent contract every loop speaks",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./null": {
+      "types": "./lib/types/null.d.ts",
+      "default": "./lib/null.js"
+    },
+    "./plugin-null": {
+      "types": "./lib/types/plugin-null.d.ts",
+      "default": "./lib/plugin-null.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run --root ../.. packages/loops/tests"
+  },
+  "dependencies": {
+    "@samsara/kernel": "workspace:*"
+  }
+}

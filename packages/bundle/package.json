@@ -1,0 +1,25 @@
+{
+  "name": "samsara",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The samsara dsh bundle: loops registry, loop providers, and the run command over dsh-base",
+  "type": "module",
+  "exports": {
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@samsara/loops": "workspace:*",
+    "@samsara/loops-claude-code": "workspace:*",
+    "@samsara/loops-dsh": "workspace:*",
+    "@samsara/runner": "workspace:*"
+  }
+}

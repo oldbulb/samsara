@@ -1,4 +1,4 @@
-# samsara host profile — the user patch layer over dsh-base + dsh-headless.
+# samsara host profile — the user patch layer over dsh-base + the samsara bundle.
 # This file is what `dsh --profile host` boots; the champion's kept rows are
 # merged here by the champion plugin. Hand-written rows below are the fixed
 # deployment facts: the LLM route and the default model.
@@ -26,3 +26,16 @@
   config:
     provider: gateway
     model: deepseek-v4-flash
+
+# Loop provider claude-code: route the Claude Agent SDK at the same gateway
+# gateway; the credential is a reference (E5), resolved through ctx.credentials.
+- id: loops-claude-code
+  config:
+    baseUrl: http://internal.example
+    credentialRef: LLM_GATEWAY_API_KEY
+
+# The runner copies the same route facts into every AttemptSpec.
+- id: samsara-runner
+  config:
+    baseUrl: http://internal.example
+    credentialRef: LLM_GATEWAY_API_KEY

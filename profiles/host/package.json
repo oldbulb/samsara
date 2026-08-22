@@ -1,12 +1,18 @@
 {
   "name": "dsh-profile-host",
   "private": true,
-  "dependencies": {},
+  "dependencies": {
+    "@samsara/loops": "link:../../packages/loops",
+    "@samsara/loops-claude-code": "link:../../packages/loops-claude-code",
+    "@samsara/loops-dsh": "link:../../packages/loops-dsh",
+    "@samsara/runner": "link:../../packages/runner",
+    "samsara": "link:../../packages/bundle"
+  },
   "dsh": {
     "profile": {
       "bundles": [
         "@deepseek-ai/dsh-base",
-        "@deepseek-ai/dsh-headless"
+        "samsara"
       ]
     }
   }

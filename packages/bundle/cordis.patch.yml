@@ -1,0 +1,41 @@
+# The samsara bundle patch: layered over @deepseek-ai/dsh-base by
+# `profiles/host/package.json` (dsh.profile.bundles). Every row is plain data
+# (E3: no !!js); the runner reads its request from the `samsaraRun` service
+# that the startup row provides, never from config.
+
+- insert:
+    # ctx.loops: the registry every loop provider registers on.
+    - id: loops
+      name: '@samsara/loops'
+
+    # The null loop: a provider that finishes at once without an LLM; smoke tests the seam.
+    - id: loops-null
+      name: '@samsara/loops/plugin-null'
+      inject: [loops]
+
+    # In-process dsh child agent.
+    - id: loops-dsh
+      name: '@samsara/loops-dsh'
+      inject: [loops]
+
+    # Claude Agent SDK under the kernel's subprocess projection. The credential
+    # is a reference resolved through ctx.credentials (E5); the base URL is the
+    # external LLM proxy. Override both in the profile's own patch layer.
+    - id: loops-claude-code
+      name: '@samsara/loops-claude-code'
+      inject: [loops]
+      config:
+        baseUrl: ''
+        credentialRef: ''
+
+    # Parses `dsh --profile host run ...` and provides ctx.samsaraRun.
+    - id: samsara-run-startup
+      name: '@samsara/runner/startup'
+
+    # Runs the set; waits on the samsaraRun service instead of reading config.
+    - id: samsara-runner
+      name: '@samsara/runner'
+      inject: [samsaraRun]
+      config:
+        baseUrl: ''
+        credentialRef: ''

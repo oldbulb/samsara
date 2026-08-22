@@ -3,6 +3,12 @@
   "references": [
     { "path": "packages/kernel" },
     { "path": "packages/pack" },
-    { "path": "packages/book" }
+    { "path": "packages/book" },
+    { "path": "packages/loops" },
+    { "path": "packages/submit" },
+    { "path": "packages/workdir" },
+    { "path": "packages/loops-dsh" },
+    { "path": "packages/loops-claude-code" },
+    { "path": "packages/runner" }
   ]
 }

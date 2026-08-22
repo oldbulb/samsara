@@ -1,0 +1,112 @@
+// @samsara/loops — the seam types, verbatim from docs/design/loops.md.
+//
+// A loop runs one attempt of one task under one configuration. The framework
+// never talks to a loop except through these shapes.
+
+import { createHash } from 'node:crypto'
+
+export interface AttemptSpec {
+  attemptId: string
+  challengerId: string
+  workdir: string
+  skill: { name: string; dir: string; sha: string }
+  prompt: string
+  route: { provider: string; model: string; baseUrl?: string; credentialRef: string; reasoning?: Record<string, unknown> }
+  outputSchema: object
+  tools: { allow: string[]; deny: string[]; submitTool: { name: string; schema: object } }
+  limits: { maxTurns: number; maxDurationMs: number; maxBudgetUsd?: number; maxOutputTokens?: number }
+  env?: Record<string, string>
+  tmpdir: string
+  signal: AbortSignal
+}
+
+export interface TokenUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+  reasoningTokens?: number
+}
+
+export interface Artifact {
+  kind: 'transcript-native' | 'transcript-normalized' | 'stdout' | 'stderr' | 'workdir-diff'
+  path: string
+  sha256: string
+}
+
+export type FinishStatus = 'COMPLETED' | 'TRUNCATED' | 'ABORTED' | 'FAILED'
+export type StopReason = 'completed' | 'aborted' | 'timeout' | 'max_turns' | 'budget' | 'schema_failed' | 'error'
+export type CostSource = 'self-reported' | 'price-table' | 'proxy' | 'unknown'
+
+export type LoopEvent =
+  | { t: 'started'; at: number; native: { kind: string; id: string; pid?: number } }
+  | { t: 'system_prompt'; at: number; sha256: string; bytes: number; tools: string[] }
+  | { t: 'tool_call'; at: number; callId: string; name: string; argsSha256: string; argsBytes: number; argsPreview?: string }
+  | { t: 'tool_result'; at: number; callId: string; isError: boolean; bytes: number; durationMs?: number }
+  | { t: 'assistant'; at: number; turn: number; textBytes: number; usage?: TokenUsage }
+  | { t: 'output'; at: number; structured?: unknown; text: string; source: 'native-schema' | 'submit-tool' | 'parsed-text' }
+  | {
+      t: 'finished'
+      at: number
+      status: FinishStatus
+      stopReason: StopReason
+      usage: TokenUsage
+      cost: { usd?: number; source: CostSource }
+      turns: number
+      toolCalls: number
+      artifacts: Artifact[]
+    }
+
+export type FinishedEvent = Extract<LoopEvent, { t: 'finished' }>
+
+export interface LoopRun {
+  readonly id: string
+  readonly events: AsyncIterable<LoopEvent>
+  readonly result: Promise<FinishedEvent>
+  cancel(reason: string): void
+  dispose(): Promise<void>
+}
+
+export interface HarnessFacts {
+  systemPromptMode: string
+  skillDelivery: 'agents-skills-dir' | 'plugin-slash' | 'prompt-inline'
+  schemaEnforcement: 'scoped-tool+retry' | 'cli-validator+retry' | 'provider-strict' | 'permissive-tool'
+  permission: string
+  reasoning: Record<string, unknown>
+  version: { loop: string; sdk?: string }
+}
+
+export interface LoopCapabilities {
+  perAttemptBaseUrl: boolean
+  perAttemptEnv: boolean
+  nativeSchema: 'none' | 'tool' | 'validator'
+  toolFilter: boolean
+  nativeMaxTurns: boolean
+}
+
+export interface LoopProvider {
+  readonly name: string
+  readonly harnessFacts: HarnessFacts
+  readonly capabilities: LoopCapabilities
+  start(spec: AttemptSpec): Promise<LoopRun>
+}
+
+// ---------------------------------------------------------------- factsSha
+
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical)
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+      const v = (value as Record<string, unknown>)[key]
+      if (v !== undefined) out[key] = canonical(v)
+    }
+    return out
+  }
+  return value
+}
+
+/** sha256 of the canonical JSON (sorted keys, undefined dropped) of a provider's harness facts. */
+export function factsSha(facts: HarnessFacts): string {
+  return createHash('sha256').update(JSON.stringify(canonical(facts))).digest('hex')
+}

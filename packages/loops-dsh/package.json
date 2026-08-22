@@ -1,0 +1,24 @@
+{
+  "name": "@samsara/loops-dsh",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Loop provider 'dsh': one attempt as an in-process dsh child agent with restricted tools, a submit tool and hard limits",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run --root ../.. packages/loops-dsh/tests"
+  },
+  "dependencies": {
+    "@samsara/kernel": "workspace:*",
+    "@samsara/loops": "workspace:*",
+    "@samsara/submit": "workspace:*"
+  }
+}

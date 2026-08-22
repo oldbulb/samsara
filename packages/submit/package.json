@@ -1,0 +1,23 @@
+{
+  "name": "@samsara/submit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The submit tool: an attempt finishes by recording one schema-validated value into its workdir",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run --root ../.. packages/submit/tests"
+  },
+  "dependencies": {
+    "@samsara/kernel": "workspace:*",
+    "ajv": "8.20.0"
+  }
+}
