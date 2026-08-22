@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "submit_fix.json",
+  "type": "object",
+  "required": ["summary", "files_changed", "confidence"],
+  "additionalProperties": false,
+  "properties": {
+    "summary": { "type": "string", "minLength": 1 },
+    "files_changed": { "type": "array", "items": { "type": "string" } },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

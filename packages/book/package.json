@@ -1,0 +1,19 @@
+{
+  "name": "@samsara/book",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The book: task sets, truth settlement, holdout visibility and budget — a fixed point outside the loop",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run"
+  }
+}

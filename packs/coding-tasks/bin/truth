@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""stdin {task_id, workdir} -> stdout {task_id, status, truth, truth_sha}.
+
+Restores pristine tests over the workdir, runs pytest / jest (180 s), counts.
+"""
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _lib import PACK, emit, fixture_of, python_bin, read_lines, restore_tests, run, truth_sha  # noqa: E402
+
+JEST = PACK / "runtime" / "js" / "node_modules" / "jest" / "bin" / "jest.js"
+
+
+def run_python(workdir):
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    code, out, err = run([python_bin(), "-m", "pytest", "-q", "-p", "no:cacheprovider", "--color=no"], workdir, env)
+    counts = {k: 0 for k in ("passed", "failed", "error", "errors")}
+    for n, word in re.findall(r"(\d+) (passed|failed|errors?)\b", out):
+        counts[word] = int(n)
+    failed = counts["failed"] + counts["error"] + counts["errors"]
+    passed = counts["passed"]
+    if code != 0 and passed + failed == 0:
+        failed = 1  # collection blew up: the stub is not even importable
+    return passed, failed, code
+
+
+def run_js(workdir):
+    env = {**os.environ, "CI": "1"}
+    code, out, err = run(["node", str(JEST), "--ci", "--json", "--silent", "./*"], workdir, env)
+    passed = failed = 0
+    try:
+        rep = json.loads(out.strip().splitlines()[-1])
+        passed = rep.get("numPassedTests", 0)
+        failed = rep.get("numFailedTests", 0) + rep.get("numRuntimeErrorTestSuites", 0)
+    except (ValueError, IndexError):
+        failed = 1
+    if code != 0 and passed + failed == 0:
+        failed = 1
+    return passed, failed, code
+
+
+for line in read_lines():
+    task_id, workdir = line["task_id"], Path(line["workdir"])
+    lang, fixture = fixture_of(task_id)
+    restore_tests(fixture, workdir)
+    passed, failed, code = (run_python if lang == "python" else run_js)(workdir)
+    emit({
+        "task_id": task_id,
+        "status": "settled",
+        "truth": {"passed": passed, "failed": failed, "total": passed + failed, "exit_code": code},
+        "truth_sha": truth_sha(fixture),
+    })

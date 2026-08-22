@@ -1,0 +1,31 @@
+{
+  "name": "@samsara/pack",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pack loader and command runner: pack.yaml in, validated jsonl out; packs are subprocesses, never imports",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "bin": {
+    "samsara-pack": "./lib/cli.js"
+  },
+  "files": [
+    "lib",
+    "schema"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run --root ../.. packages/pack/tests"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "yaml": "2.9.0"
+  }
+}

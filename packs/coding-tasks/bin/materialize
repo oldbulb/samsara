@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""stdin {task_id, workdir} -> stdout {task_id, ok, files[]}. Never copies .meta/."""
+import os
+import shutil
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _lib import PACK, emit, fixture_of, install_test, meta_files, read_lines  # noqa: E402
+
+JS_RUNTIME = PACK / "runtime" / "js" / "node_modules"
+
+for line in read_lines():
+    task_id, workdir = line["task_id"], Path(line["workdir"])
+    lang, fixture = fixture_of(task_id)
+    files = meta_files(fixture)
+    workdir.mkdir(parents=True, exist_ok=True)
+    copied = []
+    for name in sorted(files["solution"]):
+        dst = workdir / name
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(fixture / name, dst)
+        copied.append(name)
+    for name in sorted(files["test"]):
+        install_test(fixture, name, workdir)
+        copied.append(name)
+    # support files the tests read (e.g. a data/ directory): everything else
+    # at the top level except .meta/, .docs/, dotfiles and LICENSE
+    for entry in sorted(fixture.iterdir()):
+        if entry.name.startswith(".") or entry.name in ("LICENSE", "node_modules", "package.json", "babel.config.js") or entry.name in copied:
+            continue
+        if entry.is_dir():
+            shutil.copytree(entry, workdir / entry.name, dirs_exist_ok=True)
+        else:
+            shutil.copy2(entry, workdir / entry.name)
+        copied.append(entry.name)
+    doc = fixture / ".docs" / "instructions.md"
+    if doc.exists():
+        shutil.copy2(doc, workdir / "INSTRUCTIONS.md")
+        copied.append("INSTRUCTIONS.md")
+    if lang == "javascript":
+        for name in ("package.json", "babel.config.js"):
+            if (fixture / name).exists():
+                shutil.copy2(fixture / name, workdir / name)
+                copied.append(name)
+        link = workdir / "node_modules"
+        if link.is_symlink() or link.exists():
+            if link.is_symlink():
+                link.unlink()
+            else:
+                shutil.rmtree(link)
+        os.symlink(JS_RUNTIME, link)
+        copied.append("node_modules")
+    emit({"task_id": task_id, "ok": True, "files": copied})

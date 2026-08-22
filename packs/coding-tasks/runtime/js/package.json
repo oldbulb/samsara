@@ -1,0 +1,12 @@
+{
+  "name": "coding-tasks-js-runtime",
+  "private": true,
+  "description": "Shared jest/babel install symlinked into JS workdirs as node_modules",
+  "devDependencies": {
+    "@babel/core": "7.26.0",
+    "@exercism/babel-preset-javascript": "0.2.1",
+    "babel-jest": "29.7.0",
+    "core-js": "3.37.1",
+    "jest": "29.7.0"
+  }
+}

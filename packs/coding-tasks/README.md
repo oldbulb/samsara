@@ -23,7 +23,7 @@ tools/import_polyglot.py             # regenerates fixtures/ and tasks/ from a p
 ```
 
 - `task_id` = `<lang>/<exercise>`; `entity_key` = exercise name (the same exercise in two languages is one entity, so holdout is disjoint by exercise); `stratum` = language.
-- Split: deterministic by sha256(entity_key): smoke 8 / holdin ~45 / holdout ~30 over 83 tasks (py 34 + js 49).
+- Split: deterministic by sha256(entity_key): smoke 8 / holdin ~45 / holdout ~30 over 82 tasks (py 34 + js 48; javascript/ledger excluded: its stub already passes).
 
 ## Commands (all read jsonl on stdin, write jsonl on stdout, exit 0 unless the pack itself is broken)
 

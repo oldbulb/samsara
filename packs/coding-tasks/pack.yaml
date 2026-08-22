@@ -1,0 +1,20 @@
+name: coding-tasks
+truth_latency: immediate
+skill: { dir: skill/, name: fix-tests }
+contract: contract.schema.json
+tasks:
+  sets: { smoke: tasks/smoke.jsonl, holdin: tasks/holdin.jsonl, holdout: tasks/holdout.jsonl }
+  entity_key: entity_key
+  version: 1
+  stratum_key: stratum
+holdout:
+  mde: 0.05
+  budget: 8
+surfaces:
+  skill: { globs: ["skill/**"] }
+commands:
+  truth: ./bin/truth
+  score: ./bin/score
+  materialize: ./bin/materialize
+guards:
+  deny_patterns: ["--as-of"]

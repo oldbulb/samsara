@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+"""stdin {task_id, truth, output} -> stdout jsonl pass_rate / cost_usd / tool_calls."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _lib import emit, read_lines  # noqa: E402
+
+for line in read_lines():
+    task_id = line["task_id"]
+    stratum = task_id.split("/", 1)[0]
+    truth = line.get("truth") or {}
+    output = line.get("output") or {}
+    usage = output.get("usage") or {}
+    total = truth.get("total") or 0
+    pass_rate = (truth.get("passed", 0) / total) if total else 0.0
+    row = lambda metric, value, kind: emit(  # noqa: E731
+        {"task_id": task_id, "metric": metric, "value": float(value), "kind": kind, "stratum": stratum})
+    row("pass_rate", pass_rate, "reality")
+    row("cost_usd", usage.get("cost_usd") or 0.0, "mechanical")
+    row("tool_calls", output.get("tool_calls") or 0, "mechanical")

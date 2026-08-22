@@ -1,0 +1,8 @@
+{"task_id": "python/beer-song", "entity_key": "beer-song", "stratum": "python", "lang": "python", "exercise": "beer-song", "fixture": "fixtures/python/beer-song"}
+{"task_id": "python/scale-generator", "entity_key": "scale-generator", "stratum": "python", "lang": "python", "exercise": "scale-generator", "fixture": "fixtures/python/scale-generator"}
+{"task_id": "python/two-bucket", "entity_key": "two-bucket", "stratum": "python", "lang": "python", "exercise": "two-bucket", "fixture": "fixtures/python/two-bucket"}
+{"task_id": "javascript/beer-song", "entity_key": "beer-song", "stratum": "javascript", "lang": "javascript", "exercise": "beer-song", "fixture": "fixtures/javascript/beer-song"}
+{"task_id": "javascript/complex-numbers", "entity_key": "complex-numbers", "stratum": "javascript", "lang": "javascript", "exercise": "complex-numbers", "fixture": "fixtures/javascript/complex-numbers"}
+{"task_id": "javascript/scale-generator", "entity_key": "scale-generator", "stratum": "javascript", "lang": "javascript", "exercise": "scale-generator", "fixture": "fixtures/javascript/scale-generator"}
+{"task_id": "javascript/triangle", "entity_key": "triangle", "stratum": "javascript", "lang": "javascript", "exercise": "triangle", "fixture": "fixtures/javascript/triangle"}
+{"task_id": "javascript/two-bucket", "entity_key": "two-bucket", "stratum": "javascript", "lang": "javascript", "exercise": "two-bucket", "fixture": "fixtures/javascript/two-bucket"}
