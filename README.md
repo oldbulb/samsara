@@ -14,7 +14,7 @@
 
 要领先的三件事：**holdout 记账**（Thresholdout/Ladder 在 agent 优化回路的首次工程化）、**延迟真值上的自动回路**、**活的 champion**（真值/scorer/模型/任务集变更 = 事件，沿祖先重打分并可降级）。在已有先例上闭环的三件事：surface 归因回馈 proposer、固定门下可撤销的跨 harness skill 认证、带采纳与结算标签的训练出口。完整论证与证据：`docs/design/philosophy.md`、`docs/research/vision-calibration-2026-08-23.md`。
 
-> 状态：M0、M1 已完成（见下方清单与启动序），M2 进行中。设计见 `docs/design/`。
+> 状态（2026-08-23）：M0–M5 已实现并提交——两条 loop（dsh、Claude Code）在 Aider Polyglot 上跑通，gate-default / ledger(sqlite) / scope / signoff / champion / proposer 全链路在 null loop 上端到端验证。设计见 `docs/design/`，运行方式见下文"怎么跑"与 `ops/README.md`。
 
 ## 先读什么
 
@@ -84,7 +84,42 @@ data/                $SAMSARA_HOME（gitignored）：ledger sqlite + attempt 产
 
 P0（= M0）已全部完成；`dsh` 经 `npm i -g @deepseek-ai/dsh@0.1.1-rc.2` 安装（pnpm -g 的隔离布局会让 loader 解析不到兄弟包）。
 
-## 启动序
+## 怎么跑
+
+```sh
+export PATH=/Users/dxm/Library/pnpm/bin:$PATH
+pnpm install && pnpm build && pnpm test                 # 28 files / 204 tests，全部离线
+dsh plugin --profile host install                       # 首次：把 packages/bundle 链接进 host profile
+dsh --profile host --dump-config | grep samsara         # 合成配置里应有 samsara 的行
+
+# 跑 attempts（null 不调模型；dsh / claude-code 经 gateway 调 deepseek-v4-flash）
+dsh --profile host run --pack packs/coding-tasks --loop null --set smoke --limit 2 --out data/runs/x
+# 一个 challenger 走完整链路：diff scan → scope → attempts → gate → ledger
+dsh --profile host challenge --pack packs/coding-tasks --loop null --set holdin --limit 2 \
+    --surface skill --skill-dir <dir> --intent "..." --metric pass_rate --with-champion
+# 一轮：proposer 出提案 → 同上
+dsh --profile host round --pack packs/coding-tasks --loop dsh --proposer claude-p --set smoke --limit 2 --metric pass_rate --with-champion
+# 晋升需要签字（unix socket + Ed25519，HTTP 不算证明）
+node packages/signoff/lib/cli.js keygen --out data/signoff
+dsh --profile host promote <challengerId> --wait 60 &
+node packages/signoff/lib/cli.js confirm --socket data/signoff.sock --key data/signoff/signoff.key --row <challengerId> --action promote --who <name>
+dsh --profile host demote <challengerId> --reason "..."
+```
+
+## 里程碑（实际执行顺序）
+
+| 里程碑 | 内容 | 状态 |
+|---|---|---|
+| M0 | workspace、kernel、schema、host profile ↔ gateway、可行性/配置键/成本三份 note | ✅ |
+| M1 | `packs/coding-tasks`（Polyglot py+js 82 题）、`@samsara/pack`、`@samsara/book` | ✅ |
+| M2 | loops seam + null、workdir、submit、loops-dsh、loops-claude-code、runner；两条 loop smoke 8/8；replay 离线测试 | ✅ |
+| M3 | gate-default（BCa/Holm/MDE/Ladder + 策略定义模拟）、ledger on sqlite、runner 写 ledger | ✅ |
+| M4 | scope（E1/E8 diff scan）、signoff（E2）、champion（E7）、`challenge/promote/demote/serve` | ✅ |
+| M5 | proposers（claude-p / human）、proposer 视图、`round`、champion skill 默认 | ✅（真实 `claude -p` 一轮待确认） |
+
+已知局限：deepseek-v4-flash 在 Python/JS Exercism 上 pass_rate 恒为 1.0（噪声底 sd=0，`docs/design/notes/noise-floor-2026-08-23.md`），阳性对照晋升需要更难任务（更多 Polyglot 语言 / SWE-smith）；live tier（mSPRT）未实现；pricing pack、UI 未开始。
+
+## 启动序（设计文档中的 P 序，供对照）
 
 | 步 | 做什么 | 可观测门 |
 |---|---|---|
