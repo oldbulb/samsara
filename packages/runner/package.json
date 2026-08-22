@@ -11,6 +11,10 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./challenge": {
+      "types": "./lib/types/challenge.d.ts",
+      "default": "./lib/challenge.js"
+    },
     "./startup": {
       "types": "./lib/types/startup.d.ts",
       "default": "./lib/startup.js"
@@ -25,10 +29,14 @@
   },
   "dependencies": {
     "@samsara/book": "workspace:*",
+    "@samsara/champion": "workspace:*",
+    "@samsara/gate": "workspace:*",
     "@samsara/kernel": "workspace:*",
     "@samsara/ledger": "workspace:*",
     "@samsara/loops": "workspace:*",
     "@samsara/pack": "workspace:*",
+    "@samsara/scope": "workspace:*",
+    "@samsara/signoff": "workspace:*",
     "@samsara/submit": "workspace:*",
     "@samsara/workdir": "workspace:*"
   }

@@ -64,6 +64,26 @@
         baseUrl: ''
         credentialRef: ''
 
+    # ctx.scopes: disposable child scopes for challengers (E1: in-memory loader rows only).
+    - id: scopes
+      name: '@samsara/scope'
+
+    # ctx.signoff: the consent channel (E2). Literal paths resolved against the
+    # launch cwd; generate the key with `samsara-signoff keygen --out data/signoff`.
+    - id: signoff
+      name: '@samsara/signoff'
+      config:
+        socketPath: data/signoff.sock
+        publicKeyPath: data/signoff/signoff.pub
+
+    # ctx.champion: owns the generated section of profiles/host/cordis.patch.yml.
+    - id: champion
+      name: '@samsara/champion'
+      inject: [ledger, signoff]
+      config:
+        profileDir: profiles/host
+        skillStore: data/skills
+
     # Parses `dsh --profile host run ...` and provides ctx.samsaraRun.
     - id: samsara-run-startup
       name: '@samsara/runner/startup'

@@ -1,4 +1,4 @@
-// samsara-run-startup: parse `dsh --profile host run ...` and publish the
+// samsara-run-startup: parse `dsh --profile host <command> ...` and publish the
 // parsed values as the ordinary cordis service `samsaraRun`. Modelled on
 // @deepseek-ai/dsh-headless/startup: the runner plugin injects the service,
 // so nothing runs on --help or on a usage error.
@@ -6,14 +6,31 @@
 import { Command, parseCmdline, type Context } from '@samsara/kernel'
 import { TASK_SETS, type TaskSet } from '@samsara/book'
 import type { RunRequest } from './run.ts'
+import type { ChallengeRequest, GatePolicyName } from './challenge.ts'
 
 export const name = 'samsara-run-startup'
 export const inject = ['cmdlineArgs']
 export const SAMSARA_RUN_SERVICE = 'samsaraRun'
 
-export type SamsaraRunValues = RunRequest
+export interface PromoteRequest {
+  challengerId: string
+  /** Seconds to wait for a sign-off over the socket when the ledger holds no consent yet. */
+  wait?: number
+}
 
-export const DEFAULTS = { repeat: 1, out: 'data/runs', maxTurns: 50, maxMinutes: 20 } as const
+export interface DemoteRequest {
+  challengerId: string
+  reason: string
+}
+
+export type SamsaraRunValues =
+  | ({ command: 'run' } & RunRequest)
+  | ({ command: 'challenge' } & ChallengeRequest)
+  | ({ command: 'promote' } & PromoteRequest)
+  | ({ command: 'demote' } & DemoteRequest)
+  | { command: 'serve' }
+
+export const DEFAULTS = { repeat: 1, out: 'data/runs', maxTurns: 50, maxMinutes: 20, nEffFloor: 3 } as const
 
 function int(label: string) {
   return (v: string): number => {
@@ -40,15 +57,16 @@ function list(v: string): string[] {
   return v.split(',').map((s) => s.trim()).filter(Boolean)
 }
 
-/** Build the program; `onRun` receives the parsed values. Fresh per call so tests can parse repeatedly. */
-export function runProgram(onRun: (values: SamsaraRunValues) => void): Command {
-  const program = new Command()
-    .name('dsh --profile host')
-    .description('samsara host: run a pack task set through a loop as champion attempts.')
-    .helpOption('-h, --help', 'show this help')
-  program
-    .command('run')
-    .description('run every task of one set (× repeat) and write <out>/attempts.jsonl')
+const GATE_POLICIES: readonly GatePolicyName[] = ['default', 'permissive']
+
+function gatePolicyName(v: string): GatePolicyName {
+  if (!(GATE_POLICIES as readonly string[]).includes(v)) throw new Error(`--gate-policy must be one of ${GATE_POLICIES.join('|')}, got ${v}`)
+  return v as GatePolicyName
+}
+
+/** The options `run` and `challenge` share. */
+function withRunOptions(cmd: Command): Command {
+  return cmd
     .requiredOption('--pack <dir>', 'pack directory containing pack.yaml')
     .requiredOption('--loop <name>', 'loop provider name (as registered on ctx.loops)')
     .requiredOption('--set <smoke|holdin|holdout>', 'task set', set)
@@ -58,25 +76,98 @@ export function runProgram(onRun: (values: SamsaraRunValues) => void): Command {
     .option('--max-turns <n>', 'per-attempt turn limit', int('--max-turns'), DEFAULTS.maxTurns)
     .option('--max-minutes <m>', 'per-attempt wall-clock limit', num('--max-minutes'), DEFAULTS.maxMinutes)
     .option('--allow <tools>', 'comma-separated tool allowlist (default: provider default)', list)
+}
+
+function runRequestOf(opts: Record<string, unknown>): RunRequest {
+  return {
+    pack: opts['pack'] as string,
+    loop: opts['loop'] as string,
+    set: opts['set'] as TaskSet,
+    repeat: opts['repeat'] as number,
+    out: opts['out'] as string,
+    maxTurns: opts['maxTurns'] as number,
+    maxMinutes: opts['maxMinutes'] as number,
+    ...(opts['limit'] !== undefined ? { limit: opts['limit'] as number } : {}),
+    ...(opts['allow'] !== undefined ? { allow: opts['allow'] as string[] } : {}),
+  }
+}
+
+/** Build the program; `onRun` receives the parsed values. Fresh per call so tests can parse repeatedly. */
+export function runProgram(onRun: (values: SamsaraRunValues) => void): Command {
+  const program = new Command()
+    .name('dsh --profile host')
+    .description('samsara host: run a pack task set through a loop as champion attempts; evaluate, promote and demote challengers.')
+    .helpOption('-h, --help', 'show this help')
+  const checkRepeat = (values: RunRequest) => {
+    if (values.repeat < 1) program.error('error: --repeat must be >= 1')
+  }
+
+  withRunOptions(program.command('run'))
+    .description('run every task of one set (× repeat) and write <out>/attempts.jsonl')
     .addHelpText('after', `
 Examples:
   dsh --profile host run --pack packs/<name> --loop dsh --set smoke --limit 2
 `)
     .action((opts: Record<string, unknown>) => {
-      const values: SamsaraRunValues = {
-        pack: opts['pack'] as string,
-        loop: opts['loop'] as string,
-        set: opts['set'] as TaskSet,
-        repeat: opts['repeat'] as number,
-        out: opts['out'] as string,
-        maxTurns: opts['maxTurns'] as number,
-        maxMinutes: opts['maxMinutes'] as number,
-        ...(opts['limit'] !== undefined ? { limit: opts['limit'] as number } : {}),
-        ...(opts['allow'] !== undefined ? { allow: opts['allow'] as string[] } : {}),
-      }
-      if (values.repeat < 1) program.error('error: --repeat must be >= 1')
-      onRun(values)
+      const values = runRequestOf(opts)
+      checkRepeat(values)
+      onRun({ command: 'run', ...values })
     })
+
+  withRunOptions(program.command('challenge'))
+    .description('propose a challenger, diff-scan it, run it in a scope, judge it against the champion on the same tasks')
+    .requiredOption('--surface <name>', 'the one surface the patch touches (v1: skill)')
+    .requiredOption('--skill-dir <dir>', 'the challenger skill snapshot directory')
+    .requiredOption('--intent <text>', 'what the patch is meant to change')
+    .requiredOption('--metric <name>', 'primary metric of kind reality the gate decides on')
+    .option('--n-eff-floor <n>', 'minimum distinct entities with paired data (S2)', int('--n-eff-floor'), DEFAULTS.nEffFloor)
+    .option('--with-champion', 'also run the champion on the same tasks in this command', false)
+    .option('--gate-policy <default|permissive>', 'TEST ONLY: permissive always promotes (recorded as gate-permissive@test)', gatePolicyName, 'default')
+    .addHelpText('after', `
+Examples:
+  dsh --profile host challenge --pack packs/<name> --loop null --set smoke --limit 2 \\
+    --surface skill --skill-dir /tmp/skill --intent "shorter instructions" --metric <metric> --with-champion
+`)
+    .action((opts: Record<string, unknown>) => {
+      const values = runRequestOf(opts)
+      checkRepeat(values)
+      if (opts['surface'] !== 'skill') program.error(`error: --surface ${String(opts['surface'])} is not a v1 challenger surface (only skill)`)
+      onRun({
+        command: 'challenge',
+        ...values,
+        surface: 'skill',
+        skillDir: opts['skillDir'] as string,
+        intent: opts['intent'] as string,
+        metric: opts['metric'] as string,
+        nEffFloor: opts['nEffFloor'] as number,
+        withChampion: opts['withChampion'] as boolean,
+        gatePolicy: opts['gatePolicy'] as GatePolicyName,
+      })
+    })
+
+  program
+    .command('promote')
+    .description('promote a judged challenger with the latest promote consent on the ledger')
+    .argument('<challengerId>', 'challenger row id')
+    .option('--wait <seconds>', 'open a sign-off and wait this long for a proof over the socket', num('--wait'))
+    .action((challengerId: string, opts: Record<string, unknown>) => {
+      onRun({ command: 'promote', challengerId, ...(opts['wait'] !== undefined ? { wait: opts['wait'] as number } : {}) })
+    })
+
+  program
+    .command('demote')
+    .description('remove a kept challenger from the champion')
+    .argument('<challengerId>', 'challenger row id')
+    .requiredOption('--reason <text>', 'why')
+    .action((challengerId: string, opts: Record<string, unknown>) => {
+      onRun({ command: 'demote', challengerId, reason: opts['reason'] as string })
+    })
+
+  program
+    .command('serve')
+    .description('keep the host alive (sign-off socket open, consents recorded) until SIGTERM/SIGINT')
+    .action(() => { onRun({ command: 'serve' }) })
+
   return program
 }
 

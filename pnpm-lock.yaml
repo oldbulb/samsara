@@ -44,6 +44,21 @@ importers:
         specifier: workspace:*
         version: link:../runner
 
+  packages/champion:
+    dependencies:
+      '@samsara/gate':
+        specifier: workspace:*
+        version: link:../gate
+      '@samsara/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@samsara/ledger':
+        specifier: workspace:*
+        version: link:../ledger
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
+
   packages/gate:
     dependencies:
       '@samsara/kernel':
@@ -172,6 +187,12 @@ importers:
       '@samsara/book':
         specifier: workspace:*
         version: link:../book
+      '@samsara/champion':
+        specifier: workspace:*
+        version: link:../champion
+      '@samsara/gate':
+        specifier: workspace:*
+        version: link:../gate
       '@samsara/kernel':
         specifier: workspace:*
         version: link:../kernel
@@ -184,12 +205,33 @@ importers:
       '@samsara/pack':
         specifier: workspace:*
         version: link:../pack
+      '@samsara/scope':
+        specifier: workspace:*
+        version: link:../scope
+      '@samsara/signoff':
+        specifier: workspace:*
+        version: link:../signoff
       '@samsara/submit':
         specifier: workspace:*
         version: link:../submit
       '@samsara/workdir':
         specifier: workspace:*
         version: link:../workdir
+
+  packages/scope:
+    dependencies:
+      '@samsara/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@samsara/workdir':
+        specifier: workspace:*
+        version: link:../workdir
+
+  packages/signoff:
+    dependencies:
+      '@samsara/kernel':
+        specifier: workspace:*
+        version: link:../kernel
 
   packages/submit:
     dependencies:

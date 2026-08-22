@@ -11,6 +11,9 @@
     { "path": "packages/loops-claude-code" },
     { "path": "packages/runner" },
     { "path": "packages/gate" },
-    { "path": "packages/ledger" }
+    { "path": "packages/ledger" },
+    { "path": "packages/scope" },
+    { "path": "packages/signoff" },
+    { "path": "packages/champion" }
   ]
 }

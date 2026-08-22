@@ -33,6 +33,8 @@ export interface RunRequest {
   maxTurns: number
   maxMinutes: number
   allow?: string[]
+  /** Skill directory to run instead of the pack's (a challenger's snapshot). */
+  skillDir?: string
 }
 
 export interface RouteConfig {
@@ -50,6 +52,8 @@ export interface RunDeps {
   materialize?: Materialize
   /** When present, every attempt and its scores are also recorded under a champion challenger row. */
   ledger?: LedgerSink
+  /** Record attempts under this existing challenger row instead of proposing the champion row. */
+  challengerId?: string
   signal?: AbortSignal
   /** Injected for deterministic ids in tests. */
   runId?: string
@@ -133,7 +137,7 @@ export function readSubmit(def: PackDefinition, workdir: string): SubmitRead {
   return { valid: true, file, submit }
 }
 
-function bookOf(def: PackDefinition): Book {
+export function bookOf(def: PackDefinition): Book {
   return createBook({
     sets: { smoke: def.taskSets.smoke.tasks, holdin: def.taskSets.holdin.tasks, holdout: def.taskSets.holdout.tasks },
     entityKey: 'entity_key',
@@ -162,6 +166,8 @@ function msg(e: unknown): string {
 async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRequest, deps: RunDeps, runId: string): Promise<AttemptRow> {
   const attemptId = `${runId}-${sanitizeId(task.task_id)}-${r}`
   const attemptsDir = resolve(req.out, 'attempts')
+  const skillDir = req.skillDir ?? def.skillDir
+  const challengerId = deps.challengerId ?? 'champion'
   const provider = deps.loops.get(req.loop)
   const facts_sha = provider ? factsSha(provider.harnessFacts) : ''
   const row: AttemptRow = {
@@ -174,8 +180,8 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
   let wd: Workdir
   try {
     wd = await (deps.materialize ?? materializeWorkdir)({
-      attemptId, taskId: task.task_id, challengerId: 'champion', pack: def, baseDir: attemptsDir,
-      skill: { name: def.manifest.skill.name, dir: def.skillDir },
+      attemptId, taskId: task.task_id, challengerId, pack: def, baseDir: attemptsDir,
+      skill: { name: def.manifest.skill.name, dir: skillDir },
       extraSkillDirs: ['.claude/skills'],
     })
   } catch (e) {
@@ -187,9 +193,9 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
   const onAbort = () => controller.abort(deps.signal?.reason)
   deps.signal?.addEventListener('abort', onAbort, { once: true })
   const spec: AttemptSpec = {
-    attemptId, challengerId: 'champion', workdir: wd.path,
+    attemptId, challengerId, workdir: wd.path,
     skill: { name: def.manifest.skill.name, dir: resolve(wd.path, SKILLS_DIR, def.manifest.skill.name), sha: wd.skillSha },
-    prompt: readFileSync(resolve(def.skillDir, 'SKILL.md'), 'utf8'),
+    prompt: readFileSync(resolve(skillDir, 'SKILL.md'), 'utf8'),
     route: { ...deps.route },
     outputSchema: def.contractSchema,
     tools: { allow: req.allow ?? [], deny: def.denyPatterns, submitTool: { name: submitToolName(def), schema: def.contractSchema } },
@@ -309,7 +315,7 @@ export async function runSet(req: RunRequest, deps: RunDeps): Promise<RunResult>
   const runId = deps.runId ?? newRunId()
   const log = deps.log ?? (() => {})
   const proposal = deps.ledger ? championProposal(def, book, req, deps) : undefined
-  const challengerId = deps.ledger && proposal ? await deps.ledger.propose(proposal) : undefined
+  const challengerId = deps.challengerId ?? (deps.ledger && proposal ? await deps.ledger.propose(proposal) : undefined)
   const tasks = book.tasks(req.set).slice(0, req.limit ?? undefined)
   mkdirSync(resolve(req.out, 'attempts'), { recursive: true })
   const attemptsPath = resolve(req.out, 'attempts.jsonl')

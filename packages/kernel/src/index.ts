@@ -28,6 +28,9 @@ export type { Profile, ProfileLayer, ProfileManifest, ConfigDumpLayer } from '@d
 
 // Loader entry/patch types (challengers are entries created into the in-memory tree).
 export type { EntryOptions, Entry, EntryTree, EntryGroup } from '@deepseek-ai/cordis-plugin-loader'
+// Runtime loader pieces the scope manager needs: `Loader` (mounted by tests on a
+// bare Context) and `Group` (the `cordis:group` builtin a scope mounts its rows under).
+export { default as Loader, Group } from '@deepseek-ai/cordis-plugin-loader'
 export type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 
 // ---------------------------------------------------------------------------

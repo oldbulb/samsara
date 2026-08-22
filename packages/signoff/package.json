@@ -1,0 +1,36 @@
+{
+  "name": "@samsara/signoff",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The sign-off seam: consent proofs are Ed25519-signed nonces delivered over a 0600 unix socket; HTTP is never a proof",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./proof": {
+      "types": "./lib/types/proof.d.ts",
+      "default": "./lib/proof.js"
+    },
+    "./client": {
+      "types": "./lib/types/client.d.ts",
+      "default": "./lib/client.js"
+    }
+  },
+  "bin": {
+    "samsara-signoff": "./lib/cli.js"
+  },
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run --root ../.. packages/signoff/tests"
+  },
+  "dependencies": {
+    "@samsara/kernel": "workspace:*"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "@samsara/champion",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ctx.champion: the served configuration as an alias to content-addressed refs; promote/demote rewrite the profile patch layer and verify hot-apply by re-hashing the composed config (E7)",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./state": {
+      "types": "./lib/types/state.d.ts",
+      "default": "./lib/state.js"
+    },
+    "./settlement": {
+      "types": "./lib/types/settlement.d.ts",
+      "default": "./lib/settlement.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run --root ../.. packages/champion/tests"
+  },
+  "dependencies": {
+    "@samsara/gate": "workspace:*",
+    "@samsara/kernel": "workspace:*",
+    "@samsara/ledger": "workspace:*",
+    "yaml": "2.9.0"
+  }
+}
