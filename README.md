@@ -14,7 +14,7 @@
 
 要领先的三件事：**holdout 记账**（Thresholdout/Ladder 在 agent 优化回路的首次工程化）、**延迟真值上的自动回路**、**活的 champion**（真值/scorer/模型/任务集变更 = 事件，沿祖先重打分并可降级）。在已有先例上闭环的三件事：surface 归因回馈 proposer、固定门下可撤销的跨 harness skill 认证、带采纳与结算标签的训练出口。完整论证与证据：`docs/design/philosophy.md`、`docs/research/vision-calibration-2026-08-23.md`。
 
-> 状态：设计已定稿，代码尚未开工。本文是开工前的导航与清单；设计本身见 `docs/design/`。
+> 状态：M0、M1 已完成（见下方清单与启动序），M2 进行中。设计见 `docs/design/`。
 
 ## 先读什么
 
@@ -70,19 +70,19 @@ data/                $SAMSARA_HOME（gitignored）：ledger sqlite + attempt 产
 | 4 | gateway pod 可用性实测（deepseek-v4-flash，messages + responses） | ✅ |
 | 5 | dsh → gateway 接法确认（`llm-pi-ai` 手工路由；原生 `llm-deepseek` 的 chat-completions wire 网关不收） | ✅ |
 | 6 | coding-tasks 任务源选定并看过题目结构 | ✅ |
-| 7 | `gate_sim.py`（c_science 的蒙特卡洛）抢救到 `docs/research/dsh-host/critiques/` | ✅ 未提交 |
-| 8 | `dsh` CLI 进 PATH（`pnpm link` 或 alias 到源码 bin） | ⬜ |
-| 9 | 根 `package.json` + `pnpm-workspace.yaml`，dsh 包 exact pin `0.1.1-rc.2` | ⬜ |
-| 10 | `profiles/host/{package.json, cordis.patch.yml}`：gateway 路由 + `agent-default-model` | ⬜ |
-| 11 | `$DSH_HOME/.credentials.yaml` 放网关 key | ⬜ |
-| 12 | `dsh --profile host --dump-config` 含 gateway 路由；headless 对 deepseek-v4-flash 说一句话成功 | ⬜ P0 门 |
-| 13 | 三份 schema 文件：`pack.yaml`（含 `holdout` 与 `surfaces` 段）、`truth`/`score` stdout（含 cost 指标）、contract 校验方式 | ⬜ |
-| 14 | `LICENSE`；tests 运行方式 | ⬜ |
-| 15 | **holdout 可行性计算**：用 83 题与 pricing 实际 n 代入 Thresholdout/Ladder 界，结果写进 S7 | ⬜ |
-| 16 | **dsh 暴露配置键清单**（compaction / hooks / sub-agent / runtime control）= v1 surface 在 dsh 上的分母 | ⬜ |
-| 17 | 一轮成本模型（重复次数 × 任务数 × K） | ⬜ |
+| 7 | `gate_sim.py`（c_science 的蒙特卡洛）抢救到 `docs/research/dsh-host/critiques/` | ✅ |
+| 8 | `dsh` CLI 进 PATH（`pnpm link` 或 alias 到源码 bin） | ✅ |
+| 9 | 根 `package.json` + `pnpm-workspace.yaml`，dsh 包 exact pin `0.1.1-rc.2` | ✅ |
+| 10 | `profiles/host/{package.json, cordis.patch.yml}`：gateway 路由 + `agent-default-model` | ✅ |
+| 11 | `$DSH_HOME/.credentials.yaml` 放网关 key | ✅ |
+| 12 | `dsh --profile host --dump-config` 含 gateway 路由；headless 对 deepseek-v4-flash 说一句话成功 | ✅ P0 门 |
+| 13 | 三份 schema 文件：`pack.yaml`（含 `holdout` 与 `surfaces` 段）、`truth`/`score` stdout（含 cost 指标）、contract 校验方式 | ✅ |
+| 14 | `LICENSE`；tests 运行方式 | ✅ |
+| 15 | **holdout 可行性计算**：用 83 题与 pricing 实际 n 代入 Thresholdout/Ladder 界，结果写进 S7 | ✅ |
+| 16 | **dsh 暴露配置键清单**（compaction / hooks / sub-agent / runtime control）= v1 surface 在 dsh 上的分母 | ✅ |
+| 17 | 一轮成本模型（重复次数 × 任务数 × K） | ✅ |
 
-8–17 是 P0 的内容，预计一天。
+P0（= M0）已全部完成；`dsh` 经 `npm i -g @deepseek-ai/dsh@0.1.1-rc.2` 安装（pnpm -g 的隔离布局会让 loader 解析不到兄弟包）。
 
 ## 启动序
 
