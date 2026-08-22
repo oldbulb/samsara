@@ -1,0 +1,24 @@
+{
+  "parent": "57058a877724bd3413a853d6f65e90e240cd9ff71822972731270fc4c067aea4",
+  "surface": "skill",
+  "patch": {
+    "surface": "skill",
+    "skill_dir": "{{scratch}}/round-real2/proposer/skill"
+  },
+  "intent": "The champion skill is terse: it tells the agent to read instructions/tests, implement the stub, run tests, and submit. Both held-in tasks (python/beer-song, python/scale-generator) already pass, and the champion is the baseline contract being improved — the goal is to sharpen it so future (held-out) exercises are solved more reliably without regressing what already works. This revision keeps the same essential workflow but adds concrete robustness guidance that generalizes to any exercise: (1) survey the working directory first to locate the actual stub(s), since exercises differ in file layout and module structure; (2) explicit attention to exact output/format (whitespace, line endings, trailing spaces), which is a common failure mode for string-rendering exercises where a near-correct answer still fails; (3) read the test file carefully to extract function signatures and return types rather than guessing the contract; (4) iterate fix-one-failure-at-a-time and re-run the full suite to green, including fixing import/signature crashes before logic; and (5) verify with a final full-suite run before submitting. These are task-agnostic process improvements intended to raise pass rate on harder held-out exercises while preserving behavior on the already-passing held-in tasks.",
+  "prediction": {
+    "metric": "pass_rate",
+    "direction": "up",
+    "magnitude": 0.05,
+    "predicted_fixes": [],
+    "at_risk": [
+      "python/beer-song",
+      "python/scale-generator"
+    ]
+  },
+  "proposer": {
+    "name": "claude-p",
+    "version": "2.1.240",
+    "config_sha": "0d147bd133f32e057ee941d2bd1e4070310e6c5db906c7893ac6e346e487c17d"
+  }
+}
