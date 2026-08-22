@@ -153,6 +153,7 @@ Engineering
 - **E5** credential injection is explicit per loop; transcripts scrubbed before export.
 - **E6** per-attempt `TMPDIR`; ledger sqlite single-writer; backups via sqlite backup API.
 - **E7** promotion verifies hot-apply by re-hashing the composed config, not by trusting the file watcher.
+- **E9** (open in v1) the proposer is isolated from the pack: an external proposer process may read only its rendered view and write only its work directory. v1 runs `claude -p` with `bypassPermissions` in a work directory but without a filesystem sandbox, so the pack's `fixtures/.meta`, `bin/` and `tasks/holdout.jsonl` are reachable by path — the first real round produced a skill that "permits reading `.meta/example.py`". Until the proposer runs in a container / jail (pod), treat proposer output as untrusted: the diff scan rejects task-id literals, and the gate still decides; but exposure asymmetry (principle 8) is not enforced for the proposer process.
 - **E8** the judge is isolated by machinery: `truth`/`score` run in their own process with read-only mounts and a recorded `env_sha`; every surface has a machine-checkable boundary; the diff scan rejects, before any evaluation spend, a patch that touches the evaluation, logging, or marker pipeline or crosses its surface boundary (DGM App. H).
 
 Science
