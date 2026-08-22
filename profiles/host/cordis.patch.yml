@@ -1,0 +1,28 @@
+# samsara host profile — the user patch layer over dsh-base + dsh-headless.
+# This file is what `dsh --profile host` boots; the champion's kept rows are
+# merged here by the champion plugin. Hand-written rows below are the fixed
+# deployment facts: the LLM route and the default model.
+
+# LLM route: gateway (the LLM gateway gateway) reached on the anthropic-messages wire.
+# The credential is a reference resolved per request through ctx.credentials
+# ($DSH_HOME/.credentials.yaml or the environment); no secret lives here.
+- id: llm-pi-ai
+  config:
+    providers:
+      gateway:
+        displayName: gateway
+        api: anthropic-messages
+        baseURL: http://internal.example
+        apiKeyEnv: LLM_GATEWAY_API_KEY
+        headers:
+          X-Gateway-Lane: default
+        models:
+          - id: deepseek-v4-flash
+            name: DeepSeek-V4-Flash (gateway)
+            contextWindow: 262144
+            maxTokens: 32768
+
+- id: agent-default-model
+  config:
+    provider: gateway
+    model: deepseek-v4-flash

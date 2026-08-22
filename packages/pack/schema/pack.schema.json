@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://samsara.dev/schema/pack.schema.json",
+  "title": "samsara pack.yaml",
+  "type": "object",
+  "required": ["name", "truth_latency", "skill", "contract", "tasks", "commands"],
+  "additionalProperties": false,
+  "properties": {
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "truth_latency": { "enum": ["immediate", "delayed"] },
+    "skill": {
+      "type": "object", "required": ["dir", "name"], "additionalProperties": false,
+      "properties": { "dir": { "type": "string" }, "name": { "type": "string" } }
+    },
+    "contract": { "type": "string", "description": "path to the JSON schema submit_<name>.json must satisfy" },
+    "tasks": {
+      "type": "object", "required": ["sets", "entity_key"], "additionalProperties": false,
+      "properties": {
+        "sets": {
+          "type": "object", "required": ["smoke", "holdin", "holdout"], "additionalProperties": false,
+          "properties": { "smoke": { "type": "string" }, "holdin": { "type": "string" }, "holdout": { "type": "string" } }
+        },
+        "entity_key": { "type": "string" },
+        "version": { "type": "integer", "minimum": 1 },
+        "stratum_key": { "type": "string" }
+      }
+    },
+    "holdout": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "mde": { "type": "number", "exclusiveMinimum": 0 },
+        "budget": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "surfaces": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "globs": { "type": "array", "items": { "type": "string" } },
+          "config_keys": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "commands": {
+      "type": "object", "required": ["truth", "score"], "additionalProperties": false,
+      "properties": {
+        "truth": { "type": "string" },
+        "score": { "type": "string" },
+        "data": { "type": "string" },
+        "materialize": { "type": "string" }
+      }
+    },
+    "guards": {
+      "type": "object", "additionalProperties": false,
+      "properties": { "deny_patterns": { "type": "array", "items": { "type": "string" } } }
+    }
+  }
+}

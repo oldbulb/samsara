@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://samsara.dev/schema/score-output.schema.json",
+  "title": "one line of `score` stdout (jsonl)",
+  "type": "object",
+  "required": ["task_id", "metric", "value", "kind"],
+  "additionalProperties": false,
+  "properties": {
+    "task_id": { "type": "string" },
+    "metric": { "type": "string" },
+    "value": { "type": "number" },
+    "kind": { "enum": ["mechanical", "reality", "judge"] },
+    "stratum": { "type": "string" },
+    "side_info": { "description": "structured feedback for the proposer; never read by the gate" }
+  }
+}

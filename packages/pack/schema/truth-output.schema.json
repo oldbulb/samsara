@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://samsara.dev/schema/truth-output.schema.json",
+  "title": "one line of `truth` stdout (jsonl)",
+  "type": "object",
+  "required": ["task_id", "status", "truth_sha"],
+  "additionalProperties": false,
+  "properties": {
+    "task_id": { "type": "string" },
+    "status": { "enum": ["settled", "pending"] },
+    "truth": { "description": "opaque to the framework; consumed only by `score`" },
+    "truth_sha": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "as_of": { "type": "string", "format": "date-time" }
+  }
+}

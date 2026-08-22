@@ -1,0 +1,22 @@
+{
+  "name": "samsara",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Self-improvement substrate for agent harnesses on DeepSeek Harness",
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc -b tsconfig.json --noEmit false --emitDeclarationOnly false",
+    "test": "vitest run",
+    "dsh": "dsh"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}
