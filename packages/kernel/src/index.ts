@@ -29,3 +29,30 @@ export type { Profile, ProfileLayer, ProfileManifest, ConfigDumpLayer } from '@d
 // Loader entry/patch types (challengers are entries created into the in-memory tree).
 export type { EntryOptions, Entry, EntryTree, EntryGroup } from '@deepseek-ai/cordis-plugin-loader'
 export type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
+
+// ---------------------------------------------------------------------------
+// Runtime seams used by loop providers and the runner. Importing these modules
+// also installs their `Context` augmentations (ctx.agents, ctx.tools, ctx.sessions,
+// ctx.subprocess, ctx.credentials, ctx.agentDefaultModel, ctx.systemPrompt, ...).
+import '@deepseek-ai/dsh-agent'
+import '@deepseek-ai/dsh-tools'
+import '@deepseek-ai/dsh-session'
+import '@deepseek-ai/dsh-subprocess'
+import '@deepseek-ai/dsh-credentials'
+import '@deepseek-ai/dsh-agent-default-model'
+import '@deepseek-ai/dsh-agent-presets'
+import '@deepseek-ai/dsh-system-prompt'
+
+export type { Agent, AgentHandle, AgentOptions, CreateAgentOptions, AgentSetup } from '@deepseek-ai/dsh-agent'
+export type { ToolDefinition, ToolRunContext, ToolRestriction, ToolExecution, PreToolDecision } from '@deepseek-ai/dsh-tools'
+export { ToolArgsError } from '@deepseek-ai/dsh-tools'
+export type { Session, SessionEvent, SessionId as SessionIdType } from '@deepseek-ai/dsh-session'
+export { SessionId } from '@deepseek-ai/dsh-session'
+export { createUserMessage } from '@deepseek-ai/dsh-llm/message'
+export type { ContentBlock, Message } from '@deepseek-ai/dsh-llm/types'
+export type { SubprocessSpawnSpec, SubprocessHandle, SubprocessOutcome } from '@deepseek-ai/dsh-subprocess'
+export { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
+export type { TokenUsage } from '@deepseek-ai/dsh-llm'
+export type { CredentialRef, ResolvedCredential } from '@deepseek-ai/dsh-credentials'
+export { parseCmdline } from '@deepseek-ai/dsh-cmdline'
+export { Command } from 'commander'
