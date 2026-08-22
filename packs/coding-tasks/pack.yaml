@@ -1,6 +1,6 @@
 name: coding-tasks
 truth_latency: immediate
-skill: { dir: skill/, name: fix-tests }
+skill: { dir: skill/, name: fix }
 contract: contract.schema.json
 tasks:
   sets: { smoke: tasks/smoke.jsonl, holdin: tasks/holdin.jsonl, holdout: tasks/holdout.jsonl }

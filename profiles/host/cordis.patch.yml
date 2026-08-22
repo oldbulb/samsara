@@ -29,6 +29,12 @@
 
 # Loop provider claude-code: route the Claude Agent SDK at the same gateway
 # gateway; the credential is a reference (E5), resolved through ctx.credentials.
+# Price table for cost attribution on the in-process loop (USD per Mtok;
+# assumed deepseek-v4-flash list prices, see docs/design/notes/round-cost-model.md).
+- id: loops-dsh
+  config:
+    pricePerMtok: { input: 0.28, output: 0.42, cacheRead: 0.028 }
+
 - id: loops-claude-code
   config:
     baseUrl: http://internal.example
