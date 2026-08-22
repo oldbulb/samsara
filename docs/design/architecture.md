@@ -27,14 +27,14 @@ samsara/
 │   └── ui/                            /samsara SPA route + sidebar/overlay seats
 ├── packs/
 │   ├── coding-tasks/    PUBLIC  immediate-truth pack; CI runs it; doubles as the demo
-│   └── pricing/         PRIVATE git submodule (internal remote); delayed-truth pack; vendors legacy code for its commands
+│   └── pricing/         PRIVATE, in-repo for now; delayed-truth pack; vendors legacy code for its commands
 ├── examples/            minimal host profiles wiring one pack + one loop
 ├── tests/               framework tests run against packs/coding-tasks and dsh-llm-replay fixtures
 ├── docs/design/  docs/research/
 └── data/ (gitignored)   $SAMSARA_HOME default: ledger sqlite + attempt artifacts, one dir per profile
 ```
 
-Why the private pack is a submodule: its content must never enter this repo's history, so a public mirror needs no rewrite. The public checkout simply lacks `packs/pricing`.
+The private pack lives in this repo while the repo is internal. Publishing is a separate migration decided later (split into a submodule, or publish a stripped mirror); until then nothing here is public.
 
 ## Plugins and services
 
@@ -132,7 +132,7 @@ Science
 | 2 | `kernel` + `scope` + `workdir` + `submit` + `loops-dsh` on a null skill | 20/20 valid submits; dispose leaves zero processes, registry size restored, profile sha unchanged (E1); token guard denies deny_patterns |
 | 3 | `ledger` + `champion` + `signoff` round trip | restart ⇒ identical ledger; promote without consent refused; consent via socket only; hot-apply verified by sha; replay check passes |
 | 4 | coding-tasks end to end with `claude -p` proposer; tiers; CI green on the public pack | a real skill diff runs smoke→holdin→holdout; `|Δ|<MDE` refused; overnight K=4 run promotes nothing without sign-off |
-| 5 | `packs/pricing` submodule: delayed-truth book, `data` command with token, stratified scoring | settlement event re-scores held rows; `data --cutoff` denied; gated query 403 from the sandbox; framework unchanged except through declared pack fields |
+| 5 | `packs/pricing`: delayed-truth book, `data` command with token, stratified scoring | settlement event re-scores held rows; `data --cutoff` denied; gated query 403 from the sandbox; framework unchanged except through declared pack fields |
 | 6 | `loops-claude-code` + `ui` | two loops as two rows; A/B refused when facts differ; UI first screen = champion · settlement · challengers · sign-offs |
 
 Then: historical replay tier, codex/pi loops, optimizer-as-surface, training export.

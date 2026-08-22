@@ -15,7 +15,7 @@
 4. **legacy 不是依赖。** pricing pack 可以 vendor legacy 代码实现自己的命令；legacy 的 store / runner / 原则 / CLAUDE.md 不进框架
 5. **三个不动点在回路之外**：book（真值）、gate、signoff。回路内任何东西不能写它们；optimizer 自己可以被优化，裁判和签字权不行
 6. **dsh 只经 `packages/kernel` 进入。** 其他包不直接 import dsh 内部路径；重新 pin 是一个文件的事
-7. **`packs/pricing` 是私有 submodule**，内容永不进本仓库历史
+7. **`packs/pricing` 是私有内容，直接放本仓库**；开源发布时再单独考量迁移（拆 submodule / 镜像剥离）。发布前本仓库不对外
 
 ## 硬约束
 `docs/design/architecture.md` 的 E1–E7（工程：无历史依赖、sign-off 不可伪造、env_sha、子进程 effect、凭据、TMPDIR、热应用验证）与 S1–S6（科学：MDE 口径、n_eff 下限、分层打分、futility-only 早停、diff 扫描、真值钉快照）。实现任何一步前先对照；它们来自对抗评审，不是建议。
