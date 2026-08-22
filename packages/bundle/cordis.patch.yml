@@ -64,6 +64,26 @@
         baseUrl: ''
         credentialRef: ''
 
+    # ctx.proposers: the registry every proposer adapter registers on.
+    - id: proposers
+      name: '@samsara/proposers'
+
+    # The operator as proposer: without a configured patch this registers
+    # nothing; `round --proposer human --skill-dir … --intent …` supplies it.
+    - id: proposer-human
+      name: '@samsara/proposers/plugin-human'
+      inject: [proposers]
+
+    # `claude -p` as proposer, spawned through the kernel's subprocess seam with
+    # an explicit env (E5). model/baseUrl/credentialRef are deployment facts
+    # and live in the profile's own patch layer (like loops-claude-code); a
+    # patch replaces the whole config, so the profile restates `command` too.
+    - id: proposer-claude-p
+      name: '@samsara/proposers/plugin-claude-p'
+      inject: [proposers, subprocess, credentials]
+      config:
+        command: claude
+
     # ctx.scopes: disposable child scopes for challengers (E1: in-memory loader rows only).
     - id: scopes
       name: '@samsara/scope'

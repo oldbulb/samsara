@@ -7,6 +7,7 @@ import { Command, parseCmdline, type Context } from '@samsara/kernel'
 import { TASK_SETS, type TaskSet } from '@samsara/book'
 import type { RunRequest } from './run.ts'
 import type { ChallengeRequest, GatePolicyName } from './challenge.ts'
+import type { RoundRequest } from './round.ts'
 
 export const name = 'samsara-run-startup'
 export const inject = ['cmdlineArgs']
@@ -26,6 +27,7 @@ export interface DemoteRequest {
 export type SamsaraRunValues =
   | ({ command: 'run' } & RunRequest)
   | ({ command: 'challenge' } & ChallengeRequest)
+  | ({ command: 'round' } & RoundRequest)
   | ({ command: 'promote' } & PromoteRequest)
   | ({ command: 'demote' } & DemoteRequest)
   | { command: 'serve' }
@@ -142,6 +144,38 @@ Examples:
         nEffFloor: opts['nEffFloor'] as number,
         withChampion: opts['withChampion'] as boolean,
         gatePolicy: opts['gatePolicy'] as GatePolicyName,
+      })
+    })
+
+  withRunOptions(program.command('round'))
+    .description('render the proposer view, run a proposer, then diff-scan, run and judge its proposal as a challenger')
+    .requiredOption('--proposer <name>', 'proposer adapter name (as registered on ctx.proposers; human may take --skill-dir/--intent)')
+    .requiredOption('--metric <name>', 'primary metric of kind reality the gate decides on; the proposal must predict it')
+    .option('--skill-dir <dir>', 'human proposer: the replacement skill directory')
+    .option('--intent <text>', 'human proposer: what the patch is meant to change')
+    .option('--n-eff-floor <n>', 'minimum distinct entities with paired data (S2)', int('--n-eff-floor'), DEFAULTS.nEffFloor)
+    .option('--with-champion', 'also run the champion on the same tasks in this command', false)
+    .option('--gate-policy <default|permissive>', 'TEST ONLY: permissive always promotes (recorded as gate-permissive@test)', gatePolicyName, 'default')
+    .addHelpText('after', `
+Examples:
+  dsh --profile host round --pack packs/<name> --loop null --proposer human --set holdin --limit 2 \
+    --skill-dir /tmp/skill --intent "shorter instructions" --metric <metric> --out data/runs/round-1
+  dsh --profile host round --pack packs/<name> --loop claude-code --proposer claude-p --set holdin --metric <metric>
+`)
+    .action((opts: Record<string, unknown>) => {
+      const values = runRequestOf(opts)
+      checkRepeat(values)
+      if ((opts['skillDir'] === undefined) !== (opts['intent'] === undefined)) program.error('error: --skill-dir and --intent go together')
+      onRun({
+        command: 'round',
+        ...values,
+        proposer: opts['proposer'] as string,
+        metric: opts['metric'] as string,
+        nEffFloor: opts['nEffFloor'] as number,
+        withChampion: opts['withChampion'] as boolean,
+        gatePolicy: opts['gatePolicy'] as GatePolicyName,
+        ...(opts['skillDir'] !== undefined ? { humanSkillDir: opts['skillDir'] as string } : {}),
+        ...(opts['intent'] !== undefined ? { intent: opts['intent'] as string } : {}),
       })
     })
 

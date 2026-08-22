@@ -31,6 +31,13 @@ describe('samsara-run-startup', () => {
     expect(parse(['run', '--pack', 'p', '--loop', 'l', '--set', 'smoke', '--repeat', '0']).error).toMatch(/--repeat/)
     expect(parse(['run', '--pack', 'p', '--loop', 'l', '--set', 'smoke', '--limit', 'x']).error).toMatch(/--limit/)
   })
+  it('parses round with a human proposer from the command line and rejects --skill-dir without --intent', () => {
+    const { values } = parse(['round', '--pack', 'p', '--loop', 'null', '--set', 'holdin', '--limit', '2', '--proposer', 'human', '--metric', 'm', '--skill-dir', '/s', '--intent', 'i'])
+    expect(values).toMatchObject({ command: 'round', proposer: 'human', metric: 'm', humanSkillDir: '/s', intent: 'i', nEffFloor: DEFAULTS.nEffFloor, withChampion: false, gatePolicy: 'default', limit: 2 })
+    expect(values).not.toHaveProperty('skillDir')
+    expect(parse(['round', '--pack', 'p', '--loop', 'null', '--set', 'holdin', '--proposer', 'claude-p', '--metric', 'm', '--skill-dir', '/s']).error).toMatch(/--skill-dir and --intent/)
+    expect(parse(['round', '--pack', 'p', '--loop', 'null', '--set', 'holdin', '--proposer', 'claude-p']).error).toMatch(/--metric/)
+  })
   it('provides nothing on --help', () => {
     const r = parse(['--help'])
     expect(r.values).toBeUndefined()

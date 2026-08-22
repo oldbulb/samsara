@@ -1,0 +1,43 @@
+{
+  "name": "@samsara/proposers",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ctx.proposers: the registry of proposer adapters and the Proposal contract every adapter returns (claude-p, human)",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./human": {
+      "types": "./lib/types/human.d.ts",
+      "default": "./lib/human.js"
+    },
+    "./claude-p": {
+      "types": "./lib/types/claude-p.d.ts",
+      "default": "./lib/claude-p.js"
+    },
+    "./plugin-claude-p": {
+      "types": "./lib/types/plugin-claude-p.d.ts",
+      "default": "./lib/plugin-claude-p.js"
+    },
+    "./plugin-human": {
+      "types": "./lib/types/plugin-human.d.ts",
+      "default": "./lib/plugin-human.js"
+    }
+  },
+  "files": [
+    "lib",
+    "templates"
+  ],
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run --root ../.. packages/proposers/tests"
+  },
+  "dependencies": {
+    "@samsara/kernel": "workspace:*",
+    "ajv": "8.20.0"
+  }
+}

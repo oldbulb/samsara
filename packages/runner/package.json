@@ -11,6 +11,10 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./round": {
+      "types": "./lib/types/round.d.ts",
+      "default": "./lib/round.js"
+    },
     "./challenge": {
       "types": "./lib/types/challenge.d.ts",
       "default": "./lib/challenge.js"
@@ -35,6 +39,7 @@
     "@samsara/ledger": "workspace:*",
     "@samsara/loops": "workspace:*",
     "@samsara/pack": "workspace:*",
+    "@samsara/proposers": "workspace:*",
     "@samsara/scope": "workspace:*",
     "@samsara/signoff": "workspace:*",
     "@samsara/submit": "workspace:*",

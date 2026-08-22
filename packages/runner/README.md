@@ -1,6 +1,10 @@
 # @samsara/runner
 
-Two cordis plugins that turn `dsh --profile host run ...` into champion attempts on one pack task set.
+Two cordis plugins that turn `dsh --profile host run ...` into champion attempts on one pack task set,
+`challenge ...` / `round ...` into a judged challenger (the latter through a proposer on `ctx.proposers`),
+and `promote` / `demote` into champion changes. When the champion holds a kept skill
+(`ctx.champion.current().skill_ref`, under `data/skills/<sha>`), it is the default skill for every command;
+the pack's skill is the fallback.
 
 | plugin | entry | inject | does |
 |---|---|---|---|
@@ -13,6 +17,18 @@ dsh --profile host run --pack <dir> --loop <name> --set <smoke|holdin|holdout>
 ```
 
 Defaults: `--repeat 1`, `--out data/runs`, `--max-turns 50`, `--max-minutes 20`; no `--allow` means the provider's default tool set (`tools.allow: []`).
+
+```
+dsh --profile host round --pack <dir> --loop <name> --set <smoke|holdin> --proposer <claude-p|human> --metric <name>
+                         [--skill-dir <dir> --intent <text>]   # human proposer from the command line
+                         [--n-eff-floor n] [--with-champion] [--gate-policy default|permissive] + the run options
+```
+
+`round` (`src/round.ts`): renders the proposer view into `<out>/view/` from `ledger.read(view, 'proposer')`
+(champion skill copy, the set's tasks, the champion's attempts/scores with held-out rows as aggregates, compare
+rows with held-out per-task deltas removed), runs the adapter in `<out>/proposer/`, validates the Proposal
+(schema, every named task id held in, skill surface, metric = `--metric`), writes `<out>/proposal.json`, then
+runs the `challenge` chain with the proposal's prediction and `optimizer_config_sha`.
 
 ## What one attempt does (`src/run.ts`)
 

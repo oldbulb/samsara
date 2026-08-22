@@ -54,6 +54,8 @@ export interface RunDeps {
   ledger?: LedgerSink
   /** Record attempts under this existing challenger row instead of proposing the champion row. */
   challengerId?: string
+  /** The champion's kept skill snapshot (ctx.champion.current().skill_ref); runs instead of the pack's when `req.skillDir` is unset. */
+  championSkillDir?: string
   signal?: AbortSignal
   /** Injected for deterministic ids in tests. */
   runId?: string
@@ -166,7 +168,7 @@ function msg(e: unknown): string {
 async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRequest, deps: RunDeps, runId: string): Promise<AttemptRow> {
   const attemptId = `${runId}-${sanitizeId(task.task_id)}-${r}`
   const attemptsDir = resolve(req.out, 'attempts')
-  const skillDir = req.skillDir ?? def.skillDir
+  const skillDir = req.skillDir ?? deps.championSkillDir ?? def.skillDir
   const challengerId = deps.challengerId ?? 'champion'
   const provider = deps.loops.get(req.loop)
   const facts_sha = provider ? factsSha(provider.harnessFacts) : ''
@@ -263,7 +265,7 @@ export function championProposal(def: PackDefinition, book: Book, req: RunReques
   const harness_sha = provider ? factsSha(provider.harnessFacts) : NONE_SHA
   const limits = { maxTurns: req.maxTurns, maxDurationMs: Math.round(req.maxMinutes * 60_000) }
   const effort = deps.route.reasoning?.['effort']
-  const skill_sha = hashDir(def.skillDir)
+  const skill_sha = hashDir(req.skillDir ?? deps.championSkillDir ?? def.skillDir)
   return {
     parent_ids: [],
     patch_sha: NONE_SHA,
@@ -320,7 +322,7 @@ export async function runSet(req: RunRequest, deps: RunDeps): Promise<RunResult>
   mkdirSync(resolve(req.out, 'attempts'), { recursive: true })
   const attemptsPath = resolve(req.out, 'attempts.jsonl')
   const rows: AttemptRow[] = []
-  log(`${runId}: pack ${def.name} set ${req.set} (${tasks.length} tasks × ${req.repeat}) via loop ${req.loop}`)
+  log(`${runId}: pack ${def.name} set ${req.set} (${tasks.length} tasks × ${req.repeat}) via loop ${req.loop} skill ${req.skillDir ?? deps.championSkillDir ?? def.skillDir}`)
   for (const task of tasks) {
     for (let r = 0; r < req.repeat; r++) {
       if (deps.signal?.aborted) break

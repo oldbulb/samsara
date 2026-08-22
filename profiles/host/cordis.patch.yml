@@ -40,6 +40,15 @@
     baseUrl: http://internal.example
     credentialRef: LLM_GATEWAY_API_KEY
 
+# Proposer claude-p: the same gateway and credential reference as the loop.
+# A patch replaces the row's whole config, so command/model are restated here.
+- id: proposer-claude-p
+  config:
+    command: claude
+    model: deepseek-v4-flash
+    baseUrl: http://internal.example
+    credentialRef: LLM_GATEWAY_API_KEY
+
 # The runner copies the same route facts into every AttemptSpec.
 - id: samsara-runner
   config:

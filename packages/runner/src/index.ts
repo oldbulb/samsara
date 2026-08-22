@@ -11,9 +11,11 @@ import type {} from '@samsara/ledger'
 import type {} from '@samsara/scope'
 import type {} from '@samsara/gate'
 import type {} from '@samsara/champion'
+import type {} from '@samsara/proposers'
 import type { ConsentRecord, Signoff } from '@samsara/signoff'
 import { runSet, type RouteConfig } from './run.ts'
 import { challenge, formatChallenge } from './challenge.ts'
+import { round, formatRound } from './round.ts'
 import { formatSummary } from './summary.ts'
 import { SAMSARA_RUN_SERVICE, type SamsaraRunValues } from './startup.ts'
 
@@ -39,6 +41,8 @@ export { runSet, readSubmit, submitToolName, sanitizeId, newRunId, championPropo
 export type { RunRequest, RunDeps, RunResult, AttemptRow, ScoreLine, RouteConfig, Loops, LedgerSink, Materialize } from './run.ts'
 export { challenge, formatChallenge, challengerProposalOf, scoredAttemptsOf, GATE_PERMISSIVE } from './challenge.ts'
 export type { ChallengeRequest, ChallengeDeps, ChallengeResult, GatePolicyName } from './challenge.ts'
+export { round, formatRound, renderView } from './round.ts'
+export type { RoundRequest, RoundDeps, RoundResult } from './round.ts'
 export { summarize, formatSummary } from './summary.ts'
 
 interface Io {
@@ -63,7 +67,7 @@ export function routeOf(selection: { provider: string; model: string; reasoningE
 }
 
 /** A service the command needs beyond the plugin's inject list; absent means its row did not mount. */
-function need<K extends 'scopes' | 'gate' | 'champion' | 'signoff'>(ctx: Context, key: K): Context[K] {
+function need<K extends 'scopes' | 'gate' | 'champion' | 'signoff' | 'proposers'>(ctx: Context, key: K): Context[K] {
   const v = ctx.get(key) as Context[K] | undefined
   if (v === undefined) throw new Error(`ctx.${key} is not mounted (is its row enabled in the profile, and did it start?)`)
   return v
@@ -156,17 +160,24 @@ async function run(ctx: Context, config: Config, io: Io): Promise<void> {
   }
   const controller = new AbortController()
   const disposeAbort = ctx.effect(() => () => controller.abort('scope disposed'))
+  // The champion's kept skill (promoted through the ledger + sign-off) is the default skill; the pack's is the fallback.
+  const championSkillDir = ctx.get('champion')?.current().skill_ref
   const deps = {
     loops,
     ledger,
     route: routeOf(defaultModel.currentSelection(), config),
     signal: controller.signal,
     log: (line: string) => io.stderr.write(line + '\n'),
+    ...(championSkillDir !== undefined ? { championSkillDir } : {}),
   }
+  if (championSkillDir !== undefined) deps.log(`champion skill: ${championSkillDir}`)
   try {
     if (req.command === 'challenge') {
       const result = await challenge({ ...req, out: resolve(req.out) }, { ...deps, scopes: need(ctx, 'scopes'), gate: need(ctx, 'gate') })
       io.stdout.write(formatChallenge(result) + '\n')
+    } else if (req.command === 'round') {
+      const result = await round({ ...req, out: resolve(req.out) }, { ...deps, scopes: need(ctx, 'scopes'), gate: need(ctx, 'gate'), proposers: need(ctx, 'proposers') })
+      io.stdout.write(formatRound(result) + '\n')
     } else {
       const result = await runSet({ ...req, out: resolve(req.out) }, deps)
       io.stdout.write(formatSummary(result) + '\n')

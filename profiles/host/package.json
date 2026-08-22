@@ -8,6 +8,7 @@
     "@samsara/loops": "link:../../packages/loops",
     "@samsara/loops-claude-code": "link:../../packages/loops-claude-code",
     "@samsara/loops-dsh": "link:../../packages/loops-dsh",
+    "@samsara/proposers": "link:../../packages/proposers",
     "@samsara/runner": "link:../../packages/runner",
     "@samsara/scope": "link:../../packages/scope",
     "@samsara/signoff": "link:../../packages/signoff",
