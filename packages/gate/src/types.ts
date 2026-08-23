@@ -57,6 +57,8 @@ export interface CompareRequest {
   bestSoFar?: number
   /** Seed for the bootstrap PRNG; a fixed seed makes the verdict reproducible from the ledger. */
   seed?: number
+  /** Harness facts sha of each side's attempts; when both are present and differ the gate refuses (rule 0, `facts:mismatch`). */
+  factsSha?: { challenger: string; champion: string }
 }
 
 export interface TaskDelta {

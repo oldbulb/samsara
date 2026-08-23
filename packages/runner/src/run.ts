@@ -80,6 +80,8 @@ export interface AttemptRow {
   usage: TokenUsage
   cost: FinishedEvent['cost']
   toolCalls: number
+  /** From the loop's finished event: 'inline' or the read fraction; absent when the loop did not report. */
+  skillUtilization?: number | 'inline'
   output: { valid: boolean; file?: string; error?: string }
   truth: { status: 'settled' | 'pending' | 'error'; truth_sha?: string; error?: string }
   scores: ScoreLine[]
@@ -226,6 +228,7 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
   row.usage = finished.usage
   row.cost = finished.cost
   row.toolCalls = finished.toolCalls
+  if (finished.skillUtilization !== undefined) row.skillUtilization = finished.skillUtilization
 
   const sub = readSubmit(def, wd.path)
   row.output = { valid: sub.valid, ...(sub.file ? { file: sub.file } : {}), ...(sub.error ? { error: sub.error } : {}) }
@@ -298,7 +301,10 @@ export function championProposal(def: PackDefinition, book: Book, req: RunReques
 }
 
 async function recordInLedger(ledger: LedgerSink, row: AttemptRow, challengerId: string, tier: Tier, scorerVersion: string): Promise<void> {
-  await ledger.recordAttempt(attemptRowOf(row, { challengerId, loop: row.loop, tier, scorerVersion }))
+  await ledger.recordAttempt({
+    ...attemptRowOf(row, { challengerId, loop: row.loop, tier, scorerVersion }),
+    ...(row.skillUtilization !== undefined ? { skill_utilization: { value: row.skillUtilization } } : {}),
+  })
   const truth_snapshot_id = row.truth.truth_sha ?? 'unsettled'
   await ledger.appendScores(row.scores.map((s) => ({
     attempt_id: row.attemptId,

@@ -8,6 +8,7 @@ import { TASK_SETS, type TaskSet } from '@samsara/book'
 import type { RunRequest } from './run.ts'
 import type { ChallengeRequest, GatePolicyName } from './challenge.ts'
 import type { RoundRequest } from './round.ts'
+import type { CertifyRequest } from './certify.ts'
 
 export const name = 'samsara-run-startup'
 export const inject = ['cmdlineArgs']
@@ -28,6 +29,7 @@ export type SamsaraRunValues =
   | ({ command: 'run' } & RunRequest)
   | ({ command: 'challenge' } & ChallengeRequest)
   | ({ command: 'round' } & RoundRequest)
+  | ({ command: 'certify' } & CertifyRequest)
   | ({ command: 'promote' } & PromoteRequest)
   | ({ command: 'demote' } & DemoteRequest)
   | { command: 'serve' }
@@ -66,11 +68,11 @@ function gatePolicyName(v: string): GatePolicyName {
   return v as GatePolicyName
 }
 
-/** The options `run` and `challenge` share. */
-function withRunOptions(cmd: Command): Command {
+/** The options `run`, `challenge`, `round` and `certify` share (`certify` names its loops itself). */
+function withRunOptions(cmd: Command, loopOption = true): Command {
+  cmd.requiredOption('--pack <dir>', 'pack directory containing pack.yaml')
+  if (loopOption) cmd.requiredOption('--loop <name>', 'loop provider name (as registered on ctx.loops)')
   return cmd
-    .requiredOption('--pack <dir>', 'pack directory containing pack.yaml')
-    .requiredOption('--loop <name>', 'loop provider name (as registered on ctx.loops)')
     .requiredOption('--set <smoke|holdin|holdout>', 'task set', set)
     .option('--limit <n>', 'only the first n tasks of the set', int('--limit'))
     .option('--repeat <r>', 'attempts per task', int('--repeat'), DEFAULTS.repeat)
@@ -176,6 +178,33 @@ Examples:
         gatePolicy: opts['gatePolicy'] as GatePolicyName,
         ...(opts['skillDir'] !== undefined ? { humanSkillDir: opts['skillDir'] as string } : {}),
         ...(opts['intent'] !== undefined ? { intent: opts['intent'] as string } : {}),
+      })
+    })
+
+  withRunOptions(program.command('certify'), false)
+    .description('run one skill snapshot as a challenger on each loop in turn and print the per-loop certification table')
+    .requiredOption('--skill-dir <dir>', 'the skill snapshot directory to certify')
+    .requiredOption('--loops <a,b[,c]>', 'comma-separated loop provider names, certified in order', list)
+    .option('--metric <name>', 'primary metric of kind reality the gate decides on', 'pass_rate')
+    .option('--n-eff-floor <n>', 'minimum distinct entities with paired data (S2)', int('--n-eff-floor'), DEFAULTS.nEffFloor)
+    .option('--gate-policy <default|permissive>', 'TEST ONLY: permissive always promotes (recorded as gate-permissive@test)', gatePolicyName, 'default')
+    .addHelpText('after', `
+Examples:
+  dsh --profile host certify --pack packs/<name> --skill-dir /tmp/skill --loops dsh,claude-code --set smoke --limit 3
+`)
+    .action((opts: Record<string, unknown>) => {
+      const { loop: _loop, ...values } = runRequestOf({ ...opts, loop: '' })
+      checkRepeat({ ...values, loop: '' })
+      const loops = opts['loops'] as string[]
+      if (loops.length < 1) program.error('error: --loops needs at least one loop name')
+      onRun({
+        command: 'certify',
+        ...values,
+        skillDir: opts['skillDir'] as string,
+        loops,
+        metric: opts['metric'] as string,
+        nEffFloor: opts['nEffFloor'] as number,
+        gatePolicy: opts['gatePolicy'] as GatePolicyName,
       })
     })
 

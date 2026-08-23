@@ -121,3 +121,15 @@ describe('finish', () => {
     expect(finish({ at: 5, mapper, limits }).cost).toEqual({ usd: 1 + 0.25 + 4, source: 'price-table' })
   })
 })
+
+describe('skill utilization', () => {
+  it('reports inline for prompt-inline delivery and the read fraction otherwise', () => {
+    const mapper = createEventMapper({ submitToolName: 'submit_x', skillToolName: 'skill' })
+    const limits = createLimits({ maxTurns: 5 })
+    expect(finish({ at: 5, mapper, limits }).skillUtilization).toBe('inline')
+    expect(finish({ at: 5, mapper, limits, skillDelivery: 'agents-skills-dir' }).skillUtilization).toBe(0)
+    mapper.map({ type: 'tool/call', time: 1, data: { callId: 'k', name: 'skill', arguments: '{}' } } as never)
+    expect(mapper.skillToolCalls).toBe(1)
+    expect(finish({ at: 5, mapper, limits, skillDelivery: 'agents-skills-dir' }).skillUtilization).toBe(1)
+  })
+})

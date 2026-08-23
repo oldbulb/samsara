@@ -72,3 +72,13 @@ export { defineDomain, domainTable, DomainFacility, DomainError } from '@deepsee
 export type { Domain, KvTable, DomainSpec, DomainTableSpec, TableKeyOf, TableValueOf, DomainChanged } from '@deepseek-ai/dsh-storage-domain'
 export { JsonStorageBackend } from '@deepseek-ai/dsh-storage-json'
 export { z } from 'zod'
+
+// ---------------------------------------------------------------------------
+// Web carrier: importing installs the `ctx.webServer` Context augmentation.
+// The default export is the plugin module a test composition mounts as the
+// webserver row; `Include` is the loader builtin such a composition needs.
+import '@deepseek-ai/dsh-host-webserver'
+
+export { default as HttpServer } from '@deepseek-ai/dsh-host-webserver'
+export type { WebRoute, WebServer } from '@deepseek-ai/dsh-host-webserver'
+export { default as Include } from '@deepseek-ai/cordis-plugin-include'

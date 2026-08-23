@@ -162,7 +162,7 @@ export class DshLoopProvider implements LoopProvider {
       } catch (e) {
         error = e ?? new Error('loops-dsh: drive failed')
       }
-      const finished = finish({ at: Date.now(), mapper, limits, ...(error !== undefined ? { error } : {}) })
+      const finished = finish({ at: Date.now(), mapper, limits, skillDelivery: this.harnessFacts.skillDelivery, ...(error !== undefined ? { error } : {}) })
       events.push(finished)
       events.close()
       return finished

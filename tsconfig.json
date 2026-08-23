@@ -15,6 +15,7 @@
     { "path": "packages/scope" },
     { "path": "packages/signoff" },
     { "path": "packages/champion" },
-    { "path": "packages/proposers" }
+    { "path": "packages/proposers" },
+    { "path": "packages/ui" }
   ]
 }

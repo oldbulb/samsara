@@ -104,6 +104,24 @@
         profileDir: profiles/host
         skillStore: data/skills
 
+    # Web carrier: the bundle inserts the webserver row itself (never
+    # dsh-web-app, whose web-startup row would reject the runner's argv; see
+    # docs/research/dsh-host/surveys/s6_web_routes.md). Loopback only.
+    - id: webserver
+      name: '@deepseek-ai/dsh-host-webserver'
+      config:
+        host: 127.0.0.1
+        port: 3099
+
+    # The read-only /samsara page and JSON API on ctx.webServer. Config comes
+    # from this row, never from the command line.
+    - id: samsara-ui
+      name: '@samsara/ui'
+      inject: [webServer, ledger, champion, signoff]
+      config:
+        basePath: /samsara
+        refreshMs: 5000
+
     # Parses `dsh --profile host run ...` and provides ctx.samsaraRun.
     - id: samsara-run-startup
       name: '@samsara/runner/startup'

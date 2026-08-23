@@ -17,12 +17,14 @@
     }
   },
   "dependencies": {
+    "@deepseek-ai/dsh-host-webserver": "0.1.1-rc.2",
     "@deepseek-ai/dsh-storage-sqlite": "0.1.1-rc.2",
     "@samsara/gate": "workspace:*",
     "@samsara/ledger": "workspace:*",
     "@samsara/loops": "workspace:*",
     "@samsara/loops-claude-code": "workspace:*",
     "@samsara/loops-dsh": "workspace:*",
-    "@samsara/runner": "workspace:*"
+    "@samsara/runner": "workspace:*",
+    "@samsara/ui": "workspace:*"
   }
 }

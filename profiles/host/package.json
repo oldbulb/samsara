@@ -2,8 +2,8 @@
   "name": "dsh-profile-host",
   "private": true,
   "dependencies": {
-    "@samsara/gate": "link:../../packages/gate",
     "@samsara/champion": "link:../../packages/champion",
+    "@samsara/gate": "link:../../packages/gate",
     "@samsara/ledger": "link:../../packages/ledger",
     "@samsara/loops": "link:../../packages/loops",
     "@samsara/loops-claude-code": "link:../../packages/loops-claude-code",
@@ -12,6 +12,7 @@
     "@samsara/runner": "link:../../packages/runner",
     "@samsara/scope": "link:../../packages/scope",
     "@samsara/signoff": "link:../../packages/signoff",
+    "@samsara/ui": "link:../../packages/ui",
     "samsara": "link:../../packages/bundle"
   },
   "dsh": {

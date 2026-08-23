@@ -1,7 +1,7 @@
 // samsara-runner: the cordis plugin that turns the parsed `samsaraRun` request
 // into work. It waits for the loader so every loop provider has registered,
 // resolves the route from agentDefaultModel + this plugin's config, dispatches
-// on the command (run / challenge / promote / demote / serve), prints a
+// on the command (run / challenge / round / certify / promote / demote / serve), prints a
 // summary, and exits through ctx.appExit.
 
 import { resolve } from 'node:path'
@@ -16,6 +16,7 @@ import type { ConsentRecord, Signoff } from '@samsara/signoff'
 import { runSet, type RouteConfig } from './run.ts'
 import { challenge, formatChallenge } from './challenge.ts'
 import { round, formatRound } from './round.ts'
+import { certify, formatCertify } from './certify.ts'
 import { formatSummary } from './summary.ts'
 import { SAMSARA_RUN_SERVICE, type SamsaraRunValues } from './startup.ts'
 
@@ -43,6 +44,8 @@ export { challenge, formatChallenge, challengerProposalOf, scoredAttemptsOf, GAT
 export type { ChallengeRequest, ChallengeDeps, ChallengeResult, GatePolicyName } from './challenge.ts'
 export { round, formatRound, renderView } from './round.ts'
 export type { RoundRequest, RoundDeps, RoundResult } from './round.ts'
+export { certify, formatCertify, utilizationOf } from './certify.ts'
+export type { CertifyRequest, CertifyDeps, CertifyResult, CertifyRow, CrossCheck } from './certify.ts'
 export { summarize, formatSummary } from './summary.ts'
 
 interface Io {
@@ -155,7 +158,7 @@ async function run(ctx: Context, config: Config, io: Io): Promise<void> {
   if (req.command === 'demote') { await demote(ctx, req, io); io.exit(0); return }
   if (req.command === 'serve') { await serve(ctx, io); io.exit(0); return }
 
-  if (loops.get(req.loop) === undefined) {
+  if (req.command !== 'certify' && loops.get(req.loop) === undefined) {
     throw new Error(`no loop provider named "${req.loop}" is registered (is its plugin enabled in the profile?)`)
   }
   const controller = new AbortController()
@@ -175,6 +178,9 @@ async function run(ctx: Context, config: Config, io: Io): Promise<void> {
     if (req.command === 'challenge') {
       const result = await challenge({ ...req, out: resolve(req.out) }, { ...deps, scopes: need(ctx, 'scopes'), gate: need(ctx, 'gate') })
       io.stdout.write(formatChallenge(result) + '\n')
+    } else if (req.command === 'certify') {
+      const result = await certify({ ...req, out: resolve(req.out) }, { ...deps, scopes: need(ctx, 'scopes'), gate: need(ctx, 'gate') })
+      io.stdout.write(formatCertify(result) + '\n')
     } else if (req.command === 'round') {
       const result = await round({ ...req, out: resolve(req.out) }, { ...deps, scopes: need(ctx, 'scopes'), gate: need(ctx, 'gate'), proposers: need(ctx, 'proposers') })
       io.stdout.write(formatRound(result) + '\n')

@@ -1,4 +1,5 @@
-// gate-default: docs/design/gate.md rules 1-8 in order. Rule 9 (live) is not
+// gate-default: rule 0 (facts mismatch, docs/design/ui-and-certification.md)
+// then docs/design/gate.md rules 1-8 in order. Rule 9 (live) is not
 // implemented; live requests return 'hold' with ruleFired 'live:unimplemented'.
 
 import { bcaBootstrapCI, clusterBy, holmAdjustedAlpha, isEligible, ladderStep, mde as mdeOf, mean, mulberry32, pairedDeltas, sd } from './stats.ts'
@@ -59,6 +60,9 @@ export function gateDefault(req: CompareRequest): GateJudgement {
     ruleFired: '',
   }
   const decide = (verdict: Verdict, ruleFired: string): GateJudgement => ({ compare: { ...compare, ruleFired }, verdict })
+
+  // 0. Facts mismatch: two harnesses are never pooled; certification lists them.
+  if (req.factsSha !== undefined && req.factsSha.challenger !== req.factsSha.champion) return decide('invalid', 'facts:mismatch')
 
   // 1. Type check: judge-kind scores never reach a verdict.
   if ([...challenger, ...champion].some(a => a.kind === 'judge')) return decide('invalid', 'type:judge')

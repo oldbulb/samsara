@@ -19,6 +19,10 @@
       "types": "./lib/types/challenge.d.ts",
       "default": "./lib/challenge.js"
     },
+    "./certify": {
+      "types": "./lib/types/certify.d.ts",
+      "default": "./lib/certify.js"
+    },
     "./startup": {
       "types": "./lib/types/startup.d.ts",
       "default": "./lib/startup.js"

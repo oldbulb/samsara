@@ -151,6 +151,8 @@ export async function startRun(spec: AttemptSpec, deps: RunDeps): Promise<LoopRu
       turns: result?.num_turns ?? 0,
       toolCalls: mapper.toolCalls,
       artifacts,
+      // The skill is appended to the system prompt (harnessFacts.skillDelivery = 'prompt-inline').
+      skillUtilization: 'inline',
     }
   }
 

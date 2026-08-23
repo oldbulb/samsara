@@ -55,6 +55,8 @@ export type LoopEvent =
       turns: number
       toolCalls: number
       artifacts: Artifact[]
+      /** Was the skill delivered and read: 'inline' when it is a prompt section (1.0 by construction), else the read fraction for this attempt. */
+      skillUtilization?: number | 'inline'
     }
 
 export type FinishedEvent = Extract<LoopEvent, { t: 'finished' }>

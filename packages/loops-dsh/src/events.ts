@@ -5,7 +5,7 @@
 
 import { createHash } from 'node:crypto'
 import type { SessionEvent, ContentBlock } from '@samsara/kernel'
-import type { LoopEvent, TokenUsage } from '@samsara/loops'
+import type { HarnessFacts, LoopEvent, TokenUsage } from '@samsara/loops'
 import { addUsage, type Limits } from './limits.ts'
 
 type Finished = Extract<LoopEvent, { t: 'finished' }>
@@ -15,6 +15,8 @@ export interface MapperOptions {
   submitToolName: string
   /** Bytes of serialized arguments kept in `argsPreview`. */
   previewBytes?: number
+  /** Name of a skill-reading tool (when the skill is not prompt-inline); its calls count as utilization. */
+  skillToolName?: string
 }
 
 export interface EventMapper {
@@ -24,6 +26,8 @@ export interface EventMapper {
   readonly turns: number
   readonly toolCalls: number
   readonly submitted: boolean
+  /** Calls of `skillToolName`. */
+  readonly skillToolCalls: number
   /** The `turn/end` reason seen, if any. */
   readonly turnEnd: SessionEvent<'turn/end'>['data']['reason'] | undefined
 }
@@ -45,6 +49,7 @@ export function createEventMapper(options: MapperOptions): EventMapper {
   let turns = 0
   let toolCalls = 0
   let submitted = false
+  let skillToolCalls = 0
   let sawHeader = false
   let turnEnd: EventMapper['turnEnd']
 
@@ -60,6 +65,9 @@ export function createEventMapper(options: MapperOptions): EventMapper {
     },
     get submitted() {
       return submitted
+    },
+    get skillToolCalls() {
+      return skillToolCalls
     },
     get turnEnd() {
       return turnEnd
@@ -82,6 +90,7 @@ export function createEventMapper(options: MapperOptions): EventMapper {
         case 'tool/call': {
           const { callId, name, arguments: args } = event.data
           toolCalls += 1
+          if (options.skillToolName !== undefined && name === options.skillToolName) skillToolCalls += 1
           calls.set(String(callId), { name, at: event.time, args })
           const out: LoopEvent = {
             t: 'tool_call',
@@ -143,8 +152,10 @@ export function createEventMapper(options: MapperOptions): EventMapper {
 
 export interface FinishInput {
   at: number
-  mapper: Pick<EventMapper, 'usage' | 'turns' | 'toolCalls' | 'submitted' | 'turnEnd'>
+  mapper: Pick<EventMapper, 'usage' | 'turns' | 'toolCalls' | 'submitted' | 'turnEnd'> & Partial<Pick<EventMapper, 'skillToolCalls'>>
   limits: Pick<Limits, 'stop' | 'costUsd'>
+  /** How the skill reached the model; default 'prompt-inline' (the provider's harness facts). */
+  skillDelivery?: HarnessFacts['skillDelivery']
   /** A driver-level failure (agent creation/drive threw). */
   error?: unknown
 }
@@ -154,7 +165,9 @@ export function finish(input: FinishInput): Finished {
   const { mapper, limits } = input
   const usd = limits.costUsd(mapper.usage)
   const cost: Finished['cost'] = usd === undefined ? { source: 'unknown' } : { usd, source: 'price-table' }
-  const base = { t: 'finished' as const, at: input.at, usage: mapper.usage, cost, turns: mapper.turns, toolCalls: mapper.toolCalls, artifacts: [] }
+  const skillUtilization: Finished['skillUtilization'] =
+    (input.skillDelivery ?? 'prompt-inline') === 'prompt-inline' ? 'inline' : (mapper.skillToolCalls ?? 0) > 0 ? 1 : 0
+  const base = { t: 'finished' as const, at: input.at, usage: mapper.usage, cost, turns: mapper.turns, toolCalls: mapper.toolCalls, artifacts: [], skillUtilization }
 
   if (input.error !== undefined) return { ...base, status: 'FAILED', stopReason: 'error' }
 
