@@ -104,8 +104,10 @@ node packages/signoff/lib/cli.js keygen --out data/signoff
 dsh --profile host promote <challengerId> --wait 60 &
 node packages/signoff/lib/cli.js confirm --socket data/signoff.sock --key data/signoff/signoff.key --row <challengerId> --action promote --who <name>
 dsh --profile host demote <challengerId> --reason "..."
-# UI：起 host 后打开 http://127.0.0.1:3099/samsara（只读；签字仍走 socket）
-dsh --profile host serve
+# UI：`serve` 会打印实际端口（默认 OS 分配；要固定端口在 profile patch 里给 webserver 行设 port）
+dsh --profile host serve        # → samsara host serving; ui http://127.0.0.1:<port>/samsara
+# pricing pack（需要本机 internal.db 或 Doris 中继；客户级 tasks/truth 不入库，用 tools/build_tasks.py 重建）
+dsh --profile host run --pack packs/pricing --loop dsh --set smoke --limit 1
 # 跨 harness 认证表
 dsh --profile host certify --pack packs/coding-tasks --skill-dir <dir> --loops dsh,claude-code --set smoke --limit 2 --metric pass_rate
 ```
@@ -120,7 +122,8 @@ dsh --profile host certify --pack packs/coding-tasks --skill-dir <dir> --loops d
 | M3 | gate-default（BCa/Holm/MDE/Ladder + 策略定义模拟）、ledger on sqlite、runner 写 ledger | ✅ |
 | M4 | scope（E1/E8 diff scan）、signoff（E2）、champion（E7）、`challenge/promote/demote/serve` | ✅ |
 | M5 | proposers（claude-p / human）、proposer 视图、`round`、champion skill 默认 | ✅ 真实 `claude -p` 一轮已跑通 |
-| P6 | `/samsara` 页面（host 路由插件，内联 HTML + JSON API，只读）、`certify` 跨 harness 认证表、gate `facts:mismatch`、skill utilization | ✅ |
+| P6 | `/samsara` 页面（host 路由插件，内联 HTML + JSON API，只读；Internal 设计体系）、`certify` 跨 harness 认证表、gate `facts:mismatch`、skill utilization | ✅ |
+| P5 | `packs/pricing`：pricing-standalone skill 接成 pack（`.task/data` 统一数据入口、token 定客户与 cutoff、vendored internal loader），0617 dev 面板任务，真值 mock 自判分表，Brier/pinball 按实际臂分层；dsh 与 Claude Code 各跑通 1 次真实 attempt | ✅（输入后端目前是本地 sqlite，Doris 中继后端进行中） |
 
 已知局限：deepseek-v4-flash 在 Python/JS Exercism 上 pass_rate 恒为 1.0（噪声底 sd=0，`docs/design/notes/noise-floor-2026-08-23.md`），阳性对照晋升需要更难任务（更多 Polyglot 语言 / SWE-smith）；live tier（mSPRT）未实现；pricing pack、UI 未开始。
 
