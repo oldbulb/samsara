@@ -111,7 +111,7 @@
       name: '@deepseek-ai/dsh-host-webserver'
       config:
         host: 127.0.0.1
-        port: 3099
+        port: 0   # OS-assigned so one-shot commands never collide; pin a port in the profile patch for `serve`
 
     # The read-only /samsara page and JSON API on ctx.webServer. Config comes
     # from this row, never from the command line.

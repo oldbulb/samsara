@@ -133,7 +133,9 @@ async function serve(ctx: Context, io: Io): Promise<void> {
   const signoff = need(ctx, 'signoff')
   await signoff.ready
   const record = recordConsents(ctx, signoff)
-  io.stdout.write(`samsara host serving; sign-off socket ${signoff.config.socketPath} (pid ${process.pid})\n`)
+  const web = (ctx as unknown as { webServer?: { port?: number; host?: string } }).webServer
+  const url = web?.port ? `http://${web.host ?? '127.0.0.1'}:${web.port}/samsara` : 'no web server mounted'
+  io.stdout.write(`samsara host serving; ui ${url}; sign-off socket ${signoff.config.socketPath} (pid ${process.pid})\n`)
   try {
     await new Promise<void>((done) => {
       process.once('SIGTERM', () => done())
