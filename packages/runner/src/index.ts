@@ -38,7 +38,8 @@ export const Config: Schema<Config> = Schema.object({
   lane: Schema.string(),
 })
 
-export { runSet, readSubmit, submitToolName, sanitizeId, newRunId, championProposal } from './run.ts'
+export { runSet, readSubmit, submitToolName, sanitizeId, newRunId, championProposal, PACK_STAGE_CAP, HEARTBEAT_MS } from './run.ts'
+export { Semaphore, WriterQueue, runPool } from './pool.ts'
 export type { RunRequest, RunDeps, RunResult, AttemptRow, ScoreLine, RouteConfig, Loops, LedgerSink, Materialize } from './run.ts'
 export { challenge, formatChallenge, challengerProposalOf, scoredAttemptsOf, GATE_PERMISSIVE } from './challenge.ts'
 export type { ChallengeRequest, ChallengeDeps, ChallengeResult, GatePolicyName } from './challenge.ts'
@@ -164,7 +165,19 @@ async function run(ctx: Context, config: Config, io: Io): Promise<void> {
     throw new Error(`no loop provider named "${req.loop}" is registered (is its plugin enabled in the profile?)`)
   }
   const controller = new AbortController()
-  const disposeAbort = ctx.effect(() => () => controller.abort('scope disposed'))
+  // dsh's own SIGINT handler disposes the tree; an async disposer makes that
+  // disposal wait for the in-flight rows (and the summary) to land first.
+  let inFlight: Promise<void> | undefined
+  const disposeAbort = ctx.effect(() => async () => {
+    controller.abort('scope disposed')
+    await inFlight?.catch(() => {})
+  })
+  // Ctrl-C: cancel every in-flight attempt; their rows (ABORTED) are still written before the summary and exit.
+  const onSigint = () => {
+    io.stderr.write('SIGINT: cancelling in-flight attempts\n')
+    controller.abort('SIGINT')
+  }
+  process.once('SIGINT', onSigint)
   // The champion's kept skill (promoted through the ledger + sign-off) is the default skill; the pack's is the fallback.
   const championSkillDir = ctx.get('champion')?.current().skill_ref
   const deps = {
@@ -177,21 +190,25 @@ async function run(ctx: Context, config: Config, io: Io): Promise<void> {
   }
   if (championSkillDir !== undefined) deps.log(`champion skill: ${championSkillDir}`)
   try {
-    if (req.command === 'challenge') {
-      const result = await challenge({ ...req, out: resolve(req.out) }, { ...deps, scopes: need(ctx, 'scopes'), gate: need(ctx, 'gate') })
-      io.stdout.write(formatChallenge(result) + '\n')
-    } else if (req.command === 'certify') {
-      const result = await certify({ ...req, out: resolve(req.out) }, { ...deps, scopes: need(ctx, 'scopes'), gate: need(ctx, 'gate') })
-      io.stdout.write(formatCertify(result) + '\n')
-    } else if (req.command === 'round') {
-      const result = await round({ ...req, out: resolve(req.out) }, { ...deps, scopes: need(ctx, 'scopes'), gate: need(ctx, 'gate'), proposers: need(ctx, 'proposers') })
-      io.stdout.write(formatRound(result) + '\n')
-    } else {
-      const result = await runSet({ ...req, out: resolve(req.out) }, deps)
-      io.stdout.write(formatSummary(result) + '\n')
-    }
-    io.exit(0)
+    inFlight = (async () => {
+      if (req.command === 'challenge') {
+        const result = await challenge({ ...req, out: resolve(req.out) }, { ...deps, scopes: need(ctx, 'scopes'), gate: need(ctx, 'gate') })
+        io.stdout.write(formatChallenge(result) + '\n')
+      } else if (req.command === 'certify') {
+        const result = await certify({ ...req, out: resolve(req.out) }, { ...deps, scopes: need(ctx, 'scopes'), gate: need(ctx, 'gate') })
+        io.stdout.write(formatCertify(result) + '\n')
+      } else if (req.command === 'round') {
+        const result = await round({ ...req, out: resolve(req.out) }, { ...deps, scopes: need(ctx, 'scopes'), gate: need(ctx, 'gate'), proposers: need(ctx, 'proposers') })
+        io.stdout.write(formatRound(result) + '\n')
+      } else {
+        const result = await runSet({ ...req, out: resolve(req.out) }, deps)
+        io.stdout.write(formatSummary(result) + '\n')
+      }
+    })()
+    await inFlight
+    io.exit(controller.signal.aborted ? 130 : 0)
   } finally {
+    process.removeListener('SIGINT', onSigint)
     disposeAbort()
   }
 }

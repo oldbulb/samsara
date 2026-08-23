@@ -1,0 +1,17 @@
+#!/usr/bin/env node
+// echoes one settled truth line per stdin task; MINIPACK_MODE=bad emits a schema-invalid line, =crash exits 3, =hang sleeps
+const mode = process.env.MINIPACK_MODE ?? 'ok'
+if (mode === 'crash') { process.stderr.write('boom\n'); process.exit(3) }
+if (mode === 'hang') { setTimeout(() => {}, 60_000) }
+let buf = ''
+process.stdin.on('data', (d) => (buf += d))
+process.stdin.on('end', () => {
+  if (mode === 'hang') return
+  for (const raw of buf.split('\n')) {
+    if (!raw.trim()) continue
+    const { task_id } = JSON.parse(raw)
+    if (mode === 'bad') { process.stdout.write(JSON.stringify({ task_id, status: 'settled' }) + '\n'); continue }
+    if (mode === 'notjson') { process.stdout.write('nope\n'); continue }
+    process.stdout.write(JSON.stringify({ task_id, status: 'settled', truth: { passed: 1, total: 1 }, truth_sha: 'ab'.repeat(32) }) + '\n')
+  }
+})

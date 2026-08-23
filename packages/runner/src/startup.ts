@@ -34,7 +34,7 @@ export type SamsaraRunValues =
   | ({ command: 'demote' } & DemoteRequest)
   | { command: 'serve' }
 
-export const DEFAULTS = { repeat: 1, out: 'data/runs', maxTurns: 50, maxMinutes: 20, nEffFloor: 3 } as const
+export const DEFAULTS = { repeat: 1, parallel: 1, out: 'data/runs', maxTurns: 50, maxMinutes: 20, nEffFloor: 3 } as const
 
 function int(label: string) {
   return (v: string): number => {
@@ -76,6 +76,7 @@ function withRunOptions(cmd: Command, loopOption = true): Command {
     .requiredOption('--set <smoke|holdin|holdout>', 'task set', set)
     .option('--limit <n>', 'only the first n tasks of the set', int('--limit'))
     .option('--repeat <r>', 'attempts per task', int('--repeat'), DEFAULTS.repeat)
+    .option('--parallel <n>', 'attempts in flight at once (pack commands capped at 8)', int('--parallel'), DEFAULTS.parallel)
     .option('--out <dir>', 'output directory; attempts under <out>/attempts', DEFAULTS.out)
     .option('--max-turns <n>', 'per-attempt turn limit', int('--max-turns'), DEFAULTS.maxTurns)
     .option('--max-minutes <m>', 'per-attempt wall-clock limit', num('--max-minutes'), DEFAULTS.maxMinutes)
@@ -88,6 +89,7 @@ function runRequestOf(opts: Record<string, unknown>): RunRequest {
     loop: opts['loop'] as string,
     set: opts['set'] as TaskSet,
     repeat: opts['repeat'] as number,
+    parallel: opts['parallel'] as number,
     out: opts['out'] as string,
     maxTurns: opts['maxTurns'] as number,
     maxMinutes: opts['maxMinutes'] as number,
@@ -104,6 +106,7 @@ export function runProgram(onRun: (values: SamsaraRunValues) => void): Command {
     .helpOption('-h, --help', 'show this help')
   const checkRepeat = (values: RunRequest) => {
     if (values.repeat < 1) program.error('error: --repeat must be >= 1')
+    if ((values.parallel ?? 1) < 1) program.error('error: --parallel must be >= 1')
   }
 
   withRunOptions(program.command('run'))

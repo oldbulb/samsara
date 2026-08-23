@@ -1,5 +1,9 @@
 // The runner core: tasks × repeat → materialize → loops.start → drain events →
 // read/validate submit → pack truth → pack score → one attempts.jsonl row.
+// Attempts run through a bounded pool (`parallel`); pack subprocess stages
+// (materialize / truth / score) share a smaller semaphore; every row goes
+// through one serialized writer (attempts.jsonl + ledger) in completion order
+// and the result rows come back in task × sample order.
 // Pure with respect to cordis: every dependency comes in through `RunDeps`,
 // so tests drive it with fakes and the plugin (index.ts) only wires services.
 
@@ -11,6 +15,7 @@ import { factsSha, type AttemptSpec, type FinishedEvent, type LoopEvent, type Lo
 import { loadPack, runCommand, validateSubmit, PackError, type PackDefinition, type TaskLine } from '@samsara/pack'
 import { submitPath } from '@samsara/submit'
 import { materialize as materializeWorkdir, hashDir, SKILLS_DIR, type MaterializeOptions, type Workdir } from '@samsara/workdir'
+import { Semaphore, WriterQueue, runPool } from './pool.ts'
 
 /** The slice of `ctx.loops` the runner needs (structural, so tests pass a fake). */
 export interface Loops {
@@ -35,7 +40,14 @@ export interface RunRequest {
   allow?: string[]
   /** Skill directory to run instead of the pack's (a challenger's snapshot). */
   skillDir?: string
+  /** Attempts in flight at once (default 1); pack subprocess stages are capped at min(parallel, PACK_STAGE_CAP). */
+  parallel?: number
 }
+
+/** Upper bound on concurrent pack commands (materialize / truth / score) whatever `parallel` says. */
+export const PACK_STAGE_CAP = 8
+/** Interval of the stderr heartbeat while attempts are in flight. */
+export const HEARTBEAT_MS = 10_000
 
 export interface RouteConfig {
   provider: string
@@ -60,6 +72,8 @@ export interface RunDeps {
   /** Injected for deterministic ids in tests. */
   runId?: string
   log?: (line: string) => void
+  /** Heartbeat period while attempts are in flight; tests shorten it. */
+  heartbeatMs?: number
 }
 
 export interface ScoreLine {
@@ -149,10 +163,11 @@ export function bookOf(def: PackDefinition): Book {
   })
 }
 
-function failedFinish(at: number): FinishedEvent {
-  return { t: 'finished', at, status: 'FAILED', stopReason: 'error', usage: { inputTokens: 0, outputTokens: 0 }, cost: { source: 'unknown' }, turns: 0, toolCalls: 0, artifacts: [] }
+function failedFinish(at: number, status: FinishedEvent['status'] = 'FAILED', stopReason: FinishedEvent['stopReason'] = 'error'): FinishedEvent {
+  return { t: 'finished', at, status, stopReason, usage: { inputTokens: 0, outputTokens: 0 }, cost: { source: 'unknown' }, turns: 0, toolCalls: 0, artifacts: [] }
 }
 
+/** Stream events to disk as they arrive; nothing is kept in memory once written. */
 async function drainEvents(events: AsyncIterable<LoopEvent>, file: string): Promise<void> {
   mkdirSync(resolve(file, '..'), { recursive: true })
   const ws = createWriteStream(file, { flags: 'a' })
@@ -167,35 +182,51 @@ function msg(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
 
-async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRequest, deps: RunDeps, runId: string): Promise<AttemptRow> {
+/** Per-run shared state for one attempt: the pack-stage semaphore and the abort signal. */
+interface Stages {
+  pack: Semaphore
+  signal?: AbortSignal
+}
+
+function emptyRow(attemptId: string, task: TaskLine, loop: string, facts_sha: string): AttemptRow {
+  return {
+    attemptId, task_id: task.task_id, loop, facts_sha,
+    status: 'FAILED', stopReason: 'host_error',
+    usage: { inputTokens: 0, outputTokens: 0 }, cost: { source: 'unknown' }, toolCalls: 0,
+    output: { valid: false }, truth: { status: 'error' }, scores: [],
+  }
+}
+
+async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRequest, deps: RunDeps, runId: string, stages: Stages): Promise<AttemptRow> {
   const attemptId = `${runId}-${sanitizeId(task.task_id)}-${r}`
   const attemptsDir = resolve(req.out, 'attempts')
   const skillDir = req.skillDir ?? deps.championSkillDir ?? def.skillDir
   const challengerId = deps.challengerId ?? 'champion'
   const provider = deps.loops.get(req.loop)
   const facts_sha = provider ? factsSha(provider.harnessFacts) : ''
-  const row: AttemptRow = {
-    attemptId, task_id: task.task_id, loop: req.loop, facts_sha,
-    status: 'FAILED', stopReason: 'host_error',
-    usage: { inputTokens: 0, outputTokens: 0 }, cost: { source: 'unknown' }, toolCalls: 0,
-    output: { valid: false }, truth: { status: 'error' }, scores: [],
-  }
+  const row = emptyRow(attemptId, task, req.loop, facts_sha)
+  const signal = stages.signal
 
   let wd: Workdir
   try {
-    wd = await (deps.materialize ?? materializeWorkdir)({
+    wd = await stages.pack.run(() => (deps.materialize ?? materializeWorkdir)({
       attemptId, taskId: task.task_id, challengerId, pack: def, baseDir: attemptsDir,
       skill: { name: def.manifest.skill.name, dir: skillDir },
       extraSkillDirs: ['.claude/skills'],
-    })
+    }))
   } catch (e) {
     row.error = `materialize: ${msg(e)}`
     return row
   }
 
+  // Cancellation: the attempt's own signal is aborted and, once the run exists, run.cancel() is called too.
   const controller = new AbortController()
-  const onAbort = () => controller.abort(deps.signal?.reason)
-  deps.signal?.addEventListener('abort', onAbort, { once: true })
+  let run: LoopRun | undefined
+  const onAbort = () => {
+    controller.abort(signal?.reason)
+    run?.cancel(String(signal?.reason ?? 'aborted'))
+  }
+  signal?.addEventListener('abort', onAbort, { once: true })
   const spec: AttemptSpec = {
     attemptId, challengerId, workdir: wd.path,
     skill: { name: def.manifest.skill.name, dir: resolve(wd.path, SKILLS_DIR, def.manifest.skill.name), sha: wd.skillSha },
@@ -210,18 +241,21 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
 
   let finished: FinishedEvent
   try {
-    const run = await deps.loops.start(req.loop, spec)
+    run = await deps.loops.start(req.loop, spec)
+    if (signal?.aborted) onAbort()
     try {
       await drainEvents(run.events, resolve(attemptsDir, attemptId, 'events.jsonl'))
       finished = await run.result
     } finally {
+      // Dispose as soon as the loop has published its result: the events are on disk already.
       await run.dispose().catch(() => {})
+      run = undefined
     }
   } catch (e) {
-    finished = failedFinish(Date.now())
+    finished = signal?.aborted ? failedFinish(Date.now(), 'ABORTED', 'aborted') : failedFinish(Date.now())
     row.error = `loop: ${msg(e)}`
   } finally {
-    deps.signal?.removeEventListener('abort', onAbort)
+    signal?.removeEventListener('abort', onAbort)
   }
   row.status = finished.status
   row.stopReason = finished.stopReason
@@ -233,8 +267,14 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
   const sub = readSubmit(def, wd.path)
   row.output = { valid: sub.valid, ...(sub.file ? { file: sub.file } : {}), ...(sub.error ? { error: sub.error } : {}) }
 
+  if (signal?.aborted) {
+    // Do not fork pack commands for a run the host is tearing down; the row still lands.
+    row.truth = { status: 'error', error: 'aborted before truth' }
+    return row
+  }
   try {
-    const [truth] = await runCommand(def, 'truth', [{ task_id: task.task_id, workdir: wd.path }], { env: { ...process.env, TMPDIR: wd.tmpdir } })
+    const env = { ...process.env, TMPDIR: wd.tmpdir }
+    const [truth] = await stages.pack.run(() => runCommand(def, 'truth', [{ task_id: task.task_id, workdir: wd.path }], { env }))
     if (!truth) throw new Error('truth returned no line')
     row.truth = { status: truth['status'] as 'settled' | 'pending', truth_sha: truth['truth_sha'] as string }
     if (truth['status'] === 'settled') {
@@ -246,7 +286,7 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
         valid: sub.valid,
         status: finished.status,
       }
-      const scores = await runCommand(def, 'score', [{ task_id: task.task_id, truth: truth['truth'], output }], { env: { ...process.env, TMPDIR: wd.tmpdir } })
+      const scores = await stages.pack.run(() => runCommand(def, 'score', [{ task_id: task.task_id, truth: truth['truth'], output }], { env }))
       row.scores = scores as unknown as ScoreLine[]
     }
   } catch (e) {
@@ -325,19 +365,59 @@ export async function runSet(req: RunRequest, deps: RunDeps): Promise<RunResult>
   const proposal = deps.ledger ? championProposal(def, book, req, deps) : undefined
   const challengerId = deps.challengerId ?? (deps.ledger && proposal ? await deps.ledger.propose(proposal) : undefined)
   const tasks = book.tasks(req.set).slice(0, req.limit ?? undefined)
+  const parallel = Math.max(1, Math.floor(req.parallel ?? 1))
   mkdirSync(resolve(req.out, 'attempts'), { recursive: true })
   const attemptsPath = resolve(req.out, 'attempts.jsonl')
-  const rows: AttemptRow[] = []
-  log(`${runId}: pack ${def.name} set ${req.set} (${tasks.length} tasks × ${req.repeat}) via loop ${req.loop} skill ${req.skillDir ?? deps.championSkillDir ?? def.skillDir}`)
-  for (const task of tasks) {
-    for (let r = 0; r < req.repeat; r++) {
-      if (deps.signal?.aborted) break
-      const row = await runOne(def, task as TaskLine, r, req, deps, runId)
-      appendFileSync(attemptsPath, JSON.stringify(row) + '\n')
-      if (deps.ledger && challengerId && proposal) await recordInLedger(deps.ledger, row, challengerId, req.set, proposal.scorer_version)
-      rows.push(row)
-      log(`  ${row.attemptId}: ${row.status}/${row.stopReason} valid=${row.output.valid} ${row.error ?? ''}`.trimEnd())
-    }
+  log(`${runId}: pack ${def.name} set ${req.set} (${tasks.length} tasks × ${req.repeat}) via loop ${req.loop} skill ${req.skillDir ?? deps.championSkillDir ?? def.skillDir} parallel ${parallel}`)
+
+  // The work list in task × sample order; `slots[i]` receives row i so the result is ordered whatever finishes first.
+  const items: { task: TaskLine; r: number }[] = []
+  for (const task of tasks) for (let r = 0; r < req.repeat; r++) items.push({ task: task as TaskLine, r })
+  const slots: (AttemptRow | undefined)[] = new Array(items.length).fill(undefined)
+  const stages: Stages = { pack: new Semaphore(Math.min(parallel, PACK_STAGE_CAP)), ...(deps.signal ? { signal: deps.signal } : {}) }
+  const writer = new WriterQueue()
+  const writeErrors: string[] = []
+  const counter = { done: 0, running: 0, failed: 0, total: items.length }
+  const progress = () => `${counter.done}/${counter.total} done, ${counter.running} running, ${counter.failed} failed`
+  const started = Date.now()
+  const heartbeat = setInterval(() => {
+    if (counter.running > 0) log(`  … ${progress()} (${Math.round((Date.now() - started) / 1000)}s)`)
+  }, deps.heartbeatMs ?? HEARTBEAT_MS)
+  heartbeat.unref?.()
+
+  const sink = (row: AttemptRow) => writer.enqueue(async () => {
+    appendFileSync(attemptsPath, JSON.stringify(row) + '\n')
+    if (deps.ledger && challengerId && proposal) await recordInLedger(deps.ledger, row, challengerId, req.set, proposal.scorer_version)
+  })
+
+  try {
+    await runPool(items, parallel, async ({ task, r }, i) => {
+      counter.running++
+      let row: AttemptRow
+      try {
+        row = await runOne(def, task, r, req, deps, runId, stages)
+      } catch (e) {
+        // runOne catches per stage; this is the belt for anything it did not expect.
+        const provider = deps.loops.get(req.loop)
+        row = emptyRow(`${runId}-${sanitizeId(task.task_id)}-${r}`, task, req.loop, provider ? factsSha(provider.harnessFacts) : '')
+        row.error = `host: ${msg(e)}`
+      }
+      slots[i] = row
+      counter.running--
+      counter.done++
+      if (row.status === 'FAILED') counter.failed++
+      try {
+        await sink(row)
+      } catch (e) {
+        writeErrors.push(`${row.attemptId}: ${msg(e)}`)
+      }
+      log(`  [${progress()}] ${row.attemptId}: ${row.status}/${row.stopReason} valid=${row.output.valid} ${row.error ?? ''}`.trimEnd())
+    }, () => deps.signal?.aborted === true)
+  } finally {
+    clearInterval(heartbeat)
+    await writer.drain()
   }
+  if (writeErrors.length) log(`  ${writeErrors.length} row(s) failed to record: ${writeErrors.join('; ')}`)
+  const rows = slots.filter((r): r is AttemptRow => r !== undefined)
   return { runId, pack: def.name, set: req.set, tasksetSha: book.tasksetSha(req.set), ...(challengerId ? { challengerId } : {}), rows, attemptsPath }
 }

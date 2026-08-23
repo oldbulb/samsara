@@ -19,22 +19,23 @@ function parse(argv: string[]): { values?: SamsaraRunValues; error?: string } {
 describe('samsara-run-startup', () => {
   it('parses the run command with defaults', () => {
     const { values } = parse(['run', '--pack', 'packs/x', '--loop', 'dsh', '--set', 'smoke'])
-    expect(values).toEqual({ command: 'run', pack: 'packs/x', loop: 'dsh', set: 'smoke', repeat: DEFAULTS.repeat, out: DEFAULTS.out, maxTurns: DEFAULTS.maxTurns, maxMinutes: DEFAULTS.maxMinutes })
+    expect(values).toEqual({ command: 'run', pack: 'packs/x', loop: 'dsh', set: 'smoke', repeat: DEFAULTS.repeat, parallel: DEFAULTS.parallel, out: DEFAULTS.out, maxTurns: DEFAULTS.maxTurns, maxMinutes: DEFAULTS.maxMinutes })
   })
   it('parses every option', () => {
-    const { values } = parse(['run', '--pack', 'p', '--loop', 'claude-code', '--set', 'holdout', '--limit', '3', '--repeat', '2', '--out', '/o', '--max-turns', '7', '--max-minutes', '1.5', '--allow', 'read, bash,,edit'])
-    expect(values).toEqual({ command: 'run', pack: 'p', loop: 'claude-code', set: 'holdout', limit: 3, repeat: 2, out: '/o', maxTurns: 7, maxMinutes: 1.5, allow: ['read', 'bash', 'edit'] })
+    const { values } = parse(['run', '--pack', 'p', '--loop', 'claude-code', '--set', 'holdout', '--limit', '3', '--repeat', '2', '--parallel', '4', '--out', '/o', '--max-turns', '7', '--max-minutes', '1.5', '--allow', 'read, bash,,edit'])
+    expect(values).toEqual({ command: 'run', pack: 'p', loop: 'claude-code', set: 'holdout', limit: 3, repeat: 2, parallel: 4, out: '/o', maxTurns: 7, maxMinutes: 1.5, allow: ['read', 'bash', 'edit'] })
   })
   it('rejects a bad set, a missing required option, and repeat < 1', () => {
     expect(parse(['run', '--pack', 'p', '--loop', 'l', '--set', 'live']).error).toMatch(/--set must be one of/)
     expect(parse(['run', '--pack', 'p', '--set', 'smoke']).error).toMatch(/--loop/)
     expect(parse(['run', '--pack', 'p', '--loop', 'l', '--set', 'smoke', '--repeat', '0']).error).toMatch(/--repeat/)
+    expect(parse(['run', '--pack', 'p', '--loop', 'l', '--set', 'smoke', '--parallel', '0']).error).toMatch(/--parallel/)
     expect(parse(['run', '--pack', 'p', '--loop', 'l', '--set', 'smoke', '--limit', 'x']).error).toMatch(/--limit/)
   })
   it('parses certify with its loop list and defaults', () => {
     const { values } = parse(['certify', '--pack', 'p', '--skill-dir', '/s', '--loops', 'dsh, claude-code', '--set', 'smoke', '--limit', '3'])
     expect(values).toEqual({
-      command: 'certify', pack: 'p', set: 'smoke', limit: 3, repeat: DEFAULTS.repeat, out: DEFAULTS.out, maxTurns: DEFAULTS.maxTurns, maxMinutes: DEFAULTS.maxMinutes,
+      command: 'certify', pack: 'p', set: 'smoke', limit: 3, repeat: DEFAULTS.repeat, parallel: DEFAULTS.parallel, out: DEFAULTS.out, maxTurns: DEFAULTS.maxTurns, maxMinutes: DEFAULTS.maxMinutes,
       skillDir: '/s', loops: ['dsh', 'claude-code'], metric: 'pass_rate', nEffFloor: DEFAULTS.nEffFloor, gatePolicy: 'default',
     })
     expect(parse(['certify', '--pack', 'p', '--skill-dir', '/s', '--set', 'smoke']).error).toMatch(/--loops/)

@@ -1,0 +1,11 @@
+#!/usr/bin/env node
+let buf = ''
+process.stdin.on('data', (d) => (buf += d))
+process.stdin.on('end', () => {
+  for (const raw of buf.split('\n')) {
+    if (!raw.trim()) continue
+    const { task_id, truth } = JSON.parse(raw)
+    process.stdout.write(JSON.stringify({ task_id, metric: 'pass_rate', value: truth.passed / truth.total, kind: 'reality', stratum: 'a' }) + '\n')
+    process.stdout.write(JSON.stringify({ task_id, metric: 'cost_usd', value: 0.01, kind: 'mechanical' }) + '\n')
+  }
+})

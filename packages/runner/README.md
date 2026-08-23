@@ -9,14 +9,20 @@ the pack's skill is the fallback.
 | plugin | entry | inject | does |
 |---|---|---|---|
 | `samsara-run-startup` | `@samsara/runner/startup` | `cmdlineArgs` | parses the `run` command with commander and `ctx.provide('samsaraRun', values)`; nothing is provided on `--help` or a usage error (modelled on `@deepseek-ai/dsh-headless/startup`) |
-| `samsara-runner` | `@samsara/runner` | `samsaraRun`, `loops`, `agentDefaultModel` | waits for the loader, runs the set sequentially, prints a summary table, exits through `ctx.appExit` |
+| `samsara-runner` | `@samsara/runner` | `samsaraRun`, `loops`, `agentDefaultModel` | waits for the loader, runs the set through a bounded pool (`--parallel`), prints a summary table, exits through `ctx.appExit`; SIGINT cancels in-flight attempts and still writes their rows |
 
 ```
 dsh --profile host run --pack <dir> --loop <name> --set <smoke|holdin|holdout>
-                       [--limit n] [--repeat r] [--out dir] [--max-turns n] [--max-minutes m] [--allow tools,...]
+                       [--limit n] [--repeat r] [--parallel n] [--out dir] [--max-turns n] [--max-minutes m] [--allow tools,...]
 ```
 
-Defaults: `--repeat 1`, `--out data/runs`, `--max-turns 50`, `--max-minutes 20`; no `--allow` means the provider's default tool set (`tools.allow: []`).
+Defaults: `--repeat 1`, `--parallel 1`, `--out data/runs`, `--max-turns 50`, `--max-minutes 20`; no `--allow` means the provider's default tool set (`tools.allow: []`).
+
+`--parallel n` (also on `challenge`, `round`, `certify`) runs up to n attempts at once through a worker pool over the
+task × repeat list (`src/pool.ts`). Pack commands (materialize / truth / score) are subprocesses, so they share a
+semaphore of `min(n, 8)`. Rows reach `attempts.jsonl` and the ledger through one serialized writer in completion order;
+the result rows and the summary table stay in task × sample order. stderr gets one line per completion
+(`[done/total done, running, failed]`) and a heartbeat every 10 s while attempts are in flight.
 
 ```
 dsh --profile host round --pack <dir> --loop <name> --set <smoke|holdin> --proposer <claude-p|human> --metric <name>
