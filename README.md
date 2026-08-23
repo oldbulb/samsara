@@ -14,7 +14,7 @@
 
 要领先的三件事：**holdout 记账**（Thresholdout/Ladder 在 agent 优化回路的首次工程化）、**延迟真值上的自动回路**、**活的 champion**（真值/scorer/模型/任务集变更 = 事件，沿祖先重打分并可降级）。在已有先例上闭环的三件事：surface 归因回馈 proposer、固定门下可撤销的跨 harness skill 认证、带采纳与结算标签的训练出口。完整论证与证据：`docs/design/philosophy.md`、`docs/research/vision-calibration-2026-08-23.md`。
 
-> 状态（2026-08-23）：M0–M5 已实现并提交——两条 loop（dsh、Claude Code）在 Aider Polyglot 上跑通，gate-default / ledger(sqlite) / scope / signoff / champion / proposer 全链路在 null loop 上端到端验证。设计见 `docs/design/`，运行方式见下文"怎么跑"与 `ops/README.md`。
+> 状态（2026-08-23）：M0–M5 与 P6 已实现并提交——两条 loop（dsh、Claude Code）在 Aider Polyglot 上跑通，gate-default / ledger(sqlite) / scope / signoff / champion / proposer 全链路在 null loop 上端到端验证。设计见 `docs/design/`，运行方式见下文"怎么跑"与 `ops/README.md`。
 
 ## 先读什么
 
@@ -104,6 +104,10 @@ node packages/signoff/lib/cli.js keygen --out data/signoff
 dsh --profile host promote <challengerId> --wait 60 &
 node packages/signoff/lib/cli.js confirm --socket data/signoff.sock --key data/signoff/signoff.key --row <challengerId> --action promote --who <name>
 dsh --profile host demote <challengerId> --reason "..."
+# UI：起 host 后打开 http://127.0.0.1:3099/samsara（只读；签字仍走 socket）
+dsh --profile host serve
+# 跨 harness 认证表
+dsh --profile host certify --pack packs/coding-tasks --skill-dir <dir> --loops dsh,claude-code --set smoke --limit 2 --metric pass_rate
 ```
 
 ## 里程碑（实际执行顺序）
@@ -115,7 +119,8 @@ dsh --profile host demote <challengerId> --reason "..."
 | M2 | loops seam + null、workdir、submit、loops-dsh、loops-claude-code、runner；两条 loop smoke 8/8；replay 离线测试 | ✅ |
 | M3 | gate-default（BCa/Holm/MDE/Ladder + 策略定义模拟）、ledger on sqlite、runner 写 ledger | ✅ |
 | M4 | scope（E1/E8 diff scan）、signoff（E2）、champion（E7）、`challenge/promote/demote/serve` | ✅ |
-| M5 | proposers（claude-p / human）、proposer 视图、`round`、champion skill 默认 | ✅（真实 `claude -p` 一轮待确认） |
+| M5 | proposers（claude-p / human）、proposer 视图、`round`、champion skill 默认 | ✅ 真实 `claude -p` 一轮已跑通 |
+| P6 | `/samsara` 页面（host 路由插件，内联 HTML + JSON API，只读）、`certify` 跨 harness 认证表、gate `facts:mismatch`、skill utilization | ✅ |
 
 已知局限：deepseek-v4-flash 在 Python/JS Exercism 上 pass_rate 恒为 1.0（噪声底 sd=0，`docs/design/notes/noise-floor-2026-08-23.md`），阳性对照晋升需要更难任务（更多 Polyglot 语言 / SWE-smith）；live tier（mSPRT）未实现；pricing pack、UI 未开始。
 
