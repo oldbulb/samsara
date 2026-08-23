@@ -25,6 +25,12 @@
           - id: deepseek-v4-flash
 - id: session-title-llm
   disabled: true
+# - signoff: the consent socket lives under the test's tmp dir (binding inside the
+#   repo is refused by some sandboxes); no key is needed for a replayed run.
+- id: signoff
+  config:
+    socketPath: '{{sessions}}/signoff.sock'
+    publicKeyPath: '{{sessions}}/signoff.pub'
 - id: session-persistence-jsonl
   config:
     root: '{{sessions}}'
