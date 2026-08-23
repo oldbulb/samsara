@@ -25,10 +25,10 @@ const TOKENS = `--color-canvas:#f8fafc; --color-surface-1:#ffffff; --color-surfa
 const CSS = `
 :root { ${TOKENS} }
 @media (prefers-color-scheme: dark) {
-  :root { --badge-pos-border: #14532d; --badge-risk-border: #831843; --badge-warn-border: #78350f; --badge-info-border: #164e63; --color-pos: #4ade80; --color-risk: #f472b6; --color-warn: #fbbf24; --color-info: #22d3ee; }
   :root { --color-canvas:#0b1220; --color-surface-1:#0f172a; --color-surface-2:#111a2e; --color-sunken:#1e293b; --color-border:#1f2937; --color-border-strong:#334155;
     --color-ink:#e2e8f0; --color-ink-soft:#cbd5e1; --color-ink-muted:#94a3b8; --color-ink-faint:#64748b;
     --color-accent-soft:#2e1065; --color-accent-border:#4c1d95; --color-pos-soft:#052e16; --color-risk-soft:#4a044e; --color-warn-soft:#451a03; --color-info-soft:#083344; }
+  :root { --badge-pos-border: #14532d; --badge-risk-border: #831843; --badge-warn-border: #78350f; --badge-info-border: #164e63; --color-pos: #4ade80; --color-risk: #f472b6; --color-warn: #fbbf24; --color-info: #22d3ee; }
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
