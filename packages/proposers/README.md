@@ -97,6 +97,15 @@ give `baseUrl` a route segment per proposer.
     # or, for another surface:  surface: prompt, rows: [ { id: …, config: … } ]
 ```
 
+## Filesystem isolation (E9)
+
+`ClaudePAdapter.propose` spawns the proposal run through `@samsara/sandbox`'s
+`apply` with `input.sandbox` (the host composes it: the work directory
+writable, the rendered view read-only, the pack's `tasks/`, `data/`, `bin/`
+unreachable). Enforced on Linux under `landlock-run`; unchanged where nothing
+enforces; an enforcing host with no policy fails closed. The `--version` probe
+is not confined (no prompt, no view). `ClaudePDeps.host` is the test seam.
+
 ## Tests
 
 `pnpm --filter @samsara/proposers test` — schema validation, `HumanAdapter`, `ClaudePAdapter`

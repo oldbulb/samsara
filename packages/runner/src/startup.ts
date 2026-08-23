@@ -9,6 +9,7 @@ import type { RunRequest } from './run.ts'
 import type { ChallengeRequest, GatePolicyName } from './challenge.ts'
 import type { RoundRequest } from './round.ts'
 import type { CertifyRequest } from './certify.ts'
+import type { ExportRequest, ExportFormat } from './export.ts'
 
 export const name = 'samsara-run-startup'
 export const inject = ['cmdlineArgs']
@@ -27,11 +28,14 @@ export interface DemoteRequest {
 
 export type SamsaraRunValues =
   | ({ command: 'run' } & RunRequest)
+  /** `run --resume <runDir>`: the request is read from `<runDir>/run.json` (see steps.ts). */
+  | { command: 'run'; resumeDir: string }
   | ({ command: 'challenge' } & ChallengeRequest)
   | ({ command: 'round' } & RoundRequest)
   | ({ command: 'certify' } & CertifyRequest)
   | ({ command: 'promote' } & PromoteRequest)
   | ({ command: 'demote' } & DemoteRequest)
+  | ({ command: 'export' } & ExportRequest)
   | { command: 'serve' }
 
 export const DEFAULTS = { repeat: 1, parallel: 1, out: 'data/runs', maxTurns: 50, maxMinutes: 20, nEffFloor: 3 } as const
@@ -68,12 +72,23 @@ function gatePolicyName(v: string): GatePolicyName {
   return v as GatePolicyName
 }
 
-/** The options `run`, `challenge`, `round` and `certify` share (`certify` names its loops itself). */
-function withRunOptions(cmd: Command, loopOption = true): Command {
-  cmd.requiredOption('--pack <dir>', 'pack directory containing pack.yaml')
-  if (loopOption) cmd.requiredOption('--loop <name>', 'loop provider name (as registered on ctx.loops)')
+function exportFormat(v: string): ExportFormat {
+  if (v !== 'otlp-json') throw new Error(`--format must be otlp-json, got ${v}`)
+  return v
+}
+
+/**
+ * The options `run`, `challenge`, `round` and `certify` share (`certify` names its loops itself).
+ * `resumable` (run only) makes --pack/--loop/--set plain options so `--resume <runDir>` can stand alone;
+ * the action checks them by hand when --resume is absent.
+ */
+function withRunOptions(cmd: Command, loopOption = true, resumable = false): Command {
+  const required = (flags: string, description: string, parser?: (v: string) => unknown) =>
+    resumable ? (parser ? cmd.option(flags, description, parser) : cmd.option(flags, description)) : (parser ? cmd.requiredOption(flags, description, parser) : cmd.requiredOption(flags, description))
+  required('--pack <dir>', 'pack directory containing pack.yaml')
+  if (loopOption) required('--loop <name>', 'loop provider name (as registered on ctx.loops)')
+  required('--set <smoke|holdin|holdout>', 'task set', set)
   return cmd
-    .requiredOption('--set <smoke|holdin|holdout>', 'task set', set)
     .option('--limit <n>', 'only the first n tasks of the set', int('--limit'))
     .option('--repeat <r>', 'attempts per task', int('--repeat'), DEFAULTS.repeat)
     .option('--parallel <n>', 'attempts in flight at once (pack commands capped at 8)', int('--parallel'), DEFAULTS.parallel)
@@ -109,13 +124,22 @@ export function runProgram(onRun: (values: SamsaraRunValues) => void): Command {
     if ((values.parallel ?? 1) < 1) program.error('error: --parallel must be >= 1')
   }
 
-  withRunOptions(program.command('run'))
+  withRunOptions(program.command('run'), true, true)
     .description('run every task of one set (× repeat) and write <out>/attempts.jsonl')
+    .option('--resume <runDir>', 're-enter the run recorded in <runDir>/run.json, skipping completed steps (no other option is read)')
     .addHelpText('after', `
 Examples:
   dsh --profile host run --pack packs/<name> --loop dsh --set smoke --limit 2
+  dsh --profile host run --resume data/runs/run-1     # finish a killed run: finished loops are never re-run
 `)
     .action((opts: Record<string, unknown>) => {
+      if (opts['resume'] !== undefined) {
+        onRun({ command: 'run', resumeDir: opts['resume'] as string })
+        return
+      }
+      for (const [key, flag] of [['pack', '--pack <dir>'], ['loop', '--loop <name>'], ['set', '--set <smoke|holdin|holdout>']] as const) {
+        if (opts[key] === undefined) program.error(`error: required option '${flag}' not specified`)
+      }
       const values = runRequestOf(opts)
       checkRepeat(values)
       onRun({ command: 'run', ...values })
@@ -227,6 +251,33 @@ Examples:
     .requiredOption('--reason <text>', 'why')
     .action((challengerId: string, opts: Record<string, unknown>) => {
       onRun({ command: 'demote', challengerId, reason: opts['reason'] as string })
+    })
+
+  program
+    .command('export')
+    .description('write the loop events of every attempt under a run directory as OpenTelemetry GenAI spans')
+    .requiredOption('--run <dir>', 'run directory (holds attempts/<attemptId>/events.jsonl)')
+    .requiredOption('--out <file>', 'output file')
+    .option('--format <otlp-json>', 'output format', exportFormat, 'otlp-json')
+    .option('--challenger-id <id>', 'samsara.challenger_id on every span')
+    .option('--tier <smoke|holdin|holdout|live>', 'samsara.tier on every span')
+    .option('--model <id>', 'gen_ai.request.model on every span')
+    .option('--provider <name>', 'gen_ai.provider.name on every span')
+    .addHelpText('after', `
+Examples:
+  dsh --profile host export --run data/runs/run-1 --format otlp-json --out run-1.otlp.json
+`)
+    .action((opts: Record<string, unknown>) => {
+      onRun({
+        command: 'export',
+        run: opts['run'] as string,
+        out: opts['out'] as string,
+        format: opts['format'] as ExportFormat,
+        ...(opts['challengerId'] !== undefined ? { challengerId: opts['challengerId'] as string } : {}),
+        ...(opts['tier'] !== undefined ? { tier: opts['tier'] as string } : {}),
+        ...(opts['model'] !== undefined ? { model: opts['model'] as string } : {}),
+        ...(opts['provider'] !== undefined ? { provider: opts['provider'] as string } : {}),
+      })
     })
 
   program

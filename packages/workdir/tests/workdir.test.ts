@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { loadPack } from '@samsara/pack'
-import { materialize, workdirDiff, denyGuard, hashDir, WorkdirError, type Workdir } from '../src/index.ts'
+import { materialize, policyPaths, workdirDiff, denyGuard, hashDir, WorkdirError, type Workdir } from '../src/index.ts'
 
 const MINI = resolve(import.meta.dirname, '..', '..', 'pack', 'tests', 'fixtures', 'minipack')
 const pack = loadPack(MINI)
@@ -50,6 +50,12 @@ describe('materialize', () => {
   it('refuses an existing attempt dir', async () => {
     await make('a1')
     await expect(make('a1')).rejects.toBeInstanceOf(WorkdirError)
+  })
+  it('exposes the sandbox policy paths: workdir, pack dir, existing runtime roots', async () => {
+    const w = await make('a1')
+    expect(w.policyPaths).toEqual({ workdir: w.path, packDir: resolve(MINI), runtimeDirs: [] })
+    const withRuntime = policyPaths(w.path, { dir: resolve(import.meta.dirname, 'fixtures', 'runtime-pack') })
+    expect(withRuntime.runtimeDirs).toEqual([resolve(import.meta.dirname, 'fixtures', 'runtime-pack', 'runtime', 'py')])
   })
   it('dispose removes the attempt dir and is idempotent', async () => {
     const w = await make('a1')

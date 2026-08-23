@@ -12,6 +12,7 @@ export const NULL_HARNESS_FACTS: HarnessFacts = {
   permission: 'none',
   reasoning: {},
   version: { loop: 'null@0' },
+  sandbox: 'none',
 }
 
 export class NullLoopProvider implements LoopProvider {

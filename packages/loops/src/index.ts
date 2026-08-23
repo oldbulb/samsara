@@ -11,6 +11,8 @@ import type { AttemptSpec, FinishedEvent, LoopEvent, LoopProvider, LoopRun } fro
 
 export * from './types.ts'
 export { NullLoopProvider, NULL_HARNESS_FACTS } from './null.ts'
+export { toSpans, toResourceSpans, OTEL_SCOPE_NAME } from './otel.ts'
+export type { AttemptMeta, OtlpSpan, OtlpAttribute, OtlpValue, OtlpResourceSpans } from './otel.ts'
 
 declare module '@samsara/kernel' {
   interface Context {

@@ -7,15 +7,19 @@
 // Pure with respect to cordis: every dependency comes in through `RunDeps`,
 // so tests drive it with fakes and the plugin (index.ts) only wires services.
 
-import { createWriteStream, mkdirSync, readFileSync, appendFileSync, existsSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { createWriteStream, mkdirSync, readFileSync, appendFileSync, existsSync, writeFileSync, rmSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { relative, resolve } from 'node:path'
 import { createBook, type Book, type TaskSet } from '@samsara/book'
 import { attemptRowOf, sha256, canonicalJson, type ChallengerProposal, type Ledger, type Tier } from '@samsara/ledger'
 import { factsSha, type AttemptSpec, type FinishedEvent, type LoopEvent, type LoopProvider, type LoopRun, type TokenUsage } from '@samsara/loops'
 import { loadPack, runCommand, validateSubmit, PackError, type PackDefinition, type TaskLine } from '@samsara/pack'
+import { envLock, findRepoRoot, type EnvLock } from '@samsara/scope'
+import { policyFor } from '@samsara/sandbox'
 import { submitPath } from '@samsara/submit'
-import { materialize as materializeWorkdir, hashDir, SKILLS_DIR, type MaterializeOptions, type Workdir } from '@samsara/workdir'
+import { materialize as materializeWorkdir, hashDir, policyPaths, SKILLS_DIR, TMP_DIR, type MaterializeOptions, type Workdir } from '@samsara/workdir'
 import { Semaphore, WriterQueue, runPool } from './pool.ts'
+import { isComplete, readRunRecord, readStep, stepPath, writeRunRecord, writeStep } from './steps.ts'
 
 /** The slice of `ctx.loops` the runner needs (structural, so tests pass a fake). */
 export interface Loops {
@@ -42,6 +46,12 @@ export interface RunRequest {
   skillDir?: string
   /** Attempts in flight at once (default 1); pack subprocess stages are capped at min(parallel, PACK_STAGE_CAP). */
   parallel?: number
+  /**
+   * Re-enter the run recorded in `<out>/run.json` (same run id; every other
+   * field of this request is replaced by the recorded one) and skip the steps
+   * whose `.steps/<step>.json` marker exists. See steps.ts.
+   */
+  resume?: boolean
 }
 
 /** Upper bound on concurrent pack commands (materialize / truth / score) whatever `parallel` says. */
@@ -206,56 +216,76 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
   const facts_sha = provider ? factsSha(provider.harnessFacts) : ''
   const row = emptyRow(attemptId, task, req.loop, facts_sha)
   const signal = stages.signal
+  const attemptDir = resolve(attemptsDir, attemptId)
+  // Durable steps: on resume a step whose marker exists is skipped. A finished
+  // loop is never re-run; an attempt without a loop marker starts from scratch.
+  const loopDone = req.resume ? readStep(attemptDir, 'loop') : undefined
 
-  let wd: Workdir
-  try {
-    wd = await stages.pack.run(() => (deps.materialize ?? materializeWorkdir)({
-      attemptId, taskId: task.task_id, challengerId, pack: def, baseDir: attemptsDir,
-      skill: { name: def.manifest.skill.name, dir: skillDir },
-      extraSkillDirs: ['.claude/skills'],
-    }))
-  } catch (e) {
-    row.error = `materialize: ${msg(e)}`
-    return row
-  }
-
-  // Cancellation: the attempt's own signal is aborted and, once the run exists, run.cancel() is called too.
-  const controller = new AbortController()
-  let run: LoopRun | undefined
-  const onAbort = () => {
-    controller.abort(signal?.reason)
-    run?.cancel(String(signal?.reason ?? 'aborted'))
-  }
-  signal?.addEventListener('abort', onAbort, { once: true })
-  const spec: AttemptSpec = {
-    attemptId, challengerId, workdir: wd.path,
-    skill: { name: def.manifest.skill.name, dir: resolve(wd.path, SKILLS_DIR, def.manifest.skill.name), sha: wd.skillSha },
-    prompt: readFileSync(resolve(skillDir, 'SKILL.md'), 'utf8'),
-    route: { ...deps.route },
-    outputSchema: def.contractSchema,
-    tools: { allow: req.allow ?? [], deny: def.denyPatterns, submitTool: { name: submitToolName(def), schema: def.contractSchema } },
-    limits: { maxTurns: req.maxTurns, maxDurationMs: Math.round(req.maxMinutes * 60_000) },
-    tmpdir: wd.tmpdir,
-    signal: controller.signal,
+  let wd: Pick<Workdir, 'path' | 'tmpdir' | 'skillSha'>
+  if (loopDone) {
+    const mat = readStep(attemptDir, 'materialize')
+    wd = { path: attemptDir, tmpdir: resolve(attemptDir, mat?.tmpdir ?? TMP_DIR), skillSha: mat?.skillSha ?? '' }
+  } else {
+    if (req.resume && existsSync(attemptDir)) rmSync(attemptDir, { recursive: true, force: true })
+    try {
+      wd = await stages.pack.run(() => (deps.materialize ?? materializeWorkdir)({
+        attemptId, taskId: task.task_id, challengerId, pack: def, baseDir: attemptsDir,
+        skill: { name: def.manifest.skill.name, dir: skillDir },
+        extraSkillDirs: ['.claude/skills'],
+      }))
+      writeStep(attemptDir, attemptId, 'materialize', { tmpdir: relative(wd.path, wd.tmpdir), skillSha: wd.skillSha })
+    } catch (e) {
+      row.error = `materialize: ${msg(e)}`
+      return row
+    }
   }
 
   let finished: FinishedEvent
-  try {
-    run = await deps.loops.start(req.loop, spec)
-    if (signal?.aborted) onAbort()
-    try {
-      await drainEvents(run.events, resolve(attemptsDir, attemptId, 'events.jsonl'))
-      finished = await run.result
-    } finally {
-      // Dispose as soon as the loop has published its result: the events are on disk already.
-      await run.dispose().catch(() => {})
-      run = undefined
+  if (loopDone) {
+    finished = loopDone.finished
+    if (loopDone.error !== undefined) row.error = loopDone.error
+  } else {
+    // Cancellation: the attempt's own signal is aborted and, once the run exists, run.cancel() is called too.
+    const controller = new AbortController()
+    let run: LoopRun | undefined
+    const onAbort = () => {
+      controller.abort(signal?.reason)
+      run?.cancel(String(signal?.reason ?? 'aborted'))
     }
-  } catch (e) {
-    finished = signal?.aborted ? failedFinish(Date.now(), 'ABORTED', 'aborted') : failedFinish(Date.now())
-    row.error = `loop: ${msg(e)}`
-  } finally {
-    signal?.removeEventListener('abort', onAbort)
+    signal?.addEventListener('abort', onAbort, { once: true })
+    const spec: AttemptSpec = {
+      attemptId, challengerId, workdir: wd.path,
+      skill: { name: def.manifest.skill.name, dir: resolve(wd.path, SKILLS_DIR, def.manifest.skill.name), sha: wd.skillSha },
+      prompt: readFileSync(resolve(skillDir, 'SKILL.md'), 'utf8'),
+      route: { ...deps.route },
+      outputSchema: def.contractSchema,
+      tools: { allow: req.allow ?? [], deny: def.denyPatterns, submitTool: { name: submitToolName(def), schema: def.contractSchema } },
+      limits: { maxTurns: req.maxTurns, maxDurationMs: Math.round(req.maxMinutes * 60_000) },
+      tmpdir: wd.tmpdir,
+      signal: controller.signal,
+      // E9: the loop's subprocesses see the workdir, the pack's skill/ and loader/, and its runtimes; enforced on Linux only.
+      sandbox: policyFor({ ...policyPaths(wd.path, def), homeDir: homedir() }),
+    }
+
+    try {
+      run = await deps.loops.start(req.loop, spec)
+      if (signal?.aborted) onAbort()
+      try {
+        await drainEvents(run.events, resolve(attemptDir, 'events.jsonl'))
+        finished = await run.result
+      } finally {
+        // Dispose as soon as the loop has published its result: the events are on disk already.
+        await run.dispose().catch(() => {})
+        run = undefined
+      }
+    } catch (e) {
+      finished = signal?.aborted ? failedFinish(Date.now(), 'ABORTED', 'aborted') : failedFinish(Date.now())
+      row.error = `loop: ${msg(e)}`
+    } finally {
+      signal?.removeEventListener('abort', onAbort)
+    }
+    // A loop the host cancelled is not finished: no marker, so a resume re-runs the attempt from scratch.
+    if (!signal?.aborted) writeStep(attemptDir, attemptId, 'loop', { finished, ...(row.error !== undefined ? { error: row.error } : {}) })
   }
   row.status = finished.status
   row.stopReason = finished.stopReason
@@ -264,7 +294,11 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
   row.toolCalls = finished.toolCalls
   if (finished.skillUtilization !== undefined) row.skillUtilization = finished.skillUtilization
 
-  const sub = readSubmit(def, wd.path)
+  const submitDone = loopDone ? readStep(attemptDir, 'submit') : undefined
+  const sub: SubmitRead = submitDone ?? readSubmit(def, wd.path)
+  if (!submitDone && !signal?.aborted) {
+    writeStep(attemptDir, attemptId, 'submit', { valid: sub.valid, ...(sub.file !== undefined ? { file: sub.file } : {}), ...(sub.submit !== undefined ? { submit: sub.submit } : {}), ...(sub.error !== undefined ? { error: sub.error } : {}) })
+  }
   row.output = { valid: sub.valid, ...(sub.file ? { file: sub.file } : {}), ...(sub.error ? { error: sub.error } : {}) }
 
   if (signal?.aborted) {
@@ -272,22 +306,37 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
     row.truth = { status: 'error', error: 'aborted before truth' }
     return row
   }
+  const truthDone = loopDone ? readStep(attemptDir, 'truth') : undefined
+  const scoreDone = truthDone ? readStep(attemptDir, 'score') : undefined
   try {
     const env = { ...process.env, TMPDIR: wd.tmpdir }
-    const [truth] = await stages.pack.run(() => runCommand(def, 'truth', [{ task_id: task.task_id, workdir: wd.path }], { env }))
-    if (!truth) throw new Error('truth returned no line')
-    row.truth = { status: truth['status'] as 'settled' | 'pending', truth_sha: truth['truth_sha'] as string }
-    if (truth['status'] === 'settled') {
-      const output = {
-        usage: { input_tokens: finished.usage.inputTokens, output_tokens: finished.usage.outputTokens, cost_usd: finished.cost.usd ?? null },
-        cost_usd: finished.cost.usd ?? null,
-        tool_calls: finished.toolCalls,
-        submit: sub.valid ? sub.submit : null,
-        valid: sub.valid,
-        status: finished.status,
+    let truthValue: unknown
+    if (truthDone) {
+      row.truth = truthDone.truth
+      truthValue = truthDone.value
+    } else {
+      const [truth] = await stages.pack.run(() => runCommand(def, 'truth', [{ task_id: task.task_id, workdir: wd.path }], { env }))
+      if (!truth) throw new Error('truth returned no line')
+      row.truth = { status: truth['status'] as 'settled' | 'pending', truth_sha: truth['truth_sha'] as string }
+      truthValue = truth['truth']
+      writeStep(attemptDir, attemptId, 'truth', { truth: row.truth, ...(truthValue !== undefined ? { value: truthValue } : {}) })
+    }
+    if (scoreDone) {
+      row.scores = scoreDone.scores
+    } else {
+      if (row.truth.status === 'settled') {
+        const output = {
+          usage: { input_tokens: finished.usage.inputTokens, output_tokens: finished.usage.outputTokens, cost_usd: finished.cost.usd ?? null },
+          cost_usd: finished.cost.usd ?? null,
+          tool_calls: finished.toolCalls,
+          submit: sub.valid ? sub.submit : null,
+          valid: sub.valid,
+          status: finished.status,
+        }
+        const scores = await stages.pack.run(() => runCommand(def, 'score', [{ task_id: task.task_id, truth: truthValue, output }], { env }))
+        row.scores = scores as unknown as ScoreLine[]
       }
-      const scores = await stages.pack.run(() => runCommand(def, 'score', [{ task_id: task.task_id, truth: truth['truth'], output }], { env }))
-      row.scores = scores as unknown as ScoreLine[]
+      writeStep(attemptDir, attemptId, 'score', { scores: row.scores })
     }
   } catch (e) {
     row.truth = { status: 'error', error: msg(e) }
@@ -298,12 +347,24 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
 
 const NONE_SHA = sha256('')
 
+/** The lock-file environment fingerprint for this pack + loop (pod-and-adoptions item 3). */
+export function envLockOf(def: PackDefinition, loop: string): EnvLock {
+  return envLock({ repoRoot: findRepoRoot(def.dir), packDir: def.dir, loops: [loop] })
+}
+
+/** Write `<runDir>/env-lock.json` (the lock inputs and sha) and return the lock. */
+export function writeEnvLock(runDir: string, lock: EnvLock): EnvLock {
+  mkdirSync(runDir, { recursive: true })
+  writeFileSync(resolve(runDir, 'env-lock.json'), JSON.stringify(lock, null, 2) + '\n')
+  return lock
+}
+
 /**
  * The champion as a challenger row: no patch, no parents, no optimizer; its
  * coordinates are the harness facts, the route + limits, the skill directory
  * and the task set, so the same deployment always lands on the same id.
  */
-export function championProposal(def: PackDefinition, book: Book, req: RunRequest, deps: RunDeps): ChallengerProposal {
+export function championProposal(def: PackDefinition, book: Book, req: RunRequest, deps: RunDeps, lock: EnvLock = envLockOf(def, req.loop)): ChallengerProposal {
   const provider = deps.loops.get(req.loop)
   const harness_sha = provider ? factsSha(provider.harnessFacts) : NONE_SHA
   const limits = { maxTurns: req.maxTurns, maxDurationMs: Math.round(req.maxMinutes * 60_000) }
@@ -313,7 +374,8 @@ export function championProposal(def: PackDefinition, book: Book, req: RunReques
     parent_ids: [],
     patch_sha: NONE_SHA,
     harness_sha,
-    env_sha: sha256(canonicalJson({ route: deps.route, limits })),
+    // The lock-file fingerprint plus the route and limits this deployment runs under.
+    env_sha: sha256(canonicalJson({ env_lock: lock.sha, route: deps.route, limits })),
     skill_sha,
     taskset_sha: book.tasksetSha(req.set),
     route: {
@@ -357,23 +419,67 @@ async function recordInLedger(ledger: LedgerSink, row: AttemptRow, challengerId:
   })))
 }
 
-export async function runSet(req: RunRequest, deps: RunDeps): Promise<RunResult> {
+/** `<out>/attempts.jsonl` as attemptId → last row; a missing file is an empty run. */
+function readAttemptsJsonl(file: string): Map<string, AttemptRow> {
+  const rows = new Map<string, AttemptRow>()
+  if (!existsSync(file)) return rows
+  for (const line of readFileSync(file, 'utf8').split('\n')) {
+    if (!line.trim()) continue
+    try {
+      const row = JSON.parse(line) as AttemptRow
+      rows.set(row.attemptId, row)
+    } catch {
+      // a torn last line from a killed run: the attempt's record marker is missing too, so it is re-recorded
+    }
+  }
+  return rows
+}
+
+export async function runSet(input: RunRequest, deps: RunDeps): Promise<RunResult> {
+  // --resume: the recorded request and run id win over the caller's; only `out` comes from the caller.
+  const record = input.resume ? readRunRecord(input.out) : undefined
+  const req: RunRequest = record ? { ...record.request, out: input.out, resume: true } : input
   const def = loadPack(req.pack)
   const book = bookOf(def)
-  const runId = deps.runId ?? newRunId()
+  const runId = record?.runId ?? deps.runId ?? newRunId()
   const log = deps.log ?? (() => {})
-  const proposal = deps.ledger ? championProposal(def, book, req, deps) : undefined
+  const lock = writeEnvLock(req.out, envLockOf(def, req.loop))
+  const proposal = deps.ledger ? championProposal(def, book, req, deps, lock) : undefined
   const challengerId = deps.challengerId ?? (deps.ledger && proposal ? await deps.ledger.propose(proposal) : undefined)
   const tasks = book.tasks(req.set).slice(0, req.limit ?? undefined)
   const parallel = Math.max(1, Math.floor(req.parallel ?? 1))
   mkdirSync(resolve(req.out, 'attempts'), { recursive: true })
   const attemptsPath = resolve(req.out, 'attempts.jsonl')
-  log(`${runId}: pack ${def.name} set ${req.set} (${tasks.length} tasks × ${req.repeat}) via loop ${req.loop} skill ${req.skillDir ?? deps.championSkillDir ?? def.skillDir} parallel ${parallel}`)
+  if (record) {
+    const ids = tasks.map((t) => t.task_id)
+    if (ids.join('\n') !== record.tasks.join('\n')) throw new Error(`cannot resume ${runId}: the book's ${req.set} tasks no longer match run.json (${ids.length} vs ${record.tasks.length})`)
+  } else {
+    const { out: _out, resume: _resume, ...request } = req
+    writeRunRecord(req.out, { runId, at: new Date().toISOString(), request, tasks: tasks.map((t) => t.task_id) })
+  }
+  log(`${runId}: ${record ? 'resume ' : ''}pack ${def.name} set ${req.set} (${tasks.length} tasks × ${req.repeat}) via loop ${req.loop} skill ${req.skillDir ?? deps.championSkillDir ?? def.skillDir} parallel ${parallel}`)
 
   // The work list in task × sample order; `slots[i]` receives row i so the result is ordered whatever finishes first.
   const items: { task: TaskLine; r: number }[] = []
   for (const task of tasks) for (let r = 0; r < req.repeat; r++) items.push({ task: task as TaskLine, r })
   const slots: (AttemptRow | undefined)[] = new Array(items.length).fill(undefined)
+  const attemptDirOf = (attemptId: string) => resolve(req.out, 'attempts', attemptId)
+
+  // Resume: an attempt with every marker and a row is done; its row is kept as is.
+  // Everything else re-enters the pipeline, so attempts.jsonl is compacted to the
+  // done rows first and the rest are appended again (one row per attempt).
+  const done = new Map<string, AttemptRow>()
+  if (record) {
+    const prior = readAttemptsJsonl(attemptsPath)
+    for (const { task, r } of items) {
+      const attemptId = `${runId}-${sanitizeId(task.task_id)}-${r}`
+      const row = prior.get(attemptId)
+      if (row && isComplete(attemptDirOf(attemptId))) done.set(attemptId, row)
+    }
+    // Rewritten in the file's own (completion) order, so resuming a complete run leaves it byte-identical.
+    writeFileSync(attemptsPath, [...prior.keys()].filter((id) => done.has(id)).map((id) => JSON.stringify(done.get(id)) + '\n').join(''))
+    log(`  resume: ${done.size}/${items.length} attempts complete, ${items.length - done.size} to finish`)
+  }
   const stages: Stages = { pack: new Semaphore(Math.min(parallel, PACK_STAGE_CAP)), ...(deps.signal ? { signal: deps.signal } : {}) }
   const writer = new WriterQueue()
   const writeErrors: string[] = []
@@ -387,11 +493,23 @@ export async function runSet(req: RunRequest, deps: RunDeps): Promise<RunResult>
 
   const sink = (row: AttemptRow) => writer.enqueue(async () => {
     appendFileSync(attemptsPath, JSON.stringify(row) + '\n')
+    // The ledger keys attempts by id, so re-recording after a resume overwrites rather than duplicates.
     if (deps.ledger && challengerId && proposal) await recordInLedger(deps.ledger, row, challengerId, req.set, proposal.scorer_version)
+    // The record marker closes the journal; an attempt without a loop marker (never materialized, or cancelled) stays open.
+    const dir = attemptDirOf(row.attemptId)
+    if (existsSync(stepPath(dir, 'loop'))) writeStep(dir, row.attemptId, 'record', { ledger: deps.ledger !== undefined })
   })
 
   try {
     await runPool(items, parallel, async ({ task, r }, i) => {
+      const attemptId = `${runId}-${sanitizeId(task.task_id)}-${r}`
+      const kept = done.get(attemptId)
+      if (kept) {
+        slots[i] = kept
+        counter.done++
+        if (kept.status === 'FAILED') counter.failed++
+        return
+      }
       counter.running++
       let row: AttemptRow
       try {

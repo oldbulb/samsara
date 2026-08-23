@@ -18,6 +18,8 @@ export interface AttemptSpec {
   env?: Record<string, string>
   tmpdir: string
   signal: AbortSignal
+  /** Filesystem policy for the loop's subprocesses (composed by @samsara/sandbox); absent = unconfined. */
+  sandbox?: { readOnly: string[]; readWrite: string[]; denied: string[] }
 }
 
 export interface TokenUsage {
@@ -76,6 +78,8 @@ export interface HarnessFacts {
   permission: string
   reasoning: Record<string, unknown>
   version: { loop: string; sdk?: string }
+  /** Filesystem enforcement the provider's processes ran under on this host. */
+  sandbox?: 'landlock' | 'none'
 }
 
 export interface LoopCapabilities {

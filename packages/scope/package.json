@@ -15,6 +15,10 @@
       "types": "./lib/types/diffscan.d.ts",
       "default": "./lib/diffscan.js"
     },
+    "./envlock": {
+      "types": "./lib/types/envlock.d.ts",
+      "default": "./lib/envlock.js"
+    },
     "./sha": {
       "types": "./lib/types/sha.d.ts",
       "default": "./lib/sha.js"

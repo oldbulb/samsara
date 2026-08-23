@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'no
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Schema, scrubbedParentEnv, type SubprocessHandle, type SubprocessSpawnSpec } from '@samsara/kernel'
+import { apply as applySandbox, type SandboxHost } from '@samsara/sandbox'
 import {
   PROPOSAL_DRAFT_SCHEMA,
   canonicalJson,
@@ -86,6 +87,8 @@ export interface ClaudePDeps {
   spawn: SpawnFn
   /** Resolves the credential into the env entries the child needs (ANTHROPIC_AUTH_TOKEN). Empty when none is configured. */
   credentialEnv: () => Promise<Record<string, string>>
+  /** The sandbox host the proposal run is wrapped for; defaults to the detected one. */
+  host?: SandboxHost
 }
 
 /** Explicit child environment (E5/E6) minus the credential; pure. */
@@ -181,13 +184,15 @@ export class ClaudePAdapter implements ProposerAdapter {
 
     const prompt = renderPrompt(this.template, { viewDir: resolve(input.viewDir), workDir })
     const env = { ...scrubbedParentEnv(), ...buildEnv(this.config, workDir), ...(await this.deps.credentialEnv()) }
-    const handle = this.deps.spawn({
+    // E9: the proposal run is confined where the host enforces; the version probe above is not (no prompt, no view).
+    const spec: SubprocessSpawnSpec = {
       argv: argvOf(this.config, prompt),
       cwd: workDir,
       stdio: { stdin: 'ignore', stdout: { maxBytes: COLLECT_MAX_BYTES }, stderr: { maxBytes: COLLECT_MAX_BYTES } },
       graceMs: this.config.graceMs,
       env,
-    })
+    }
+    const handle = this.deps.spawn(this.deps.host === undefined ? applySandbox(spec, input.sandbox) : applySandbox(spec, input.sandbox, this.deps.host))
 
     let timedOut = false
     let aborted = false

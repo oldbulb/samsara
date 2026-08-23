@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@samsara/kernel": "workspace:*",
+    "@samsara/sandbox": "workspace:*",
     "ajv": "8.20.0"
   }
 }

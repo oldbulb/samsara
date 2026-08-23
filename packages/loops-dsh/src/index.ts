@@ -67,6 +67,10 @@ export const HARNESS_FACTS: HarnessFacts = {
   permission: 'approval/policy=never',
   reasoning: {},
   version: { loop: DSH_PIN },
+  // The agent's bash tool runs in-process through dsh's mode-based sandbox seam
+  // (read-only / workspace-write over one root); it cannot take the attempt's
+  // allow-list, so nothing is enforced here (README: "Filesystem isolation").
+  sandbox: 'none',
 }
 
 export class DshLoopProvider implements LoopProvider {

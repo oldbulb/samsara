@@ -58,6 +58,16 @@ export { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
 export type { TokenUsage } from '@deepseek-ai/dsh-llm'
 export type { CredentialRef, ResolvedCredential } from '@deepseek-ai/dsh-credentials'
 export { parseCmdline } from '@deepseek-ai/dsh-cmdline'
+
+// Landlock launcher (Linux-only enforcement; the entry package resolves, probes
+// and speaks the binary's CLI contract). @samsara/sandbox is its only consumer.
+export {
+  launcherPath as landlockLauncherPath,
+  probe as landlockProbe,
+  grantArgs as landlockGrantArgs,
+  LAUNCHER_FAILURE_EXIT as LANDLOCK_LAUNCHER_FAILURE_EXIT,
+} from '@deepseek-ai/node-addon-landlock-run'
+export type { LandlockEnforcement, LauncherGrants as LandlockGrants } from '@deepseek-ai/node-addon-landlock-run'
 export { Command } from 'commander'
 
 // ---------------------------------------------------------------------------

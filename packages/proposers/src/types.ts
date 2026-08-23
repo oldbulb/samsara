@@ -47,6 +47,8 @@ export interface ProposeInput {
   signal: AbortSignal
   /** Challenger id the proposal builds on; falls back to the draft's own `parent`. */
   parent?: string
+  /** Filesystem policy for the proposer process (composed by @samsara/sandbox; E9); absent = unconfined. */
+  sandbox?: { readOnly: string[]; readWrite: string[]; denied: string[] }
 }
 
 export interface ProposerAdapter {

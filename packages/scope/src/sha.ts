@@ -56,6 +56,7 @@ export function envFacts(env: NodeJS.ProcessEnv = process.env): EnvFacts {
   return { node: process.version, platform: process.platform, arch: process.arch, dshPin: DSH_PIN, envNames: names }
 }
 
+/** Legacy coordinates (names + node + dsh pin only). The runner records `envLock(...).sha` instead. */
 export function envSha(env: NodeJS.ProcessEnv = process.env): string {
   return sha256(canonicalJson(envFacts(env)))
 }

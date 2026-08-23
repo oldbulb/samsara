@@ -6,6 +6,9 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { SubprocessHandle, SubprocessSpawnSpec } from '@samsara/kernel'
+import { factsSha } from '@samsara/loops'
+import { policyFor, type SandboxHost } from '@samsara/sandbox'
+import { ClaudeCodeLoopProvider } from '../src/index.ts'
 import { startRun, type RunDeps } from '../src/run.ts'
 import type { AttemptSpec, LoopEvent } from '../src/seam.ts'
 import { resultMessage, stream } from './fixture.ts'
@@ -110,6 +113,45 @@ async function collect(events: AsyncIterable<LoopEvent>): Promise<LoopEvent[]> {
   for await (const e of events) out.push(e)
   return out
 }
+
+describe('sandbox', () => {
+  const linux: SandboxHost = { platform: 'linux', enforcement: 'full', launcher: '/opt/landlock-run', exists: () => true }
+  const mac: SandboxHost = { platform: 'darwin', enforcement: 'unusable', launcher: '', exists: () => true }
+
+  it('spawns the CLI under the launcher with the attempt policy on an enforcing host', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'lcc-'))
+    const spec = makeSpec(root)
+    spec.sandbox = policyFor({ workdir: spec.workdir, packDir: join(root, 'pack') })
+    const cap: Parameters<typeof deps>[1] = {}
+    const run = await startRun(spec, { ...deps(stream(), cap), host: linux })
+    await run.result
+    const argv = cap.spawnSpec!.argv
+    expect(argv[0]).toBe('/opt/landlock-run')
+    expect(argv.slice(argv.indexOf('--') + 1)).toEqual(['/sdk/claude', '-p'])
+    expect(argv).toContain('--rw')
+    expect(argv[argv.indexOf('--rw') + 1]).toBe(spec.workdir)
+    expect(cap.spawnSpec!.cwd).toBe('/work')
+    for (const d of spec.sandbox.denied) expect(argv).not.toContain(d)
+  })
+
+  it('leaves the spawn unchanged where nothing enforces, and fails closed on an enforcing host without a policy', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'lcc-'))
+    const cap: Parameters<typeof deps>[1] = {}
+    const run = await startRun(makeSpec(root), { ...deps(stream(), cap), host: mac })
+    await run.result
+    expect(cap.spawnSpec!.argv).toEqual(['/sdk/claude', '-p'])
+    await expect(startRun(makeSpec(root), { ...deps(stream(), {}), host: linux })).rejects.toThrow(/no sandbox policy/)
+  })
+
+  it('records the enforcement mode in the provider facts so it lands in facts_sha', () => {
+    const ctx = { effect: () => () => {}, subprocess: { spawn: () => { throw new Error('unused') } }, credentials: { resolve: async () => undefined } }
+    const onLinux = new ClaudeCodeLoopProvider(ctx as never, 100, linux)
+    const onMac = new ClaudeCodeLoopProvider(ctx as never, 100, mac)
+    expect(onLinux.harnessFacts.sandbox).toBe('landlock')
+    expect(onMac.harnessFacts.sandbox).toBe('none')
+    expect(factsSha(onLinux.harnessFacts)).not.toBe(factsSha(onMac.harnessFacts))
+  })
+})
 
 describe('startRun', () => {
   it('runs a stream to completion with submit-tool output and a native transcript artifact', async () => {

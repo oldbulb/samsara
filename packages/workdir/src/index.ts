@@ -40,7 +40,16 @@ export interface Workdir {
   tokenPath: string
   /** Snapshot of every file in the workdir right after sealing. */
   baseline: Baseline
+  /** Input for @samsara/sandbox's policyFor: this workdir, its pack and the pack's runtime roots. */
+  policyPaths: PolicyPaths
   dispose(): Promise<void>
+}
+
+export interface PolicyPaths {
+  workdir: string
+  packDir: string
+  /** Existing directories under `<packDir>/runtime/` (venvs, node_modules). */
+  runtimeDirs: string[]
 }
 
 export interface WorkdirDiff {
@@ -59,6 +68,7 @@ export class WorkdirError extends Error {
 export const SKILLS_DIR = '.agents/skills'
 export const TOKEN_PATH = '.task/token.json'
 export const TMP_DIR = '.tmp'
+export const RUNTIME_DIR = 'runtime'
 
 // ---------------------------------------------------------------- hashing
 
@@ -109,6 +119,24 @@ export function snapshot(path: string): Baseline {
     base.set(rel, sha256(readFileSync(join(path, rel))))
   }
   return base
+}
+
+// ---------------------------------------------------------------- policy paths
+
+/** The sandbox policy input for a workdir sealed from `pack`. */
+export function policyPaths(path: string, pack: Pick<PackDefinition, 'dir'>): PolicyPaths {
+  const packDir = resolve(pack.dir)
+  const runtime = join(packDir, RUNTIME_DIR)
+  let runtimeDirs: string[] = []
+  try {
+    runtimeDirs = readdirSync(runtime, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => join(runtime, e.name))
+      .sort()
+  } catch {
+    // no runtime/ in this pack
+  }
+  return { workdir: resolve(path), packDir, runtimeDirs }
 }
 
 // ---------------------------------------------------------------- materialize
@@ -177,7 +205,7 @@ export async function materialize(opts: MaterializeOptions): Promise<Workdir> {
     const tmpdir = join(path, TMP_DIR)
     await mkdir(tmpdir)
 
-    return { path, tmpdir, skillSha, tokenPath, baseline: snapshot(path), dispose }
+    return { path, tmpdir, skillSha, tokenPath, baseline: snapshot(path), policyPaths: policyPaths(path, opts.pack), dispose }
   } catch (e) {
     await dispose()
     throw e

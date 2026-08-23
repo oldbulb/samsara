@@ -7,6 +7,7 @@
     { "path": "packages/loops" },
     { "path": "packages/submit" },
     { "path": "packages/workdir" },
+    { "path": "packages/sandbox" },
     { "path": "packages/loops-dsh" },
     { "path": "packages/loops-claude-code" },
     { "path": "packages/runner" },

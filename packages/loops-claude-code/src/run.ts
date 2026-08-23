@@ -6,6 +6,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileS
 import { join } from 'node:path'
 import { query, type Options, type Query, type SDKMessage, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
 import { scrubbedParentEnv, type Context, type SubprocessHandle, type SubprocessSpawnSpec } from '@samsara/kernel'
+import { apply as applySandbox, type SandboxHost } from '@samsara/sandbox'
 import { buildEnv, configDir } from './env.ts'
 import { classifyResult, MessageMapper, sha256, tokenUsage } from './mapper.ts'
 import { claudeSpawnSpec, ManagedClaudeCodeProcess } from './process.ts'
@@ -19,6 +20,8 @@ export interface RunDeps {
   ctx: Pick<Context, 'effect' | 'subprocess'>
   credentialValue: string
   graceMs: number
+  /** The sandbox host the child is wrapped for; defaults to the detected one. */
+  host?: SandboxHost
   /** Test seam: replaces the SDK's `query`. */
   queryFn?: typeof query
 }
@@ -89,12 +92,14 @@ export async function startRun(spec: AttemptSpec, deps: RunDeps): Promise<LoopRu
   spec.signal.addEventListener('abort', onSignal, { once: true })
 
   // E4: the child lives inside our effect; disposing the scope reaches it.
+  // E9: it runs under the attempt's filesystem policy where the host enforces.
   let child: SubprocessHandle | undefined
   let disposeEffect: (() => unknown) | undefined
   const spawn = (s: SubprocessSpawnSpec): SubprocessHandle => {
+    const confined = deps.host === undefined ? applySandbox(s, spec.sandbox) : applySandbox(s, spec.sandbox, deps.host)
     let spawned: SubprocessHandle | undefined
     disposeEffect = deps.ctx.effect(() => {
-      spawned = deps.ctx.subprocess.spawn(s)
+      spawned = deps.ctx.subprocess.spawn(confined)
       return () => {
         spawned?.terminate()
       }

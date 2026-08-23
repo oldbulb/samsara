@@ -32,6 +32,7 @@
     "@deepseek-ai/dsh-subprocess": "0.1.1-rc.2",
     "@deepseek-ai/dsh-system-prompt": "0.1.1-rc.2",
     "@deepseek-ai/dsh-tools": "0.1.1-rc.2",
+    "@deepseek-ai/node-addon-landlock-run": "0.1.1",
     "@deepseek-ai/schemastery": "3.18.1",
     "commander": "^15.0.0",
     "zod": "4.4.3"

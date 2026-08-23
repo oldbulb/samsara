@@ -16,6 +16,8 @@ import type { Challenger, PatchOptions, Violation } from './types.ts'
 export * from './types.ts'
 export { scan, DEFAULT_FORBIDDEN_PATHS, FORBIDDEN_ROW_PATTERNS, leafPaths } from './diffscan.ts'
 export { harnessSha, harnessShaOfLayers, envSha, envFacts, canonicalJson, sha256, ENV_ALLOWLIST, ENV_PREFIXES } from './sha.ts'
+export { envLock, findRepoRoot, packRuntimeLocks, venvListing, claudeVersionOnPath, RUNTIME_LOCK_FILES } from './envlock.ts'
+export type { EnvLock, EnvLockInputs, EnvLockOptions } from './envlock.ts'
 
 declare module '@samsara/kernel' {
   interface Context {

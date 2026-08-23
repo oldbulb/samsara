@@ -130,6 +130,9 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: 0.1.1-rc.2
         version: 0.1.1-rc.2(119bc70f73f8eddebfaa6b47561adeb3)
+      '@deepseek-ai/node-addon-landlock-run':
+        specifier: 0.1.1
+        version: 0.1.1
       '@deepseek-ai/schemastery':
         specifier: 3.18.1
         version: 3.18.1
@@ -166,6 +169,9 @@ importers:
       '@samsara/loops':
         specifier: workspace:*
         version: link:../loops
+      '@samsara/sandbox':
+        specifier: workspace:*
+        version: link:../sandbox
 
   packages/loops-dsh:
     dependencies:
@@ -196,6 +202,9 @@ importers:
       '@samsara/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@samsara/sandbox':
+        specifier: workspace:*
+        version: link:../sandbox
       ajv:
         specifier: 8.20.0
         version: 8.20.0
@@ -226,6 +235,9 @@ importers:
       '@samsara/proposers':
         specifier: workspace:*
         version: link:../proposers
+      '@samsara/sandbox':
+        specifier: workspace:*
+        version: link:../sandbox
       '@samsara/scope':
         specifier: workspace:*
         version: link:../scope
@@ -238,6 +250,12 @@ importers:
       '@samsara/workdir':
         specifier: workspace:*
         version: link:../workdir
+
+  packages/sandbox:
+    dependencies:
+      '@samsara/kernel':
+        specifier: workspace:*
+        version: link:../kernel
 
   packages/scope:
     dependencies:
@@ -610,6 +628,22 @@ packages:
       '@deepseek-ai/dsh-scope': ^0.1.1-rc.2
       '@deepseek-ai/dsh-session': ^0.1.1-rc.2
       '@deepseek-ai/dsh-system-prompt': ^0.1.1-rc.2
+
+  '@deepseek-ai/node-addon-landlock-run-linux-arm64@0.1.1':
+    resolution: {integrity: sha512-lYY2RbcPW4rGRM5hVJbrXlvLqyBxeJBjBqvt+QTHTU+GtfUVVjTODKa4e3CRwMQoCEpOjoARdQBHbN7HvE72WQ==, tarball: http://registry.npmjs.org/nexus/repository/npm-public/@deepseek-ai/node-addon-landlock-run-linux-arm64/-/node-addon-landlock-run-linux-arm64-0.1.1.tgz}
+    engines: {node: '>=20'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@deepseek-ai/node-addon-landlock-run-linux-x64@0.1.1':
+    resolution: {integrity: sha512-OHAzPW2Coe/iYobAJAAA8CeVrBoKV4BnNHsgwvXwOfishxkUVSWSvdyxrZPiwYRXutpIGVrSo9zV3WOQy2euBA==, tarball: http://registry.npmjs.org/nexus/repository/npm-public/@deepseek-ai/node-addon-landlock-run-linux-x64/-/node-addon-landlock-run-linux-x64-0.1.1.tgz}
+    engines: {node: '>=20'}
+    cpu: [x64]
+    os: [linux]
+
+  '@deepseek-ai/node-addon-landlock-run@0.1.1':
+    resolution: {integrity: sha512-aHGhlQJEutfobKM/4K59SERbT7RmQdD2oMKzD8Bne/Ps7TeT8AweCN+dpdfuxQhMNbFcJMymrgPnID0WYQ30Tw==, tarball: http://registry.npmjs.org/nexus/repository/npm-public/@deepseek-ai/node-addon-landlock-run/-/node-addon-landlock-run-0.1.1.tgz}
+    engines: {node: '>=20'}
 
   '@deepseek-ai/schemastery@3.18.1':
     resolution: {integrity: sha512-Qn0FCSwCQnpnj6SB31I6i2sIKgKWnkbJM8O0EU91Gv2UsYVvtZTl6IA0sCwk2e2MZf5S8w5hpq9QkeVvK9qwxg==, tarball: http://registry.npmjs.org/nexus/repository/npm-public/@deepseek-ai/schemastery/-/schemastery-3.18.1.tgz}
@@ -1826,6 +1860,17 @@ snapshots:
       '@deepseek-ai/dsh-session': 0.1.1-rc.2(a4e4bb24a1f3580ac25e11cfa3c6b8cc)
       '@deepseek-ai/dsh-system-prompt': 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))(@deepseek-ai/dsh-llm@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-attachment@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-brand@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-brand@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))(@deepseek-ai/dsh-timeout@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))))(@deepseek-ai/dsh-scope@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))
       '@deepseek-ai/schemastery': 3.18.1
+
+  '@deepseek-ai/node-addon-landlock-run-linux-arm64@0.1.1':
+    optional: true
+
+  '@deepseek-ai/node-addon-landlock-run-linux-x64@0.1.1':
+    optional: true
+
+  '@deepseek-ai/node-addon-landlock-run@0.1.1':
+    optionalDependencies:
+      '@deepseek-ai/node-addon-landlock-run-linux-arm64': 0.1.1
+      '@deepseek-ai/node-addon-landlock-run-linux-x64': 0.1.1
 
   '@deepseek-ai/schemastery@3.18.1':
     dependencies:

@@ -1,0 +1,25 @@
+{
+  "name": "@samsara/sandbox",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Filesystem policy for attempt and proposer subprocesses: allow-list composition, landlock wrapping on Linux through the kernel, recorded enforcement mode",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run --root ../.. packages/sandbox/tests"
+  },
+  "dependencies": {
+    "@samsara/kernel": "workspace:*"
+  }
+}

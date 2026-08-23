@@ -44,6 +44,7 @@
     "@samsara/loops": "workspace:*",
     "@samsara/pack": "workspace:*",
     "@samsara/proposers": "workspace:*",
+    "@samsara/sandbox": "workspace:*",
     "@samsara/scope": "workspace:*",
     "@samsara/signoff": "workspace:*",
     "@samsara/submit": "workspace:*",

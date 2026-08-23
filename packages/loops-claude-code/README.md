@@ -67,6 +67,16 @@ signal → `ABORTED`; any other subtype or a stream with no result → `FAILED`.
 process tree, waits for exit, awaits the settled result, releases the effect, and deletes
 `<tmpdir>/claude-config`. Artifacts are kept.
 
+## Filesystem isolation
+
+The CLI process is spawned through `@samsara/sandbox`'s `apply` with
+`spec.sandbox` (composed by the host from the workdir's `policyPaths`). On a
+Linux host whose launcher probes usable the argv is wrapped in `landlock-run`
+grants and the provider's `harnessFacts.sandbox` is `'landlock'`; elsewhere
+the spawn is unchanged and the facts say `'none'`. An enforcing host with an
+attempt that carries no policy fails closed at spawn. The `host` in `RunDeps`
+(and the provider constructor) is the test seam.
+
 ## Run
 
 ```sh

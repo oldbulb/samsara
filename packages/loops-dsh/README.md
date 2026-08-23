@@ -97,6 +97,15 @@ the agent scope and is visible regardless of the restriction.
 - Nothing here spawns processes itself; the child agent's tools (`bash`) go
   through the host's subprocess runtime.
 
+## Filesystem isolation
+
+None; `HARNESS_FACTS.sandbox` is `'none'`. The agent's `bash` tool runs through
+dsh's mode-based sandbox seam (`read-only` / `workspace-write` over one root,
+built as `--ro /` under Landlock), which cannot take the per-attempt read
+allow-list `@samsara/sandbox` composes, so the pack's `tasks/`, `data/` and
+`bin/` stay reachable from an in-process attempt. The subprocess-based loop
+(`loops-claude-code`) is the confined one; see `packages/sandbox/README.md`.
+
 ## Tests
 
 `pnpm --filter @samsara/loops-dsh test` — unit tests of the event mapper,

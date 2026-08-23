@@ -20,6 +20,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.3.220",
     "@anthropic-ai/sdk": "0.93.0",
     "@samsara/kernel": "workspace:*",
-    "@samsara/loops": "workspace:*"
+    "@samsara/loops": "workspace:*",
+    "@samsara/sandbox": "workspace:*"
   }
 }

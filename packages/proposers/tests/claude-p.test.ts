@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { SubprocessSpawnSpec } from '@samsara/kernel'
+import { policyFor, type SandboxHost } from '@samsara/sandbox'
 import { ClaudePAdapter, DEFAULT_TEMPLATE, argvOf, buildEnv, renderPrompt, resolveConfig } from '../src/claude-p.ts'
 import { fakeHandle, fakeSpawn, tempRoot, writeSkill, type FakeHandle } from './fixture.ts'
 
@@ -34,6 +35,35 @@ function setup(onRun = writeGoodOutput, config: ConstructorParameters<typeof Cla
   )
   return { root, viewDir, workDir, records, adapter, input: (signal = new AbortController().signal) => ({ viewDir, workDir, signal, parent: 'ch-parent' }) }
 }
+
+describe('ClaudePAdapter sandbox', () => {
+  const linux: SandboxHost = { platform: 'linux', enforcement: 'full', launcher: '/opt/landlock-run', exists: () => true }
+
+  it('runs the proposal under the launcher with the given policy on an enforcing host; the version probe stays plain', async () => {
+    const root = tempRoot()
+    const viewDir = join(root, 'view')
+    const workDir = join(root, 'work')
+    mkdirSync(viewDir)
+    mkdirSync(workDir)
+    const { spawn, records } = fakeSpawn(writeGoodOutput)
+    const adapter = new ClaudePAdapter({ model: 'model-x' }, { spawn, credentialEnv: async () => ({}), host: linux })
+    const sandbox = policyFor({ workdir: workDir, packDir: join(root, 'pack'), readOnly: [viewDir] })
+    await adapter.propose({ viewDir, workDir, signal: new AbortController().signal, parent: 'p', sandbox })
+    expect(records[0]!.spec.argv).toEqual(['claude', '--version'])
+    const argv = records[1]!.spec.argv
+    expect(argv[0]).toBe('/opt/landlock-run')
+    expect(argv.slice(argv.indexOf('--') + 1, argv.indexOf('--') + 3)).toEqual(['claude', '-p'])
+    expect(argv).toContain(viewDir)
+    expect(argv[argv.indexOf('--rw') + 1]).toBe(workDir)
+    expect(records[1]!.spec.cwd).toBe(workDir)
+  })
+
+  it('fails closed on an enforcing host when the input carries no policy', async () => {
+    const t = setup()
+    const adapter = new ClaudePAdapter({ model: 'model-x' }, { spawn: fakeSpawn(writeGoodOutput).spawn, credentialEnv: async () => ({}), host: linux })
+    await expect(adapter.propose(t.input())).rejects.toThrow(/no sandbox policy/)
+  })
+})
 
 describe('ClaudePAdapter', () => {
   it('spawns the CLI with the documented argv, cwd and explicit env; returns the validated Proposal', async () => {

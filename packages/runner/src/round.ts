@@ -6,9 +6,12 @@
 // `RoundDeps`.
 
 import { cpSync, mkdirSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { resolve } from 'node:path'
 import type { CompareRow, Ledger } from '@samsara/ledger'
 import { loadPack } from '@samsara/pack'
+import { policyFor } from '@samsara/sandbox'
+import { policyPaths } from '@samsara/workdir'
 import { HumanAdapter, assertTaskIdsWithin, type Proposal, type ProposerAdapter } from '@samsara/proposers'
 import { challenge, formatChallenge, type ChallengeDeps, type ChallengeResult, type GatePolicyName } from './challenge.ts'
 import { bookOf, championProposal, type RunRequest } from './run.ts'
@@ -115,7 +118,9 @@ export async function round(req: RoundRequest, deps: RoundDeps): Promise<RoundRe
   const adapter = adapterOf(req, deps)
   const workDir = resolve(req.out, PROPOSER_DIR)
   mkdirSync(workDir, { recursive: true })
-  const proposal = await adapter.propose({ viewDir, workDir, signal: deps.signal ?? new AbortController().signal, parent: championId })
+  // E9: the proposer reads its rendered view, the pack's skill/ and loader/ and the runtimes; writes only its work directory.
+  const sandbox = policyFor({ ...policyPaths(workDir, def), readOnly: [viewDir], homeDir: homedir() })
+  const proposal = await adapter.propose({ viewDir, workDir, signal: deps.signal ?? new AbortController().signal, parent: championId, sandbox })
   assertTaskIdsWithin(proposal, heldIn)
   if (proposal.patch.surface !== 'skill') throw new Error(`round: surface "${proposal.surface}" is not a v1 challenger surface (only skill)`)
   if (proposal.prediction.metric !== req.metric) {

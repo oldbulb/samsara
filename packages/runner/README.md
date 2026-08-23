@@ -14,9 +14,36 @@ the pack's skill is the fallback.
 ```
 dsh --profile host run --pack <dir> --loop <name> --set <smoke|holdin|holdout>
                        [--limit n] [--repeat r] [--parallel n] [--out dir] [--max-turns n] [--max-minutes m] [--allow tools,...]
+dsh --profile host run --resume <runDir>        # re-enter the run recorded in <runDir>/run.json; no other option is read
 ```
 
 Defaults: `--repeat 1`, `--parallel 1`, `--out data/runs`, `--max-turns 50`, `--max-minutes 20`; no `--allow` means the provider's default tool set (`tools.allow: []`).
+
+### Durable steps and `--resume` (`src/steps.ts`; docs/design/pod-and-adoptions.md item 1)
+
+`runSet` writes `<out>/run.json` at start (`runId`, the full request minus `out`, the task id list) and, per attempt,
+a marker `<out>/attempts/<attemptId>/.steps/<step>.json` (`{step, attemptId, at, ...}`) as each step completes:
+
+| step | marker data | skipped on resume when |
+|---|---|---|
+| `materialize` | `tmpdir` (relative), `skillSha` | the `loop` marker exists (otherwise the attempt dir is removed and rebuilt) |
+| `loop` | the `finished` event, host `error` | it exists — **a finished loop is never re-run** |
+| `submit` | the validated submit (`valid`, `file`, `submit`, `error`) | it exists |
+| `truth` | `truth` (status, sha), `value` | it exists; a truth error leaves no marker, so resume retries it |
+| `score` | `scores` | it exists (written with `[]` when truth is not settled) |
+| `record` | `ledger: bool` | never skipped per se: written after the jsonl row + ledger put; an attempt with all six markers and a jsonl row is "done" |
+
+Markers are written atomically (tmp + rename); a torn or unreadable marker reads as missing. A loop the host
+cancelled (SIGINT) gets **no** `loop` marker: its row lands as `ABORTED` for the summary, and `--resume` re-runs that
+attempt from scratch.
+
+`run --resume <runDir>` reads `run.json`, re-enters `runSet` with the same run id (the book's task list must still
+match), compacts `attempts.jsonl` to the rows of done attempts, and runs the rest through the pipeline with the
+per-step skips above, so each attempt ends with exactly one row in `attempts.jsonl`. The ledger keys attempts by id
+(`recordAttempt` is a put; `appendScores` skips existing keys), so re-recording after a resume overwrites rather than
+duplicates — this is how rows lost on SIGINT are recovered. Resuming a completed run is a no-op (no loop started, no
+file changed). Library callers set `RunRequest.resume = true` with `out` = the run directory; `challenge` / `round` /
+`certify` do not take `--resume` yet (their sub-runs write `run.json` too, so the hook is there).
 
 `--parallel n` (also on `challenge`, `round`, `certify`) runs up to n attempts at once through a worker pool over the
 task × repeat list (`src/pool.ts`). Pack commands (materialize / truth / score) are subprocesses, so they share a

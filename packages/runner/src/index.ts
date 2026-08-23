@@ -1,10 +1,11 @@
 // samsara-runner: the cordis plugin that turns the parsed `samsaraRun` request
 // into work. It waits for the loader so every loop provider has registered,
 // resolves the route from agentDefaultModel + this plugin's config, dispatches
-// on the command (run / challenge / round / certify / promote / demote / serve), prints a
+// on the command (run / challenge / round / certify / promote / demote / serve / export), prints a
 // summary, and exits through ctx.appExit.
 
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { Schema, type Context } from '@samsara/kernel'
 import type {} from '@samsara/loops'
 import type {} from '@samsara/ledger'
@@ -14,10 +15,12 @@ import type {} from '@samsara/champion'
 import type {} from '@samsara/proposers'
 import type { ConsentRecord, Signoff } from '@samsara/signoff'
 import { runSet, type RouteConfig } from './run.ts'
+import { readRunRecord } from './steps.ts'
 import { challenge, formatChallenge } from './challenge.ts'
 import { round, formatRound } from './round.ts'
 import { certify, formatCertify } from './certify.ts'
 import { formatSummary } from './summary.ts'
+import { exportRun, formatExport, type ExportRequest } from './export.ts'
 import { SAMSARA_RUN_SERVICE, type SamsaraRunValues } from './startup.ts'
 
 export const name = 'samsara-runner'
@@ -38,8 +41,10 @@ export const Config: Schema<Config> = Schema.object({
   lane: Schema.string(),
 })
 
-export { runSet, readSubmit, submitToolName, sanitizeId, newRunId, championProposal, PACK_STAGE_CAP, HEARTBEAT_MS } from './run.ts'
+export { runSet, readSubmit, submitToolName, sanitizeId, newRunId, championProposal, envLockOf, writeEnvLock, PACK_STAGE_CAP, HEARTBEAT_MS } from './run.ts'
 export { Semaphore, WriterQueue, runPool } from './pool.ts'
+export { STEPS, STEPS_DIR, RUN_RECORD, readStep, writeStep, completedSteps, isComplete, readRunRecord, writeRunRecord, stepPath } from './steps.ts'
+export type { Step, StepMarker, StepData, RunRecord } from './steps.ts'
 export type { RunRequest, RunDeps, RunResult, AttemptRow, ScoreLine, RouteConfig, Loops, LedgerSink, Materialize } from './run.ts'
 export { challenge, formatChallenge, challengerProposalOf, scoredAttemptsOf, GATE_PERMISSIVE } from './challenge.ts'
 export type { ChallengeRequest, ChallengeDeps, ChallengeResult, GatePolicyName } from './challenge.ts'
@@ -48,6 +53,8 @@ export type { RoundRequest, RoundDeps, RoundResult } from './round.ts'
 export { certify, formatCertify, utilizationOf } from './certify.ts'
 export type { CertifyRequest, CertifyDeps, CertifyResult, CertifyRow, CrossCheck } from './certify.ts'
 export { summarize, formatSummary } from './summary.ts'
+export { exportRun, findEventFiles, readEvents, formatExport } from './export.ts'
+export type { ExportRequest, ExportResult, ExportFormat } from './export.ts'
 
 interface Io {
   stdout: { write(chunk: string): unknown }
@@ -147,19 +154,40 @@ async function serve(ctx: Context, io: Io): Promise<void> {
   }
 }
 
+async function exportCommand(req: ExportRequest, io: Io): Promise<void> {
+  const out = resolve(req.out)
+  const { resourceSpans, attempts, spans } = exportRun(req)
+  mkdirSync(dirname(out), { recursive: true })
+  writeFileSync(out, JSON.stringify({ resourceSpans }, null, 2) + '\n')
+  io.stdout.write(formatExport({ attempts, spans, out }) + '\n')
+}
+
+type ResolvedValues = Exclude<SamsaraRunValues, { resumeDir: string }>
+
+/** `run --resume <dir>`: the request recorded in `<dir>/run.json` with `resume: true`; every other command passes through. */
+export function resolveResume(values: SamsaraRunValues): ResolvedValues {
+  if (values.command === 'run' && 'resumeDir' in values) {
+    const dir = resolve(values.resumeDir)
+    return { command: 'run', ...readRunRecord(dir).request, out: dir, resume: true }
+  }
+  return values as ResolvedValues
+}
+
 async function run(ctx: Context, config: Config, io: Io): Promise<void> {
   // Loader siblings mount concurrently; wait for the whole tree so every loop
   // provider has registered before the first start().
   await ctx.get('loader')?.await()
-  const req = ctx.get(SAMSARA_RUN_SERVICE) as SamsaraRunValues | undefined
+  const parsed = ctx.get(SAMSARA_RUN_SERVICE) as SamsaraRunValues | undefined
   const loops = ctx.get('loops')
   const defaultModel = ctx.get('agentDefaultModel')
   const ledger = ctx.get('ledger')
-  if (req === undefined || loops === undefined || defaultModel === undefined || ledger === undefined) return
+  if (parsed === undefined || loops === undefined || defaultModel === undefined || ledger === undefined) return
+  const req = resolveResume(parsed)
 
   if (req.command === 'promote') { await promote(ctx, req, io); io.exit(0); return }
   if (req.command === 'demote') { await demote(ctx, req, io); io.exit(0); return }
   if (req.command === 'serve') { await serve(ctx, io); io.exit(0); return }
+  if (req.command === 'export') { await exportCommand(req, io); io.exit(0); return }
 
   if (req.command !== 'certify' && loops.get(req.loop) === undefined) {
     throw new Error(`no loop provider named "${req.loop}" is registered (is its plugin enabled in the profile?)`)

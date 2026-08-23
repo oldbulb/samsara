@@ -7,6 +7,7 @@
 // CLAUDE_CONFIG_DIR live under `spec.tmpdir` (E6).
 
 import { Schema, type Context, type CredentialRef } from '@samsara/kernel'
+import { detectHost, sandboxModeOf, type SandboxHost } from '@samsara/sandbox'
 import { startRun } from './run.ts'
 import type { AttemptSpec, HarnessFacts, LoopCapabilities, LoopProvider, LoopRun } from './seam.ts'
 import type {} from '@samsara/loops'
@@ -55,20 +56,24 @@ type ProviderContext = Pick<Context, 'effect' | 'subprocess' | 'credentials'>
 
 export class ClaudeCodeLoopProvider implements LoopProvider {
   readonly name = PROVIDER_NAME
-  readonly harnessFacts = harnessFacts
+  /** `harnessFacts` plus the enforcement mode of this host, so facts_sha records it. */
+  readonly harnessFacts: HarnessFacts
   readonly capabilities = capabilities
 
   constructor(
     private readonly ctx: ProviderContext,
     private readonly graceMs: number,
-  ) {}
+    private readonly host: SandboxHost = detectHost(),
+  ) {
+    this.harnessFacts = { ...harnessFacts, sandbox: sandboxModeOf(host) }
+  }
 
   async start(spec: AttemptSpec): Promise<LoopRun> {
     const credential = await this.ctx.credentials.resolve(spec.route.credentialRef as CredentialRef)
     if (credential === undefined) {
       throw new Error(`loops-claude-code: credential ${spec.route.credentialRef} is not configured`)
     }
-    return startRun(spec, { ctx: this.ctx, credentialValue: credential.value, graceMs: this.graceMs })
+    return startRun(spec, { ctx: this.ctx, credentialValue: credential.value, graceMs: this.graceMs, host: this.host })
   }
 }
 

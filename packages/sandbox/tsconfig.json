@@ -2,5 +2,5 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "rootDir": "src", "outDir": "lib", "declarationDir": "lib/types" },
   "include": ["src"],
-  "references": [{ "path": "../kernel" }, { "path": "../sandbox" }]
+  "references": [{ "path": "../kernel" }]
 }
