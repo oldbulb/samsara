@@ -44,10 +44,15 @@ const RECORD_HINT = [
   `  node tests/replay/project-fixture.ts tests/fixtures/replay/${SCENARIO}/session.jsonl`,
 ].join('\n')
 
-/** Where @deepseek-ai/dsh-llm-replay may live: env override, the host profile's store, or the sibling dsh checkout. */
+/**
+ * Where @deepseek-ai/dsh-llm-replay may live: env override, this workspace's own
+ * devDependency (the normal case — `pnpm install` puts it there), the host
+ * profile's store, or a sibling dsh checkout that has been built.
+ */
 function findLlmReplay(): string | undefined {
   const candidates = [
     process.env['SAMSARA_LLM_REPLAY'],
+    join(ROOT, 'node_modules', '@deepseek-ai', 'dsh-llm-replay', 'lib', 'index.js'),
     join(homedir(), '.dsh', 'profiles', 'node_modules', '@deepseek-ai', 'dsh-llm-replay', 'lib', 'index.js'),
     join(ROOT, '..', 'deepseek-harness', 'packages', 'test-support', 'llm-replay', 'lib', 'index.js'),
   ]
