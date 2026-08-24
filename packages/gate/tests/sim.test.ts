@@ -1,6 +1,5 @@
 // The policy-defining simulations from docs/design/gate.md, ported from
-// docs/research/dsh-host/critiques/gate_sim.py and
-// docs/design/notes/holdout-feasibility.py with a seeded PRNG. No model, no
+// the gate policy simulation (docs/design/gate.md) with a seeded PRNG. No model, no
 // network; the rep counts are sized so the file runs well under a minute.
 
 import { describe, expect, it } from 'vitest'

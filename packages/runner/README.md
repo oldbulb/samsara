@@ -19,7 +19,7 @@ dsh --profile host run --resume <runDir>        # re-enter the run recorded in <
 
 Defaults: `--repeat 1`, `--parallel 1`, `--out data/runs`, `--max-turns 50`, `--max-minutes 20`; no `--allow` means the provider's default tool set (`tools.allow: []`).
 
-### Durable steps and `--resume` (`src/steps.ts`; docs/design/pod-and-adoptions.md item 1)
+### Durable steps and `--resume` (`src/steps.ts`; docs/design/adoptions.md item 1)
 
 `runSet` writes `<out>/run.json` at start (`runId`, the full request minus `out`, the task id list) and, per attempt,
 a marker `<out>/attempts/<attemptId>/.steps/<step>.json` (`{step, attemptId, at, ...}`) as each step completes:

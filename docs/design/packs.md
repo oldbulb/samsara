@@ -30,8 +30,8 @@ sense against coding-tasks is a sign the abstraction is wrong: the test is
 whether it still holds for a pack that shares nothing with this one but the
 contract — a different language, a different notion of truth, a different clock.
 
-> A private pack with delayed truth lived here as `packs/pricing` until
-> 2026-08-24 and was moved out when this repo narrowed to the coding-agent line.
-> It is reachable in git history and as a standalone checkout; the delayed-truth
+> A private pack with delayed truth lived in this repository until 2026-08-24
+> and was moved out — together with its history — when the repo narrowed to the
+> coding-agent line. It survives as a standalone checkout; the delayed-truth
 > machinery it motivated (pending truth, settlement re-scoring, stratified
 > scoring) stays in the framework and is specified in `architecture.md`.

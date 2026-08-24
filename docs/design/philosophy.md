@@ -111,6 +111,4 @@ dsh (kernel)        scopes, plugins, services, storage, jobs, subprocess, web
 - samsara depends on dsh through one shim module; re-pinning dsh is a one-file change.
 - samsara talks to a pack only through `pack.yaml` and the pack's commands' stdout. No imports across the line.
 - A pack talks to samsara only through the sealed workdir (task token, skill snapshot, submit tool). It never sees the ledger.
-- legacy is not a dependency. A pack may *vendor* whatever code it likes to implement its commands; legacy's principles and store are not imported into the framework.
-
-Evidence for the claims above: `docs/research/vision-calibration-2026-08-23.md`.
+- The predecessor system is not a dependency. A pack may *vendor* whatever code it likes to implement its commands; nothing from the prior system is imported into the framework.

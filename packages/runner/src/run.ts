@@ -347,7 +347,7 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
 
 const NONE_SHA = sha256('')
 
-/** The lock-file environment fingerprint for this pack + loop (pod-and-adoptions item 3). */
+/** The lock-file environment fingerprint for this pack + loop (adoptions item 3). */
 export function envLockOf(def: PackDefinition, loop: string): EnvLock {
   return envLock({ repoRoot: findRepoRoot(def.dir), packDir: def.dir, loops: [loop] })
 }

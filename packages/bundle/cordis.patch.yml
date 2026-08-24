@@ -106,7 +106,7 @@
 
     # Web carrier: the bundle inserts the webserver row itself (never
     # dsh-web-app, whose web-startup row would reject the runner's argv; see
-    # docs/research/dsh-host/surveys/s6_web_routes.md). Loopback only.
+    # docs/dsh-plugin-notes.md B4). Loopback only.
     - id: webserver
       name: '@deepseek-ai/dsh-host-webserver'
       config:

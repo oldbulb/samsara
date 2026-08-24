@@ -185,7 +185,7 @@ function need<K extends ...>(ctx: Context, key: K): Context[K] {
 ```yaml
     # Web carrier: the bundle inserts the webserver row itself (never
     # dsh-web-app, whose web-startup row would reject the runner's argv; see
-    # docs/research/dsh-host/surveys/s6_web_routes.md). Loopback only.
+    # B4 below). Loopback only.
     - id: webserver
       name: '@deepseek-ai/dsh-host-webserver'
       config:
@@ -561,7 +561,7 @@ expect(row.toolCalls).toBe(recordedToolCalls(fixture).length)
 
 **结论：如果你只要一个只读页面，别走 dsh 的 client-plugin 平面。**
 
-代价对比（依据 `docs/research/dsh-host/surveys/s6_web_routes.md` §D）：走 typert / `dsh.client` 意味着你的包必须导出 `./typert` 和 `./remote` 两个入口、生成器要校验 `files` 才肯出码、客户端组合还得把你的包加进 `@deepseek-ai/dsh-api-remotes`、而且 `ctx.remote` 那一整套只存在于浏览器 bundle 里，"Client Remote 拒绝挂载缺少 strict codec 的 SRC descriptor"——真正的 build 是必须的。
+代价对比（依据对 dsh web 路由与 client-plugin 平面的源码调研）：走 typert / `dsh.client` 意味着你的包必须导出 `./typert` 和 `./remote` 两个入口、生成器要校验 `files` 才肯出码、客户端组合还得把你的包加进 `@deepseek-ai/dsh-api-remotes`、而且 `ctx.remote` 那一整套只存在于浏览器 bundle 里，"Client Remote 拒绝挂载缺少 strict codec 的 SRC descriptor"——真正的 build 是必须的。
 
 我们要的是"champion / 最近 settlement / 各 tier 的 challenger / 待签字"四块只读信息。于是：
 
@@ -767,7 +767,7 @@ export const inject = [SAMSARA_RUN_SERVICE, 'loops', 'agentDefaultModel', 'ledge
 
 ### D.4 关于速度
 
-46 个 commit 集中在两天（2026-08-22 到 08-23）。这个速度不是靠少写测试换来的——是靠**先做完整的源码调研**换来的：`docs/research/dsh-host/surveys/` 下的 s1（cordis/loader/profile/storage/session 内部机制）、s5（agents/tools/subprocess/llm-replay/storage-domain 的 file:line 级参考，710 行）、s6（web 路由与 bundle 组合规则，463 行）是在动手之前做的。本文 B 节里能立刻给出根因的坑，多半是因为 s1/s5/s6 里已经写着答案；真正现场撞的（B7 的 workspace、B8 的退出竞态、B12 的 `/private`、B14 的负成本）都是调研覆盖不到的运行时行为。
+46 个 commit 集中在两天（2026-08-22 到 08-23）。这个速度不是靠少写测试换来的——是靠**先做完整的源码调研**换来的：动手之前先把三块读到 file:line 级并写成了笔记——cordis/loader/profile/storage/session 的内部机制、agents/tools/subprocess/llm-replay/storage-domain 的 API 参考、web 路由与 bundle 组合规则。本文 B 节里能立刻给出根因的坑，多半是因为那些笔记里已经写着答案；真正现场撞的（B7 的 workspace、B8 的退出竞态、B12 的 `/private`、B14 的负成本）都是调研覆盖不到的运行时行为。
 
 **这条经验可以直接抄**：在一个 pre-release、明确说"不做兼容 shim"的内核上盖房子之前，先花时间把你要用的那几个 seam 的源码读到 file:line 级别并写下来。
 

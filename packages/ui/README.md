@@ -45,8 +45,7 @@ them.
 ## Composition
 
 Add the webserver row and this row to a bundle patch (never mount
-`@deepseek-ai/dsh-web-app` for this; see
-`docs/research/dsh-host/surveys/s6_web_routes.md`):
+`@deepseek-ai/dsh-web-app` for this; see `docs/dsh-plugin-notes.md` B4):
 
 ```yaml
 - insert:

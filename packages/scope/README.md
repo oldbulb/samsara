@@ -9,7 +9,7 @@
 | `@samsara/scope` | `ScopeManager` (default export, cordis Service on `ctx.scopes`), `ScopeError`, types | the seam |
 | `@samsara/scope/diffscan` | `scan(patch, boundaries, taskIds, forbiddenPaths?, literals?)` | pure boundary / judge-pipeline / task-literal / `!!`js scan |
 | `@samsara/scope/sha` | `harnessSha(entries)`, `harnessShaOfLayers(layers)`, `envSha(env?)`, `envFacts`, `canonicalJson` | pure coordinates recorded beside every challenger |
-| `@samsara/scope/envlock` | `envLock({ repoRoot, packDir, loops, imageDigest? })`, `findRepoRoot`, `packRuntimeLocks`, `venvListing` | environment fingerprint from lock files (E3; pod-and-adoptions item 3) |
+| `@samsara/scope/envlock` | `envLock({ repoRoot, packDir, loops, imageDigest? })`, `findRepoRoot`, `packRuntimeLocks`, `venvListing` | environment fingerprint from lock files (E3; adoptions item 3) |
 
 ## Patch shapes
 

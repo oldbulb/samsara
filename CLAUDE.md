@@ -2,7 +2,7 @@
 
 **一句话**：建立在 dsh 上的通用递归自改进（RSI）框架——每个改动是一个 challenger，在可处置的子 scope 里求值，只凭回路之外的真值经统计门晋升为 champion，人类 sign-off 走回路够不到的通道。**最终目标是开源发布。** coding-tasks 是它当前唯一的消费者（pack），与框架不耦合——框架不认识任何 pack，只认 `pack.yaml` 与命令 stdout。
 
-先读 `docs/design/philosophy.md`（理念与边界）、`docs/design/architecture.md`（仓库/插件/契约/约束/启动序）、`docs/design/packs.md`（pack 契约与消费者）、`docs/design/migration.md`（legacy 基建各自归位）。本文只放纪律。
+先读 `docs/design/philosophy.md`（理念与边界）、`docs/design/architecture.md`（仓库/插件/契约/约束/启动序）、`docs/design/packs.md`（pack 契约与消费者）。本文只放纪律。
 
 ## Language
 - 与用户用中文交流；代码、commit message、PR 描述、设计文档用英文；技术术语保留英文
@@ -12,17 +12,17 @@
 1. **框架不认识领域。** `packages/` 里不得出现任何表名、字段、业务词、具体指标名、中文业务术语；泄露 grep（`ops/leak-scan.sh`，CI 的 `leak-scan` job）必须为空
 2. **框架与 pack 只通过 `pack.yaml` + 命令 stdout 通信。** 不跨线 import；pack 命令永远是子进程
 3. **框架不为单个 pack 服务。** 一个框架改动若只有放在 coding-tasks 上才讲得通，先怀疑抽象错了；判据是它对一个只共享 pack 契约、别的什么都不共享的 pack（别的语言、别的真值口径、别的时钟）是否同样成立
-4. **legacy 不是依赖。** legacy 的 store / runner / 原则 / CLAUDE.md 不进框架；pack 要什么自己 vendor。LLM proxy 由 gateway 接管，samsara 只经 base_url 使用，不实现 proxy
+4. **前身系统不是依赖。** 前身项目的 store / runner / 原则不进框架；pack 要什么自己 vendor。samsara 不实现 LLM proxy——任何 OpenAI/Anthropic 兼容网关都只经 base_url 使用
 5. **三个不动点在回路之外**：book（真值）、gate、signoff。回路内任何东西不能写它们；optimizer 自己可以被优化，裁判和签字权不行
 6. **dsh 只经 `packages/kernel` 进入。** 其他包不直接 import dsh 内部路径；重新 pin 是一个文件的事
-7. **业务领域不进本仓库。** 私有的 pricing pack 已于 2026-08-24 移出到 `../samsara-pack-pricing`（历史仍可取回）；本仓库只剩 `docs/handover/` 一处私有内容，开源发布时剥离。发布前本仓库不对外
+7. **业务领域与开发记录不进本仓库。** 私有 pack 在仓库外的独立检出里；开发记录（`docs/research/`、`docs/design/notes/`、`docs/handover/`、`ops/bootstrap.md`）与部署事实（`profiles/*/cordis.patch.yml`）留在本地磁盘但不入库。2026-08-24 已用 `git filter-repo` 把它们连同内网术语（网关主机名、前身项目名）一起从历史里剥离
 
 ## 硬约束
 `docs/design/architecture.md` 的 E1–E8（工程：无历史依赖、sign-off 不可伪造、env_sha、子进程 effect、凭据、TMPDIR、热应用验证、裁判机器隔离 + surface 边界）与 S1–S8（科学：MDE 口径、n_eff 下限、分层打分、futility-only 早停、diff 扫描、真值钉快照、holdout 预算、门含成本）。E1–E8、S5、S6 是框架不变量；S1–S4、S7、S8 是 `gate-default` 的行为，可被替换但 ledger 必须记录。实现任何一步前先对照；它们来自对抗评审与 2026-08-23 的文献校准，不是建议。
 一个 challenger 只触一个 surface（v1）；surface 分类以 architecture.md 的 13 项表为准。
 
 ## 词汇（公开、领域中性）
-book · task · settlement · champion · challenger · surface · scope · attempt · loop · tier(smoke/holdin/holdout/live) · gate · sign-off · ledger · pack。不用 experiment/case/cutoff/consent/cm_id 等 legacy 时代词汇（research 文档除外）。
+book · task · settlement · champion · challenger · surface · scope · attempt · loop · tier(smoke/holdin/holdout/live) · gate · sign-off · ledger · pack。不用 experiment/case/cutoff/consent 等前身系统时代的词汇。
 
 ## 工作方式
 - 按 `architecture.md` 的启动序走，每步有可观测门；做完一步与用户同步再继续

@@ -1,4 +1,4 @@
-// Environment fingerprint from lock files (E3; pod-and-adoptions item 3).
+// Environment fingerprint from lock files (E3; adoptions item 3).
 //
 // `envLock()` folds everything that pins the runtime into one sha: the repo's
 // pnpm-lock.yaml, every pack runtime lock file, the installed distributions of

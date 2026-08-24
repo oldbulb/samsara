@@ -1,6 +1,6 @@
-# /samsara page — visual system (borrowed from Internal)
+# /samsara page — visual system
 
-Borrowed from Internal, an internal design system, whose brief this page follows: "light slate + violet + semantic palette, governed by Linear's restraint: single accent for action/focus only, surface-lift over shadow, progressive negative tracking, 8px radii not pills, quiet / dense / precise / fast". Its tokens are reproduced in full below, so this file is the whole source of truth — nothing private is needed to build or change the page. The samsara page copies the tokens verbatim and the idioms below; it stays a single self-contained HTML file (no build, no external assets; fonts fall back to the system stack when Maple Mono / MiSans are not installed).
+Borrowed from an internal design system whose brief this page follows: "light slate + violet + semantic palette, governed by Linear's restraint: single accent for action/focus only, surface-lift over shadow, progressive negative tracking, 8px radii not pills, quiet / dense / precise / fast". Its tokens are reproduced in full below, so this file is the whole source of truth — nothing private is needed to build or change the page. The samsara page copies the tokens verbatim and the idioms below; it stays a single self-contained HTML file (no build, no external assets; fonts fall back to the system stack when Maple Mono / MiSans are not installed).
 
 ## Tokens (`:root`, copy verbatim)
 

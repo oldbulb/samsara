@@ -8,7 +8,7 @@ exists exactly as long as the plugin's scope.
 ## What `start(spec)` does
 
 Modeled on dsh's headless runner and in-process subagent driver
-(`docs/research/dsh-host/surveys/s5_m2_apis.md` §A.5, §B.3).
+(see `docs/dsh-plugin-notes.md` C.2).
 
 1. `ctx.agents.create({ sessionId, meta: { cwd: spec.workdir }, agentOptions: { provider, model }, signal, setup })`.
 2. Inside `setup(agentCtx)`, in this order:

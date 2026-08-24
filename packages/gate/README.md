@@ -1,6 +1,6 @@
 # @samsara/gate
 
-The verdict seam (`ctx.gate`) and the shipped policy `gate-default`. Binding design: `docs/design/gate.md`; numbers from `docs/design/notes/holdout-feasibility.md` and `docs/research/dsh-host/critiques/c_science.md`.
+The verdict seam (`ctx.gate`) and the shipped policy `gate-default`. Binding design: `docs/design/gate.md`; the numbers come from the policy simulation in `tests/sim.test.ts`.
 
 The gate is a fixed point outside the loop: it reads ledger rows (`ScoredAttempt`), never loop output, and nothing in the loop can write a verdict. The framework does not know what a metric means; every verdict row carries `gateMethod = name@version`, the full `Compare`, and `ruleFired`.
 

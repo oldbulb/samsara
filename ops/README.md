@@ -1,4 +1,4 @@
-# ops — local and pod deployment notes
+# ops — install and deployment notes
 
 ## dsh CLI install
 
@@ -23,7 +23,7 @@
 dsh --profile host run --pack packs/coding-tasks --loop null|dsh|claude-code --set smoke --limit 2 --out <dir>
 ```
 
-`null` never calls a model. `dsh` and `claude-code` call deepseek-v4-flash through gateway; keep real runs to smoke/holdin subsets and record fixtures (`tests/replay/record.overlay.yml`) afterwards so tests stay offline.
+`null` never calls a model. `dsh` and `claude-code` call the model through the configured gateway; keep real runs to smoke/holdin subsets and record fixtures (`tests/replay/record.overlay.yml`) afterwards so tests stay offline.
 - dsh launcher: a one-shot app that calls appExit within ~3 s of boot races the post-boot patch-file watchers (hmr registerConfig) and the process never drains; samsara-runner works around it with an unref'd forced exit. Upstream candidate: open watchers before publishing app args, or make appExit close them.
 - dsh CLI should ship dsh-storage-sqlite (see above).
 - runner SIGINT: a few ledger writes can be lost when the ledger domain is disposed concurrently ('ledger domain is not open'); attempts.jsonl is complete and importable. Fix = flush the writer queue before the runner's disposer releases, or order disposal.

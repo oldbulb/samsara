@@ -8,3 +8,12 @@ lib/
 profiles/*/node_modules/
 profiles/*/pnpm-lock.yaml
 __pycache__/
+
+# Development record and private material: kept on disk, never tracked.
+docs/research/
+docs/design/notes/
+docs/handover/
+ops/bootstrap.md
+ops/leak-terms.local.txt
+# Deployment facts (gateway URL, credential refs) and champion-written rows.
+profiles/*/cordis.patch.yml

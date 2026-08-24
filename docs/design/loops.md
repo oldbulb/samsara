@@ -1,6 +1,6 @@
 # loops — the loop-provider seam
 
-A *loop* is an agent loop that runs one attempt of one task under one configuration: dsh's own in-process agent, Claude Code, Codex, pi. The framework never talks to a loop except through this seam. Source of the design: `docs/research/dsh-host/surveys/s4_loop_wrapping.md` §6–7 (legacy-era names translated).
+A *loop* is an agent loop that runs one attempt of one task under one configuration: dsh's own in-process agent, Claude Code, Codex, pi. The framework never talks to a loop except through this seam.
 
 ## Cordis shape
 

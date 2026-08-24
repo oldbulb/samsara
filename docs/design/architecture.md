@@ -1,6 +1,6 @@
 # samsara — architecture
 
-dsh snapshot assumed: `b150a551` (0.1.1-rc.2). Source facts are in `docs/research/dsh-host/surveys/s1_dsh_internals.md`; every claim about dsh capability below was verified there or in the critiques unless marked UNVERIFIED.
+dsh snapshot assumed: `b150a551` (0.1.1-rc.2). Every claim about dsh capability below was read off that source tree unless marked UNVERIFIED; the working notes are in `docs/dsh-plugin-notes.md`.
 
 ## Repository layout
 
@@ -28,9 +28,9 @@ samsara/
 ├── packs/
 │   └── coding-tasks/    PUBLIC  immediate-truth pack; CI runs it; doubles as the demo
 ├── examples/            minimal host profiles wiring one pack + one loop
-├── ops/                 pod deployment: storage layering, bootstrap, restart, archive (see docs/design/migration.md)
+├── ops/                 deployment notes: install, storage layering, restart, archive
 ├── tests/               framework tests run against packs/coding-tasks and dsh-llm-replay fixtures
-├── docs/design/  docs/research/
+├── docs/design/         philosophy, architecture, packs, gate, loops, adoptions
 └── data/ (gitignored)   $SAMSARA_HOME default: ledger sqlite + attempt artifacts, one dir per profile
 ```
 
@@ -60,7 +60,7 @@ Dependency direction, made a load-time fact by `inject`: `ui → champion → le
 
 ## Surfaces
 
-A surface is one mutable layer of the harness. A challenger touches exactly one (v1). Each surface declares a machine-checkable boundary — file globs, config keys, or marked regions — and the diff scan rejects out-of-boundary patches before any evaluation spend. Evidence and sources: `docs/research/vision-calibration-2026-08-23.md`.
+A surface is one mutable layer of the harness. A challenger touches exactly one (v1). Each surface declares a machine-checkable boundary — file globs, config keys, or marked regions — and the diff scan rejects out-of-boundary patches before any evaluation spend.
 
 | # | Surface | Contains | Status | Evidence / prior art |
 |---|---|---|---|---|
@@ -108,7 +108,7 @@ guards:
   deny_patterns: ["--cutoff", "--as-of"]         # pre-tool guard in the sandbox
 ```
 
-Rules: commands are subprocesses, never imported; stdout is validated against the contract above; `kind: judge` rows are stored, displayed, may carry structured `side_info` back to the proposer, and may steer smoke/holdin, but are rejected by the gate at the type level for any verdict; a scorer version bump happens only at a settlement boundary with sign-off and re-scores ancestors; a pack may vendor any code it likes (legacy, internal) behind its commands.
+Rules: commands are subprocesses, never imported; stdout is validated against the contract above; `kind: judge` rows are stored, displayed, may carry structured `side_info` back to the proposer, and may steer smoke/holdin, but are rejected by the gate at the type level for any verdict; a scorer version bump happens only at a settlement boundary with sign-off and re-scores ancestors; a pack may vendor any code it likes behind its commands.
 
 ## Ledger data model (control plane only)
 
@@ -162,7 +162,7 @@ Science
 - **S4** early stop is futility-only; one pre-registered holdout test; Holm across all proposals in a round; no cross-round maxima.
 - **S5** proposal diffs are scanned for task ids and literals; prediction-vs-outcome is a gate input.
 - **S6** settlement pins the truth snapshot (`truth_sha` + source partition); revisions re-score ancestors, append-only.
-- **S7** holdout accounting (calibrated in `docs/design/notes/holdout-feasibility.md`): the holdout exposes to the proposer only a parameter-free Ladder signal ("beat best-so-far by > std/√n: yes/no" plus the rounded best-so-far); raw per-sibling holdout means live in judge-isolated storage and never reach the proposer. The accounting unit is the **promotion**, not the query: `pack.yaml` declares `holdout.mde`, `holdout.rotate_after_promotions` (default 1) and `holdout.max_rounds` (default 20); the book rotates to entity-disjoint, newly settled tasks never seen by any ancestor of the champion when either limit is hit. Startup fail-fast: `n ≥ ((z_α+z_β)·sd_floor/mde)²` with the measured noise floor, and a rotation pool ≥ n; otherwise the tier is `hold:underpowered` (S2) and does not run. Thresholdout is **not** the default — at tens to hundreds of tasks its bound fails by orders of magnitude and in simulation it inflates false-keep while burning its budget on noise within 3–11 rounds; it remains a documented gate plugin with its scale preconditions.
+- **S7** holdout accounting (calibrated by simulation, `packages/gate/tests/sim.test.ts`): the holdout exposes to the proposer only a parameter-free Ladder signal ("beat best-so-far by > std/√n: yes/no" plus the rounded best-so-far); raw per-sibling holdout means live in judge-isolated storage and never reach the proposer. The accounting unit is the **promotion**, not the query: `pack.yaml` declares `holdout.mde`, `holdout.rotate_after_promotions` (default 1) and `holdout.max_rounds` (default 20); the book rotates to entity-disjoint, newly settled tasks never seen by any ancestor of the champion when either limit is hit. Startup fail-fast: `n ≥ ((z_α+z_β)·sd_floor/mde)²` with the measured noise floor, and a rotation pool ≥ n; otherwise the tier is `hold:underpowered` (S2) and does not run. Thresholdout is **not** the default — at tens to hundreds of tasks its bound fails by orders of magnitude and in simulation it inflates false-keep while burning its budget on noise within 3–11 rounds; it remains a documented gate plugin with its scale preconditions.
 - **S8** the gate's objective includes cost: verdicts are on solve-rate at a declared cost budget or on a Pareto front; every pack emits a per-task cost metric; a challenger that is not distinguishable from the champion on both quality and cost is `drop`, not `hold`.
 
 S1–S4, S7, S8 are the behaviour of `gate-default`; a user-supplied gate policy may replace them, and the ledger records which policy produced each verdict. E1–E8, S5, S6 are framework invariants no policy can disable.

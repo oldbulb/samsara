@@ -1,6 +1,6 @@
 # gate — the verdict seam and `gate-default`
 
-The gate turns scores into a verdict. It is a seam (`ctx.gate`) with one shipped policy, `gate-default`; a deployment may mount another policy, and the ledger records `gate_method@version` on every verdict. Numbers below come from `docs/design/notes/holdout-feasibility.md` and `docs/research/dsh-host/critiques/c_science.md`.
+The gate turns scores into a verdict. It is a seam (`ctx.gate`) with one shipped policy, `gate-default`; a deployment may mount another policy, and the ledger records `gate_method@version` on every verdict. The numbers below come from the feasibility simulation reproduced in `packages/gate/tests/sim.test.ts`.
 
 ## Inputs (all from the ledger; never from the loop)
 
@@ -49,7 +49,7 @@ Every verdict row carries `ruleFired` (which step decided) and the full `Compare
 
 ## Tests that define the policy (bring-up step 1 / M3)
 
-Port of `docs/research/dsh-host/critiques/gate_sim.py` + `docs/design/notes/holdout-feasibility.py` to TS:
+The policy simulation, ported to TS with a seeded PRNG (`packages/gate/tests/sim.test.ts`):
 - null siblings, K=4, 200 rounds: false-keep per round < α·K;
 - a pure-noise task set promotes nothing over 20 rounds;
 - a "bigger-budget optimizer" arm (more samples, same null) is not promoted more often;

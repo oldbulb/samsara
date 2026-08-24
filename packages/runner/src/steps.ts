@@ -1,4 +1,4 @@
-// Durable steps (pod-and-adoptions item 1): every attempt pipeline step writes
+// Durable steps (adoptions item 1): every attempt pipeline step writes
 // `<attemptDir>/.steps/<step>.json` when it completes, and `<runDir>/run.json`
 // pins the run so `--resume <runDir>` can re-enter runSet for the same run id
 // and skip what already completed. Plain files, no workflow engine: a marker is

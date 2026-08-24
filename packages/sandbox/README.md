@@ -2,8 +2,8 @@
 
 Filesystem policy for the processes the framework runs on behalf of a
 challenger — the attempt's loop subprocess and the proposer — and the wrapper
-that enforces it (architecture E8/E9, `docs/design/pod-and-adoptions.md`
-adopted practice 2).
+that enforces it (architecture E8/E9, `docs/design/adoptions.md`
+item 2).
 
 Two pure functions and one probe:
 
@@ -72,7 +72,7 @@ Nothing is enforced. `detectHost()` reports `unusable`, `apply` returns the
 spec unchanged, and the loop records `sandbox: 'none'`. The policy is still
 composed and checked, so a misconfiguration (a fixture entry inside the pack
 fixtures, a home directory passed as a runtime root) fails on the developer
-machine the same way it would on the pod — but the pack's `tasks/`, `data/`,
+machine the same way it would on a Linux host — but the pack's `tasks/`, `data/`,
 `bin/` and the operator's home are reachable by path from a macOS attempt.
 E9's stance applies: on macOS treat loop and proposer output as untrusted;
 the diff scan and the gate still decide. dsh's own Seatbelt backend is not

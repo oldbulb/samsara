@@ -1,0 +1,55 @@
+# Template for `profiles/host/cordis.patch.yml` — copy it, fill in your gateway.
+#
+# The real file is gitignored: it holds one deployment's facts (gateway URL,
+# credential reference) and the champion plugin rewrites it on promote/demote,
+# so it is mutable state, not source. Credentials themselves never appear here;
+# `apiKeyEnv` / `credentialRef` name a reference resolved per request through
+# ctx.credentials ($DSH_HOME/.credentials.yaml or the environment).
+#
+#   cp profiles/host/cordis.patch.example.yml profiles/host/cordis.patch.yml
+
+# LLM route: any OpenAI/Anthropic-compatible gateway, on the anthropic-messages wire.
+- id: llm-pi-ai
+  config:
+    providers:
+      gateway:
+        displayName: gateway
+        api: anthropic-messages
+        baseURL: https://llm-gateway.example.com
+        apiKeyEnv: LLM_GATEWAY_API_KEY
+        models:
+          - id: your-model-id
+            name: Your Model
+            contextWindow: 262144
+            maxTokens: 32768
+
+- id: agent-default-model
+  config:
+    provider: gateway
+    model: your-model-id
+
+# Price table for cost attribution on the in-process loop (USD per Mtok).
+- id: loops-dsh
+  config:
+    pricePerMtok: { input: 0.28, output: 0.42, cacheRead: 0.028 }
+
+# Loop provider claude-code: the Claude Agent SDK pointed at the same gateway.
+- id: loops-claude-code
+  config:
+    baseUrl: https://llm-gateway.example.com
+    credentialRef: LLM_GATEWAY_API_KEY
+
+# Proposer claude-p: same gateway and credential reference as the loop. A patch
+# replaces the row's whole config, so command/model are restated here.
+- id: proposer-claude-p
+  config:
+    command: claude
+    model: your-model-id
+    baseUrl: https://llm-gateway.example.com
+    credentialRef: LLM_GATEWAY_API_KEY
+
+# The runner copies the same route facts into every AttemptSpec.
+- id: samsara-runner
+  config:
+    baseUrl: https://llm-gateway.example.com
+    credentialRef: LLM_GATEWAY_API_KEY
