@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>samsara — self-improvement substrate for agent harnesses</title>
+<meta name="description" content="samsara lets a running agent harness keep iterating on itself under evidence that comes from reality, is not contaminated by the optimizer, and can be retroactively overturned.">
+<meta property="og:title" content="samsara">
+<meta property="og:description" content="A harness that improves itself, under evidence it cannot fake.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236d28d9'/><text x='16' y='23' font-family='monospace' font-size='20' font-weight='700' fill='white' text-anchor='middle'>S</text></svg>">
+<style>
+:root{
+  --color-canvas:#f8fafc; --color-surface-1:#ffffff; --color-surface-2:#f8fafc; --color-sunken:#f1f5f9;
+  --color-border:#e2e8f0; --color-border-strong:#cbd5e1;
+  --color-ink:#0f172a; --color-ink-soft:#334155; --color-ink-muted:#64748b; --color-ink-faint:#94a3b8;
+  --color-accent:#6d28d9; --color-accent-hover:#5b21b6; --color-accent-soft:#f5f3ff; --color-accent-border:#ddd6fe; --color-accent-focus:rgba(109,40,217,.40);
+  --color-pos:#15803d; --color-pos-soft:#f0fdf4; --color-risk:#be185d; --color-risk-soft:#fdf2f8;
+  --color-warn:#b45309; --color-warn-soft:#fffbeb; --color-info:#0e7490; --color-info-soft:#ecfeff;
+  --color-code-bg:#0d1117; --color-code-border:#21262d;
+  --font-mono:"Maple Mono","Maple Mono CN",ui-monospace,"SF Mono",Menlo,"MiSans","PingFang SC",monospace;
+  --leading-body:1.65; --leading-heading:1.15; --leading-prose:1.75;
+  --radius-sm:6px; --radius-md:8px; --radius-lg:12px; --radius-pill:9999px;
+  --shadow-hover:0 1px 2px rgba(15,23,42,.04),0 4px 12px rgba(15,23,42,.05);
+  --ease:cubic-bezier(.2,0,0,1); --dur-base:.18s; --page-max:1080px; --header-h:56px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --color-canvas:#0b1220; --color-surface-1:#0f172a; --color-surface-2:#0f172a; --color-sunken:#1e293b;
+    --color-border:#1f2937; --color-border-strong:#334155;
+    --color-ink:#e2e8f0; --color-ink-soft:#cbd5e1; --color-ink-muted:#94a3b8; --color-ink-faint:#64748b;
+    --color-accent:#a78bfa; --color-accent-hover:#c4b5fd; --color-accent-soft:#1e1b4b; --color-accent-border:#4c1d95;
+    --color-pos:#4ade80; --color-pos-soft:#052e16; --color-risk:#f472b6; --color-risk-soft:#3b0a24;
+    --color-warn:#fbbf24; --color-warn-soft:#3a2a06; --color-info:#22d3ee; --color-info-soft:#083344;
+    --shadow-hover:0 1px 2px rgba(0,0,0,.3),0 4px 12px rgba(0,0,0,.35);
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--color-canvas); color:var(--color-ink);
+  font-family:var(--font-mono); font-size:14px; line-height:var(--leading-body);
+  font-variant-ligatures:none;
+}
+html[data-lang="en"] [lang="zh"]{display:none!important}
+html[data-lang="zh"] [lang="en"]{display:none!important}
+a{color:var(--color-accent); text-decoration:none; border-bottom:1px solid transparent; transition:border-color var(--dur-base) var(--ease)}
+a:hover{border-bottom-color:var(--color-accent-border)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--color-accent-focus); outline-offset:2px; border-radius:var(--radius-sm)}
+.tnum{font-variant-numeric:tabular-nums}
+
+header{
+  position:sticky; top:0; z-index:10; height:var(--header-h);
+  background:var(--color-surface-1); border-bottom:1px solid var(--color-border);
+}
+.head-in{max-width:var(--page-max); margin:0 auto; height:100%; padding:0 24px; display:flex; align-items:center; gap:12px}
+.brand{display:flex; align-items:center; gap:9px; color:var(--color-ink); border:0}
+.mark{width:24px; height:24px; border-radius:var(--radius-md); background:var(--color-accent); color:#fff; display:grid; place-items:center; font-weight:700; font-size:14px; flex:none}
+.brand b{font-size:14px; font-weight:600; letter-spacing:-.01em}
+.spacer{flex:1}
+.ghost{
+  font:inherit; font-size:12px; color:var(--color-ink-muted); background:transparent;
+  border:1px solid var(--color-border); border-radius:var(--radius-sm); padding:5px 10px; cursor:pointer;
+  transition:color var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease);
+}
+.ghost:hover{color:var(--color-ink); border-color:var(--color-border-strong)}
+.ghost b{color:var(--color-ink); font-weight:600}
+.head-in a.ghost{border-bottom:1px solid var(--color-border)}
+.head-in a.ghost:hover{border-bottom-color:var(--color-border-strong)}
+
+main{max-width:var(--page-max); margin:0 auto; padding:0 24px 96px}
+section{padding-top:56px}
+.eyebrow{
+  font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--color-ink-muted); margin:0 0 14px;
+}
+h1{font-size:clamp(26px,4.4vw,40px); line-height:var(--leading-heading); letter-spacing:-.025em; font-weight:700; margin:0 0 20px}
+h2{font-size:20px; line-height:var(--leading-heading); letter-spacing:-.02em; font-weight:700; margin:0 0 16px}
+h3{font-size:14px; letter-spacing:-.01em; font-weight:600; margin:0 0 8px}
+p{margin:0 0 14px; color:var(--color-ink-soft); line-height:var(--leading-prose); max-width:74ch}
+.lede{font-size:16px; color:var(--color-ink-soft)}
+.hero{padding-top:72px}
+.hero h1{max-width:26ch}
+html[data-lang="zh"] .hero h1{max-width:20ch}
+strong{color:var(--color-ink); font-weight:600}
+
+.badges{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 24px}
+.badge{
+  display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:var(--radius-pill);
+  font-size:11px; font-weight:600; border:1px solid;
+}
+.badge.warn{background:var(--color-warn-soft); color:var(--color-warn); border-color:color-mix(in srgb,var(--color-warn) 30%,transparent)}
+.badge.info{background:var(--color-info-soft); color:var(--color-info); border-color:color-mix(in srgb,var(--color-info) 30%,transparent)}
+.badge.pos{background:var(--color-pos-soft); color:var(--color-pos); border-color:color-mix(in srgb,var(--color-pos) 30%,transparent)}
+
+.grid{display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(272px,1fr))}
+.card{
+  background:var(--color-surface-1); border:1px solid var(--color-border); border-radius:var(--radius-lg);
+  padding:24px; transition:box-shadow var(--dur-base) var(--ease);
+}
+.card p{margin:0; font-size:13px}
+.card p + p{margin-top:10px}
+.card .eyebrow{margin-bottom:10px}
+
+.rule{border:0; border-top:1px solid var(--color-border); margin:56px 0 0}
+
+ol.steps{counter-reset:s; list-style:none; margin:0; padding:0}
+ol.steps li{
+  counter-increment:s; position:relative; padding:14px 0 14px 40px;
+  border-bottom:1px solid var(--color-border); color:var(--color-ink-soft); font-size:13px; line-height:var(--leading-prose);
+}
+ol.steps li:last-child{border-bottom:0}
+ol.steps li::before{
+  content:counter(s); position:absolute; left:0; top:16px; width:22px; height:22px; border-radius:var(--radius-sm);
+  background:var(--color-sunken); color:var(--color-ink-muted); display:grid; place-items:center;
+  font-size:11px; font-weight:600;
+}
+
+.figure{
+  background:var(--color-surface-1); border:1px solid var(--color-border); border-radius:var(--radius-lg);
+  padding:20px; margin:0 0 20px; overflow-x:auto;
+}
+.figure svg{display:block; margin:0 auto; max-width:100%; height:auto}
+figcaption{font-size:12px; color:var(--color-ink-muted); margin-top:14px; text-align:center}
+
+table{width:100%; border-collapse:collapse; font-size:13px}
+th{
+  text-align:left; font-size:12px; font-weight:600; color:var(--color-ink-muted); background:var(--color-sunken);
+  padding:8px 12px; border-bottom:1px solid var(--color-border); white-space:nowrap;
+}
+td{padding:10px 12px; border-bottom:1px solid var(--color-border); color:var(--color-ink-soft); vertical-align:top}
+tr:last-child td{border-bottom:0}
+.tw{
+  border:1px solid var(--color-border); border-radius:var(--radius-lg); overflow-x:auto;
+  background:var(--color-surface-1);
+}
+
+.callout{
+  border-left:3px solid var(--color-warn); background:var(--color-warn-soft); border-radius:var(--radius-md);
+  padding:14px 16px; font-size:13px; color:var(--color-ink-soft); line-height:var(--leading-prose);
+}
+.callout p{margin:0; color:inherit; font-size:13px}
+.callout p + p{margin-top:8px}
+
+pre{
+  background:var(--color-code-bg); border:1px solid var(--color-code-border); border-radius:var(--radius-md);
+  color:#e2e8f0; font-size:12.5px; line-height:1.7; padding:16px; overflow-x:auto; margin:0;
+}
+pre .c{color:#7d8590}
+code{font-family:var(--font-mono)}
+p code, li code, td code{
+  background:var(--color-sunken); border:1px solid var(--color-border); border-radius:4px;
+  padding:1px 5px; font-size:.92em; color:var(--color-ink);
+}
+
+ul.plain{margin:0; padding:0; list-style:none}
+ul.plain li{
+  padding:10px 0; border-bottom:1px solid var(--color-border);
+  font-size:13px; color:var(--color-ink-soft); line-height:var(--leading-prose);
+}
+ul.plain li:last-child{border-bottom:0}
+
+footer{border-top:1px solid var(--color-border); background:var(--color-surface-1)}
+.foot-in{
+  max-width:var(--page-max); margin:0 auto; padding:24px; display:flex; flex-wrap:wrap; gap:12px 24px;
+  align-items:center; font-size:12px; color:var(--color-ink-muted);
+}
+@media (max-width:640px){
+  main{padding:0 16px 64px}
+  .head-in,.foot-in{padding-left:16px; padding-right:16px}
+  .card{padding:20px}
+  section{padding-top:44px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="head-in">
+    <a class="brand" href="./"><span class="mark">S</span><b>samsara</b></a>
+    <div class="spacer"></div>
+    <button class="ghost" id="lang" type="button" aria-label="Switch language">
+      <span lang="en">中文</span><span lang="zh">EN</span>
+    </button>
+    <a class="ghost" href="https://github.com/oldbulb/samsara">GitHub</a>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero">
+    <div class="badges">
+      <span class="badge warn"><span lang="en">pre-release</span><span lang="zh">未发布</span></span>
+      <span class="badge info"><span lang="en">built on DeepSeek Harness</span><span lang="zh">构建在 DeepSeek Harness 上</span></span>
+      <span class="badge pos">MIT</span>
+    </div>
+    <h1>
+      <span lang="en">A harness that improves itself, under evidence it cannot fake.</span>
+      <span lang="zh">让 harness 自己改进自己——在它伪造不了的证据下。</span>
+    </h1>
+    <p class="lede" lang="en">
+      <strong>samsara</strong> is the self-improvement substrate for agent harnesses: it lets a running harness keep
+      iterating on itself under evidence that <strong>comes from reality</strong>, is
+      <strong>not contaminated by the optimizer</strong>, and can be <strong>retroactively overturned</strong>.
+    </p>
+    <p class="lede" lang="zh">
+      <strong>samsara</strong> 是 agent harness 的自改进基座：让一个运行中的 harness 在<strong>来自现实的</strong>、
+      <strong>未被优化器污染的</strong>、<strong>可追溯推翻的</strong>证据下，持续迭代自己。
+    </p>
+    <p lang="en">
+      Each change is a <em>challenger</em>, evaluated in a disposable sub-scope. It becomes the <em>champion</em> only
+      by passing a statistical gate on truth from outside the loop, and only after a human signs off through a channel
+      the loop cannot reach. What is improved is <strong>the harness, not the weights</strong>.
+    </p>
+    <p lang="zh">
+      每个改动是一个 <em>challenger</em>，在可处置的子 scope 里求值；只有凭回路之外的真值通过统计门，
+      并由人经回路够不到的通道签字，才成为 <em>champion</em>。改的是 <strong>harness，不是权重</strong>。
+    </p>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <p class="eyebrow"><span lang="en">The loop</span><span lang="zh">回路</span></p>
+    <h2>
+      <span lang="en">One loop, three fixed points</span>
+      <span lang="zh">一个回路，三个不动点</span>
+    </h2>
+    <p lang="en">
+      The cycle is <code>propose → run → judge → keep-or-drop → settle</code>. Three things sit outside it and cannot
+      be written from inside: the <strong>book</strong> (tasks and truth), the <strong>gate</strong> (verdicts), and
+      <strong>sign-off</strong> (a human). Everything else — the optimizer included — can be improved.
+    </p>
+    <p lang="zh">
+      循环是 <code>propose → run → judge → keep-or-drop → settle</code>。三样东西在回路之外、回路内写不到：
+      <strong>book</strong>（任务与真值）、<strong>gate</strong>（裁决）、<strong>sign-off</strong>（人）。
+      其余的一切——包括 optimizer 自己——都可以被改进。
+    </p>
+
+    <figure class="figure">
+      <svg viewBox="0 0 720 300" role="img" aria-labelledby="loopttl">
+        <title id="loopttl">The loop, with book, gate and sign-off outside it</title>
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--color-ink-faint)"/>
+          </marker>
+          <marker id="arA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--color-accent)"/>
+          </marker>
+        </defs>
+
+        <rect x="24" y="20" width="672" height="124" rx="12"
+              fill="none" stroke="var(--color-border-strong)" stroke-dasharray="5 4"/>
+        <text x="44" y="46" font-family="var(--font-mono)" font-size="11" font-weight="600"
+              letter-spacing="1" fill="var(--color-ink-faint)">THE LOOP</text>
+
+        <path d="M563 84 V64 H158 V82" stroke="var(--color-ink-faint)" stroke-width="1.5"
+              fill="none" marker-end="url(#ar)"/>
+
+        <g font-family="var(--font-mono)" font-size="12" font-weight="600" text-anchor="middle">
+          <g fill="var(--color-sunken)" stroke="var(--color-border)">
+            <rect x="116" y="86" width="84" height="34" rx="8"/>
+            <rect x="226" y="86" width="60" height="34" rx="8"/>
+            <rect x="312" y="86" width="66" height="34" rx="8"/>
+            <rect x="404" y="86" width="100" height="34" rx="8"/>
+            <rect x="530" y="86" width="66" height="34" rx="8"/>
+          </g>
+          <g fill="var(--color-ink)">
+            <text x="158" y="108">propose</text>
+            <text x="256" y="108">run</text>
+            <text x="345" y="108">judge</text>
+            <text x="454" y="108">keep / drop</text>
+            <text x="563" y="108">settle</text>
+          </g>
+        </g>
+        <g stroke="var(--color-ink-faint)" stroke-width="1.5" marker-end="url(#ar)" fill="none">
+          <path d="M202 103 H216"/><path d="M288 103 H302"/><path d="M380 103 H394"/><path d="M506 103 H520"/>
+        </g>
+
+        <g font-family="var(--font-mono)" font-size="12" font-weight="600" text-anchor="middle">
+          <g fill="var(--color-accent-soft)" stroke="var(--color-accent-border)">
+            <rect x="140" y="198" width="120" height="42" rx="8"/>
+            <rect x="340" y="198" width="120" height="42" rx="8"/>
+            <rect x="530" y="198" width="120" height="42" rx="8"/>
+          </g>
+          <g fill="var(--color-accent)">
+            <text x="200" y="224">book</text>
+            <text x="400" y="224">gate</text>
+            <text x="590" y="224">sign-off</text>
+          </g>
+        </g>
+        <g stroke="var(--color-accent)" stroke-width="1.5" fill="none" marker-end="url(#arA)">
+          <path d="M200 196 C200 168 300 156 334 130"/>
+          <path d="M400 196 C400 170 420 148 434 130"/>
+          <path d="M590 196 C590 170 520 148 492 130"/>
+        </g>
+        <g font-family="var(--font-mono)" font-size="10" fill="var(--color-ink-faint)" text-anchor="middle">
+          <text x="200" y="258">tasks and truth</text>
+          <text x="400" y="258">the verdict</text>
+          <text x="590" y="258">a human</text>
+          <text x="360" y="286">OUTSIDE THE LOOP — NOT WRITABLE FROM INSIDE</text>
+        </g>
+      </svg>
+      <figcaption>
+        <span lang="en">Truth, verdicts and consent flow in. Nothing flows the other way.</span>
+        <span lang="zh">真值、裁决与签字只进不出；回路内任何东西都写不到它们。</span>
+      </figcaption>
+    </figure>
+
+    <div class="grid">
+      <div class="card">
+        <p class="eyebrow">book</p>
+        <h3><span lang="en">From reality</span><span lang="zh">来自现实</span></h3>
+        <p lang="en">Truth lives outside the loop. It arrives immediately or late; settlement is an event that
+          re-scores the ancestry, append-only.</p>
+        <p lang="zh">真值在回路之外。它即时到达或延迟到达；settlement 是一个事件，沿祖先重打分，只追加不覆盖。</p>
+      </div>
+      <div class="card">
+        <p class="eyebrow">gate</p>
+        <h3><span lang="en">Not contaminated</span><span lang="zh">未被污染</span></h3>
+        <p lang="en">The holdout is a consumable and its revelations are budgeted. The judge is isolated by
+          machinery, not convention; judge-kind scores never reach a verdict.</p>
+        <p lang="zh">holdout 是消耗品，对它的每次揭示都记账。裁判由机器隔离，不靠约定；judge 类分数永远进不了 verdict。</p>
+      </div>
+      <div class="card">
+        <p class="eyebrow">sign-off</p>
+        <h3><span lang="en">Overturnable</span><span lang="zh">可推翻</span></h3>
+        <p lang="en">Every adoption carries full coordinates. Consent is an Ed25519 signature over a local socket —
+          a sandbox cannot forge it, and HTTP is not proof.</p>
+        <p lang="zh">每次采纳都带完整坐标。签字是本地 socket 上的 Ed25519 签名——沙箱伪造不了，HTTP 不算证明。</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <p class="eyebrow"><span lang="en">What changes</span><span lang="zh">改什么</span></p>
+    <h2><span lang="en">Surfaces, not weights</span><span lang="zh">surface，不是权重</span></h2>
+    <p lang="en">
+      A harness is everything mutable around the model. Each mutable layer is a <strong>surface</strong>; a challenger
+      is the champion plus one patch on one surface — without that constraint, improvement cannot be attributed.
+    </p>
+    <p lang="zh">
+      harness 是模型周围一切可变的东西。每个可变层是一个 <strong>surface</strong>；一个 challenger = champion 加上
+      单个 surface 上的一个补丁——不这样约束，改进就无法归因。
+    </p>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th><span lang="en">Layer</span><span lang="zh">层</span></th>
+            <th><span lang="en">Status</span><span lang="zh">状态</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>skill</code> · <code>prompt segment</code> · <code>memory</code> · <code>tool config</code></td>
+            <td><span lang="en">v1 challengers</span><span lang="zh">v1 可作 challenger</span></td>
+          </tr>
+          <tr>
+            <td><span lang="en">runtime control (timeouts, step caps, permission mode) · route (model, effort, model pool)</span><span lang="zh">runtime control（超时、步数上限、权限模式）· route（模型、思考量、model pool）</span></td>
+            <td><span lang="en">coordinates first; challengers once the gate is cost-aware</span><span lang="zh">先作坐标；门含成本后再作 challenger</span></td>
+          </tr>
+          <tr>
+            <td><span lang="en">optimizer configuration — the true entry point of recursion</span><span lang="zh">optimizer 配置——递归真正的入口</span></td>
+            <td><span lang="en">recorded now, optimized later on a slow timescale</span><span lang="zh">先记账，之后作慢时标 challenger</span></td>
+          </tr>
+          <tr>
+            <td><span lang="en">evaluation artifacts (task sets, scorers, judges, truth snapshots) and the three fixed points</span><span lang="zh">评测工件（任务集、scorer、judge、真值快照）与三个不动点</span></td>
+            <td><span lang="en"><strong>never a surface</strong> — versioned coordinates and re-scoring triggers</span><span lang="zh"><strong>永远不是 surface</strong>——它们是带版本的坐标与重打分触发器</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <p class="eyebrow"><span lang="en">Where it intends to lead</span><span lang="zh">要领先的地方</span></p>
+    <h2><span lang="en">Three things nobody has built yet</span><span lang="zh">三件还没人做过的事</span></h2>
+    <p lang="en">Stated with the prior art named honestly — the theory exists in every case; the engineering does not.</p>
+    <p lang="zh">先例照实点名——三件事的理论都已存在，工程实现没有。</p>
+    <ol class="steps">
+      <li>
+        <span lang="en"><strong>Holdout accounting.</strong> Recursive reuse of a holdout across generations learns it
+          away. samsara budgets holdout revelations (Thresholdout / Ladder — Dwork et al. 2015, Blum &amp; Hardt 2015),
+          declares <code>n / mde / budget</code> per pack, fails fast when the holdout cannot support the round, and
+          rotates from newly settled tasks when the budget is spent. No agent-optimization system does this today.</span>
+        <span lang="zh"><strong>holdout 记账。</strong>跨代递归复用 holdout 会把它学掉。samsara 给每次揭示记账
+          （Thresholdout / Ladder——Dwork et al. 2015、Blum &amp; Hardt 2015），每个 pack 声明
+          <code>n / mde / budget</code>，holdout 撑不起这一轮就当场失败，预算耗尽则从新结算的任务里轮换。
+          目前没有任何 agent 优化系统这样做。</span>
+      </li>
+      <li>
+        <span lang="en"><strong>An automated loop on delayed truth.</strong> Every RSI and skill-optimization system
+          evaluates on immediate benchmarks. Tasks whose truth arrives next month can still drive the loop here — the
+          step from RSI-on-benchmarks to RSI-in-production.</span>
+        <span lang="zh"><strong>延迟真值上的自动回路。</strong>现有的自改进与 skill 优化系统都在即时 benchmark 上评测。
+          真值下个月才到的任务在这里照样能驱动回路——这是从「benchmark 上的 RSI」走向「生产中的 RSI」的一步。</span>
+      </li>
+      <li>
+        <span lang="en"><strong>A living champion.</strong> A truth revision, a scorer bump, a model upgrade or a
+          task-set change is an event: it re-scores the ancestry append-only and can demote the champion. Existing
+          tools offer manual, per-run back-fill; the automatic trigger is new.</span>
+        <span lang="zh"><strong>活的 champion。</strong>真值修订、scorer 升版、模型升级、任务集变更都是事件：
+          沿祖先追加式重打分，并且可以把 champion 降级。现有工具只提供手动的、逐次运行的回填；自动触发是新的。</span>
+      </li>
+    </ol>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <p class="eyebrow"><span lang="en">How a round runs</span><span lang="zh">一轮怎么跑</span></p>
+    <h2><span lang="en">One command, one verdict, one ledger row</span><span lang="zh">一条命令，一个裁决，一行账</span></h2>
+    <p lang="en">
+      A proposer (an external CLI) writes a patch; the runner scopes it, runs the attempts on a loop provider, scores
+      them against the pack's own truth command, and asks the gate. Promotion additionally requires a signature.
+    </p>
+    <p lang="zh">
+      proposer（一个外部 CLI）产出补丁；runner 给它开 scope、在 loop provider 上跑 attempt、用 pack 自己的 truth
+      命令打分，然后问 gate。晋升还需要一个签名。
+    </p>
+    <pre><code><span class="c"># propose → challenge → attempts → gate → ledger, in one round</span>
+dsh --profile host round \
+    --pack packs/coding-tasks --loop dsh --proposer claude-p \
+    --set smoke --limit 2 --metric pass_rate --with-champion
+
+<span class="c"># promotion waits for a signature over a unix socket; HTTP is not proof</span>
+dsh --profile host promote &lt;challengerId&gt; --wait 60</code></pre>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <p class="eyebrow"><span lang="en">Status</span><span lang="zh">现状</span></p>
+    <h2><span lang="en">What is built, and what is honestly not</span><span lang="zh">做完了什么，什么老实说还没有</span></h2>
+    <div class="grid">
+      <div class="card">
+        <p class="eyebrow"><span lang="en">Built</span><span lang="zh">已完成</span></p>
+        <ul class="plain">
+          <li><span lang="en">18 packages: kernel, book, pack, ledger, scope, champion, gate, signoff, loops (+ dsh and Claude Code providers), workdir, submit, proposers, sandbox, runner, ui.</span><span lang="zh">18 个包：kernel、book、pack、ledger、scope、champion、gate、signoff、loops（含 dsh 与 Claude Code 两个 provider）、workdir、submit、proposers、sandbox、runner、ui。</span></li>
+          <li><span lang="en">Two harnesses run the same tasks and certify against each other; A/B is refused when their facts differ.</span><span lang="zh">两个 harness 跑同一批任务并互相认证；facts 不同的两行拒绝 A/B 比较。</span></li>
+          <li><span lang="en">Append-only ledger on sqlite; disposable scopes; Ed25519 sign-off; hot-apply verified by re-hashing.</span><span lang="zh">sqlite 上的追加式 ledger；可处置 scope；Ed25519 签字；热应用靠重新哈希验证。</span></li>
+          <li><span lang="en">39 test files / 270 tests, all offline — no model, no network.</span><span lang="zh">39 个测试文件 / 270 个测试，全部离线——不调模型、不联网。</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <p class="eyebrow"><span lang="en">Not yet</span><span lang="zh">还没有</span></p>
+        <ul class="plain">
+          <li><span lang="en">The task set is at ceiling for the model under test, so the noise floor is zero and <strong>no positive control has promoted yet</strong>. The statistical gate has not been falsified against a known-good change.</span><span lang="zh">当前任务集对被测模型来说在天花板上，噪声底为零，<strong>阳性对照还没有晋升过</strong>。统计门还没有被一个已知有效的改动真正证伪过。</span></li>
+          <li><span lang="en">The live tier (mSPRT) is not implemented.</span><span lang="zh">live tier（mSPRT）未实现。</span></li>
+          <li><span lang="en">The proposer process has no filesystem sandbox yet; diff scanning and the gate are the current mitigations.</span><span lang="zh">proposer 进程还没有文件系统沙箱；目前靠 diff 扫描与 gate 兜底。</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:16px">
+      <p lang="en"><strong>Not released yet.</strong> The repository is public so the design can be read and argued
+        with, but there is no package, no versioned API and no support. Interfaces will change without notice.</p>
+      <p lang="zh"><strong>尚未发布。</strong>仓库公开是为了让设计可读、可被质疑；没有发包、没有稳定 API、没有支持。
+        接口会不打招呼地变。</p>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <p class="eyebrow"><span lang="en">Read next</span><span lang="zh">接着读</span></p>
+    <h2><span lang="en">The design is the documentation</span><span lang="zh">设计文档就是文档</span></h2>
+    <div class="grid">
+      <div class="card">
+        <h3><a href="https://github.com/oldbulb/samsara/blob/master/docs/design/philosophy.md">philosophy.md</a></h3>
+        <p lang="en">Why the three fixed points sit outside the loop, and what is deliberately not claimed.</p>
+        <p lang="zh">为什么三个不动点在回路之外，以及哪些话刻意没说。</p>
+      </div>
+      <div class="card">
+        <h3><a href="https://github.com/oldbulb/samsara/blob/master/docs/design/architecture.md">architecture.md</a></h3>
+        <p lang="en">Layout, plugins, the surface taxonomy, the pack contract, the ledger data model, and the hard
+          constraints E1–E8 / S1–S8 in full.</p>
+        <p lang="zh">仓库布局、插件、surface 分类、pack 契约、ledger 数据模型，以及硬约束 E1–E8 / S1–S8 全文。</p>
+      </div>
+      <div class="card">
+        <h3><a href="https://github.com/oldbulb/samsara/blob/master/docs/design/gate.md">gate.md</a></h3>
+        <p lang="en">The gate seam and what <code>gate-default</code> actually decides.</p>
+        <p lang="zh">gate 这条缝，以及 <code>gate-default</code> 到底怎么判。</p>
+      </div>
+      <div class="card">
+        <h3><a href="https://github.com/oldbulb/samsara/blob/master/docs/design/loops.md">loops.md</a></h3>
+        <p lang="en">The loop provider contract: <code>AttemptSpec</code>, <code>LoopEvent</code>,
+          <code>HarnessFacts</code> — what it takes to plug a new harness in.</p>
+        <p lang="zh">loop provider 契约：<code>AttemptSpec</code>、<code>LoopEvent</code>、<code>HarnessFacts</code>
+          ——接一个新 harness 需要什么。</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="foot-in">
+    <span>samsara · MIT</span>
+    <span lang="en">built on <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a></span>
+    <span lang="zh">构建在 <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> 上</span>
+    <div class="spacer"></div>
+    <a href="https://github.com/oldbulb/samsara">github.com/oldbulb/samsara</a>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement, KEY = 'samsara-lang';
+  function set(lang) {
+    root.setAttribute('data-lang', lang);
+    root.setAttribute('lang', lang === 'zh' ? 'zh-Hans' : 'en');
+    try { localStorage.setItem(KEY, lang); } catch (e) {}
+  }
+  var saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) {}
+  set(saved === 'zh' || saved === 'en' ? saved
+      : (navigator.language || '').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en');
+  document.getElementById('lang').addEventListener('click', function () {
+    set(root.getAttribute('data-lang') === 'zh' ? 'en' : 'zh');
+  });
+})();
+</script>
+
+</body>
+</html>

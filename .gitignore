@@ -17,3 +17,6 @@ ops/bootstrap.md
 ops/leak-terms.local.txt
 # Deployment facts (gateway URL, credential refs) and champion-written rows.
 profiles/*/cordis.patch.yml
+
+# Local tool scratch
+.playwright-mcp/
