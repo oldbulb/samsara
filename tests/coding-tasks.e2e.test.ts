@@ -104,8 +104,9 @@ describe('materialize → truth → reference solution → truth → score', () 
       expect(row.status).toBe('settled')
       expect(row.truth_sha).toBe(stubSha.get(row.task_id as string))
       const truth = row.truth as { passed: number; failed: number; total: number; exit_code: number }
-      expect(truth.failed).toBe(0)
-      expect(truth.exit_code).toBe(0)
+      const where = `${row.task_id as string}: ${JSON.stringify(truth)}`
+      expect(truth.failed, where).toBe(0)
+      expect(truth.exit_code, where).toBe(0)
       expect(truth.passed).toBe(truth.total)
       expect(truth.total).toBeGreaterThan(0)
     }

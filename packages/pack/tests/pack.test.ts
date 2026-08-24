@@ -78,7 +78,9 @@ describe('runCommand', () => {
     const nj = await errorOf(runCommand(def, 'truth', tasks, { env: { ...process.env, MINIPACK_MODE: 'notjson' } }))
     expect(nj.code).toBe('invalid-line')
   })
-  it('surfaces non-zero exit with stderr, timeouts, and missing commands', async () => {
+  // Four subprocess round-trips, one of them a deliberate 500 ms hang: slower
+  // than vitest's 5 s default on a cold CI runner.
+  it('surfaces non-zero exit with stderr, timeouts, and missing commands', { timeout: 30_000 }, async () => {
     const crash = await errorOf(runCommand(def, 'truth', tasks, { env: { ...process.env, MINIPACK_MODE: 'crash' } }))
     expect(crash.code).toBe('exit')
     expect(crash.exitCode).toBe(3)
