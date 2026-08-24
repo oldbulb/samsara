@@ -1,0 +1,8 @@
+# This directory is its own pnpm root: without this file `pnpm --dir` walks up,
+# finds the repository workspace and installs that instead, leaving the runtime
+# without node_modules and every JS task failing at truth time.
+#
+# core-js only prints a donation notice from its postinstall; nothing here needs
+# a build script to run.
+allowBuilds:
+  core-js: false

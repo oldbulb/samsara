@@ -16,6 +16,21 @@ bin/materialize  bin/truth  bin/score
 tools/import_polyglot.py             # regenerates fixtures/ and tasks/ from a polyglot-benchmark checkout
 ```
 
+## Runtimes
+
+The two runtimes are installs, not source, so they are gitignored — provision
+them once after a fresh clone (CI does the same before it runs the e2e):
+
+```sh
+python3 -m venv runtime/py/.venv
+runtime/py/.venv/bin/pip install -r runtime/py/requirements.txt   # pytest
+pnpm --dir runtime/js install --frozen-lockfile                   # jest + babel
+```
+
+`bin/truth` uses `runtime/py/.venv/bin/python` when it exists (override with
+`$CODING_TASKS_PYTHON`) and falls back to the interpreter running it, which then
+needs pytest of its own.
+
 ## Task line
 
 ```json
