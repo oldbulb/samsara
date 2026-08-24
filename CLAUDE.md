@@ -15,7 +15,7 @@
 4. **legacy 不是依赖。** pricing pack 可以 vendor legacy 代码实现自己的命令；legacy 的 store / runner / 原则 / CLAUDE.md 不进框架。LLM proxy 由 gateway 接管，samsara 只经 base_url 使用，不实现 proxy
 5. **三个不动点在回路之外**：book（真值）、gate、signoff。回路内任何东西不能写它们；optimizer 自己可以被优化，裁判和签字权不行
 6. **dsh 只经 `packages/kernel` 进入。** 其他包不直接 import dsh 内部路径；重新 pin 是一个文件的事
-7. **`packs/pricing` 是私有内容，直接放本仓库**；开源发布时再单独考量迁移（拆 submodule / 镜像剥离）。发布前本仓库不对外
+7. **`packs/pricing` 与 `docs/handover/` 是私有内容，直接放本仓库**；开源发布时一并剥离（拆 submodule / 镜像剥离）。发布前本仓库不对外
 
 ## 硬约束
 `docs/design/architecture.md` 的 E1–E8（工程：无历史依赖、sign-off 不可伪造、env_sha、子进程 effect、凭据、TMPDIR、热应用验证、裁判机器隔离 + surface 边界）与 S1–S8（科学：MDE 口径、n_eff 下限、分层打分、futility-only 早停、diff 扫描、真值钉快照、holdout 预算、门含成本）。E1–E8、S5、S6 是框架不变量；S1–S4、S7、S8 是 `gate-default` 的行为，可被替换但 ledger 必须记录。实现任何一步前先对照；它们来自对抗评审与 2026-08-23 的文献校准，不是建议。
@@ -33,7 +33,8 @@ book · task · settlement · champion · challenger · surface · scope · atte
 - 形态：dsh bundle（`samsara` patch 层）+ profile 模板（`host`）；身份：dsh 的 RSI 层；不 fork
 - 拥抱 cordis service 但不过度——只有真正需要被替换/注入的边界才做成 service，纯函数（统计、校验、哈希）保持纯函数。设计兼顾 cordis 的模式与哲学：进程内 seam（gate / proposer / loop / book …）就是 cordis service——`inject`/`provide`、schemastery `Config`、Definition + Provider + Consumer 一起发布、按 dsh 的角色词汇（Registry/Runtime/Provider/Backend/Policy）命名；替换策略 = 改一行 `cordis.patch.yml`，不自造插件机制
 - 只有跨进程/跨语言的数据契约（`pack.yaml`、命令 stdout、ledger 行、训练导出）不含 dsh 类型——pack 作者与外部 proposer CLI 无需知道 dsh 存在
-- 持续跟踪 dsh 演进：每次 re-pin 记录我们适配了什么、dsh 哪些变化对我们有利/不利；接口稳定后（P4 之后）把通用件（gate seam、settlement 事件等）作为有价值的 PR 提给 dsh，不是现在
+- 持续跟踪 dsh 演进：每次 re-pin 记录我们适配了什么、dsh 哪些变化对我们有利/不利
+- **dsh 不接受外部 PR**（2026-08-24 核实）：`CONTRIBUTING.md` 明写 "cannot accept external pull requests at the moment"，公开仓库的 PR 功能在 GitHub 上是禁用的（`/pulls` → 404），Issues 也关（`has_issues: false`），只开 Discussions。公开仓是内部仓的发布镜像（我们 pin 的 commit 是 "Merge pull request #2908 from deepseek-harness/…"）。因此投递路径改为：**小的 bug/DX 发现走 Discussions；通用能力件（loops seam、durable steps、OTel GenAI spans、config trial scope）自己发独立插件包并打 `dsh-plugin` topic**，不进官方仓。CONTRIBUTING 的措辞是 "at the moment"，每次 re-pin 顺手复查这个状态。候选清单与分档见 `docs/dsh-plugin-notes.md` E 节
 
 ## Environment
 - Node + pnpm；dsh 钉 `b150a551`（需要源码时重新 clone 并 checkout）
