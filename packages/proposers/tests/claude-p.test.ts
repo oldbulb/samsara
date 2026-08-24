@@ -9,6 +9,10 @@ import { ClaudePAdapter, DEFAULT_TEMPLATE, argvOf, buildEnv, renderPrompt, resol
 import { fakeHandle, fakeSpawn, tempRoot, writeSkill, type FakeHandle } from './fixture.ts'
 
 const SECRET = 'sk-secret-never-logged-0123456789'
+// Tests that are not about the sandbox pin a host that cannot enforce, so they
+// assert the same thing on a Linux runner (where `detectHost` finds landlock and
+// `apply` fails closed without a policy) as on a developer machine.
+const UNENFORCED: SandboxHost = { platform: 'darwin', enforcement: 'unusable', launcher: '', exists: () => true }
 const draft = {
   surface: 'skill',
   patch: { surface: 'skill', skill_dir: './skill' },
@@ -31,7 +35,7 @@ function setup(onRun = writeGoodOutput, config: ConstructorParameters<typeof Cla
   const { spawn, records } = fakeSpawn(onRun)
   const adapter = new ClaudePAdapter(
     { model: 'model-x', baseUrl: 'http://gateway.local/v1', credentialRef: 'ROUTE_TOKEN', ...config },
-    { spawn, credentialEnv: async () => ({ ANTHROPIC_AUTH_TOKEN: SECRET }) },
+    { spawn, credentialEnv: async () => ({ ANTHROPIC_AUTH_TOKEN: SECRET }), host: UNENFORCED },
   )
   return { root, viewDir, workDir, records, adapter, input: (signal = new AbortController().signal) => ({ viewDir, workDir, signal, parent: 'ch-parent' }) }
 }
@@ -164,7 +168,7 @@ describe('ClaudePAdapter', () => {
   })
 
   it('config_sha is stable, ignores credentialRef, and changes with the template or any strategy field', () => {
-    const deps = { spawn: () => { throw new Error('no') }, credentialEnv: async () => ({}) }
+    const deps = { spawn: () => { throw new Error('no') }, credentialEnv: async () => ({}), host: UNENFORCED }
     const a = new ClaudePAdapter({ model: 'm', maxTurns: 10, credentialRef: 'A' }, deps)
     const b = new ClaudePAdapter({ maxTurns: 10, model: 'm', credentialRef: 'B' }, deps)
     const c = new ClaudePAdapter({ model: 'm', maxTurns: 11 }, deps)
@@ -190,7 +194,7 @@ describe('ClaudePAdapter', () => {
       else writeGoodOutput(spec, h)
       return h
     }
-    const adapter = new ClaudePAdapter({}, { spawn, credentialEnv: async () => ({}) })
+    const adapter = new ClaudePAdapter({}, { spawn, credentialEnv: async () => ({}), host: UNENFORCED })
     const p = await adapter.propose({ viewDir: root, workDir, signal: new AbortController().signal, parent: 'p' })
     expect(p.proposer.version).toBe('unknown')
     expect('ANTHROPIC_AUTH_TOKEN' in (p as unknown as Record<string, unknown>)).toBe(false)

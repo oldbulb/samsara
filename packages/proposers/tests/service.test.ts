@@ -1,9 +1,10 @@
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { Context } from '@samsara/kernel'
 import { Proposers, ProposerRegistryError, type ProposerAdapter } from '../src/index.ts'
 import * as pluginHuman from '../src/plugin-human.ts'
+import { policyFor } from '@samsara/sandbox'
 import { createAdapter } from '../src/plugin-claude-p.ts'
 import { fakeSpawn, tempRoot, writeSkill } from './fixture.ts'
 
@@ -55,13 +56,20 @@ describe('Proposers service', () => {
     } as never
     const a = createAdapter(ctx, { credentialRef: 'TOK' })
     const root = tempRoot()
-    const p = await a.propose({ viewDir: root, workDir: root, signal: new AbortController().signal, parent: 'p' })
+    const workDir = join(root, 'work')
+    mkdirSync(workDir, { recursive: true })
+    // createAdapter takes the real host, so the input carries a policy: on a Linux
+    // runner an unconfined proposal spawn is refused (E9), as it is in production.
+    // The pack root stays outside the writable workdir — its denied paths may not
+    // be reachable through the grant.
+    const sandbox = policyFor({ workdir: workDir, packDir: join(root, 'pack') })
+    const p = await a.propose({ viewDir: root, workDir, signal: new AbortController().signal, parent: 'p', sandbox })
     expect(p.proposer.name).toBe('claude-p')
     expect(records[1]!.spec.env?.['ANTHROPIC_AUTH_TOKEN']).toBe('sk-resolved')
     expect(effects.filter((e) => e === 'proposer-claude-p:child')).toHaveLength(2)
     expect(JSON.stringify(p)).not.toContain('sk-resolved')
 
     const missing = createAdapter(ctx, { credentialRef: 'NOPE' })
-    await expect(missing.propose({ viewDir: root, workDir: root, signal: new AbortController().signal, parent: 'p' })).rejects.toThrow(/not configured/)
+    await expect(missing.propose({ viewDir: root, workDir, signal: new AbortController().signal, parent: 'p', sandbox })).rejects.toThrow(/not configured/)
   })
 })
