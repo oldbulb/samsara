@@ -1,0 +1,24 @@
+name: Proposal
+description: A change to what samsara does, or a seam it should have
+labels: [proposal]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that the framework makes hard or impossible?
+    validations: { required: true }
+  - type: textarea
+    id: shape
+    attributes:
+      label: The shape you have in mind
+      description: >
+        A pack? A loop provider? A gate policy? A new seam? If it is a framework
+        change, say how it holds for a pack that shares nothing with coding-tasks
+        but the contract — a different language, a different notion of truth, a
+        different clock.
+    validations: { required: true }
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried or ruled out

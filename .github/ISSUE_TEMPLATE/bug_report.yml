@@ -1,0 +1,44 @@
+name: Bug report
+description: Something behaves differently from what the docs say
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a security issue please use **Security → Report a vulnerability** instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you saw, what you expected instead.
+      placeholder: |
+        $ dsh --profile host run --pack packs/coding-tasks --loop null --set smoke --limit 2
+        …
+    validations: { required: true }
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: samsara, dsh, Node, pnpm.
+      placeholder: "samsara 0.1.0 · dsh 0.1.1-rc.2 · node 22.19.0 · pnpm 11.7.0"
+    validations: { required: true }
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [Linux, macOS, Windows, other]
+    validations: { required: true }
+  - type: textarea
+    id: profile
+    attributes:
+      label: Profile rows
+      description: >
+        The relevant part of your profile patch, or the output of
+        `dsh --profile <name> --dump-config`. Redact URLs and credential names.
+      render: yaml
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output
+      description: Error text, stack trace, or the attempt directory's `attempts.jsonl` line.
+      render: shell

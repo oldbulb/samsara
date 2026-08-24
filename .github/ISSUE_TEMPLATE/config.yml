@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions about DeepSeek Harness itself
+    url: https://github.com/deepseek-ai/deepseek-harness/discussions
+    about: dsh's own behaviour, config keys and plugin API are discussed upstream.

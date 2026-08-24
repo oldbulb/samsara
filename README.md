@@ -148,3 +148,15 @@ dsh --profile host export --run data/runs/x --format otlp-json --out data/runs/x
 ## 词汇
 
 book · task · settlement · champion · challenger · surface · scope · attempt · loop · tier(smoke/holdin/holdout/live) · gate · sign-off · ledger · pack。不用 experiment / case / cutoff / consent 等前身系统时代的词汇。
+
+## 参与与许可
+
+| 文件 | 内容 |
+|---|---|
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | 什么样的贡献最合适（pack / loop provider / gate policy）、开发环境、房规、DCO |
+| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | 对事不对人 |
+| [`SECURITY.md`](SECURITY.md) | 漏洞私下报告的通道、在乎哪几类失败、已知的平台限制 |
+| [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) | 依赖与任务夹具的来源和许可，含唯一一个非开源依赖（Claude Agent SDK） |
+| [`LICENSE`](LICENSE) | MIT |
+
+npm 上以 `@oldbulb` scope 发布：bundle 是 `@oldbulb/samsara`，其余是 `@oldbulb/samsara-<包名>`。
