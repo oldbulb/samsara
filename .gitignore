@@ -7,3 +7,4 @@ lib/
 *.tsbuildinfo
 profiles/*/node_modules/
 profiles/*/pnpm-lock.yaml
+__pycache__/
