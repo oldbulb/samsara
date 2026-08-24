@@ -168,12 +168,6 @@ importers:
 
   packages/loops-claude-code:
     dependencies:
-      '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.3.220
-        version: 0.3.220(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(zod@4.4.3)
-      '@anthropic-ai/sdk':
-        specifier: 0.93.0
-        version: 0.93.0(zod@4.4.3)
       '@oldbulb/samsara-kernel':
         specifier: workspace:*
         version: link:../kernel
@@ -183,6 +177,13 @@ importers:
       '@oldbulb/samsara-sandbox':
         specifier: workspace:*
         version: link:../sandbox
+    devDependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: 0.3.220
+        version: 0.3.220(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(zod@4.4.3)
+      '@anthropic-ai/sdk':
+        specifier: 0.93.0
+        version: 0.93.0(zod@4.4.3)
 
   packages/loops-dsh:
     dependencies:

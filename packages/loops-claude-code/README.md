@@ -5,6 +5,24 @@ Loop provider `claude-code` for the `loops` seam (`docs/design/loops.md`). One a
 through `ctx.subprocess` inside this plugin's own effect (E4), mapped message-by-message onto
 `LoopEvent`s, and settled as exactly one `finished`.
 
+## The SDK is an optional peer
+
+`@anthropic-ai/claude-agent-sdk` is proprietary ("© Anthropic PBC, all rights reserved"), so this
+package declares it as an *optional* peer dependency and the bundle ships this row `disabled: true`.
+Nothing installs the SDK for you, and the module never loads it until an attempt starts — a
+deployment that does not want the dependency never touches it.
+
+```sh
+dsh plugin --profile <name> add @anthropic-ai/claude-agent-sdk
+```
+
+```yaml
+- { id: loops-claude-code, disabled: false, config: { baseUrl: …, credentialRef: … } }
+```
+
+Enabling the row without the SDK fails at the first attempt with that instruction, not with a
+module-resolution stack trace.
+
 ## Plugin
 
 ```ts

@@ -32,11 +32,15 @@ installation provides them, and samsara never bundles a second copy.
 "© Anthropic PBC. All rights reserved. Use is subject to the Legal Agreements
 outlined here: https://code.claude.com/docs/en/legal-and-compliance".
 
-They are pulled in by `@oldbulb/samsara-loops-claude-code`, the loop provider that
-runs an attempt through Claude Code. Installing that package means accepting
-Anthropic's terms for it. Everything else — the framework, the gate, the ledger,
-the dsh loop provider — is free of it; a deployment that does not want the
-dependency can leave that loop's row out of its profile patch.
+`@oldbulb/samsara-loops-claude-code` — the loop provider that runs an attempt
+through Claude Code — declares them as **optional peer dependencies**, and the
+bundle ships that row `disabled: true`. Installing samsara therefore does not
+install them and does not ask you to accept Anthropic's terms; you opt in by
+installing the SDK yourself and enabling the row. The module loads it lazily, so
+a deployment that does not want the dependency never touches it.
+
+Everything else — the framework, the gate, the ledger, the dsh loop provider —
+is free of it.
 
 ## Task fixtures in `packs/coding-tasks`
 

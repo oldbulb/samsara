@@ -58,6 +58,11 @@ A **loop** is one attempt of one task under one configuration. Two ship: dsh's
 own in-process agent, and Claude Code as a subprocess. Adding a third is a
 package and one row in a patch file.
 
+The Claude Code loop is **off by default**: it needs `@anthropic-ai/claude-agent-sdk`,
+which is proprietary, so it is an optional peer dependency and its row ships
+disabled. Install the SDK into your profile and flip the row to use it. Nothing
+else in samsara depends on it.
+
 ## Install
 
 samsara is a dsh bundle plus a profile. You need the dsh CLI, Node ≥ 22.19 and

@@ -151,6 +151,17 @@ dsh --profile host export --run data/runs/x --format otlp-json --out data/runs/x
 
 book · task · settlement · champion · challenger · surface · scope · attempt · loop · tier(smoke/holdin/holdout/live) · gate · sign-off · ledger · pack。不用 experiment / case / cutoff / consent 等前身系统时代的词汇。
 
+## Claude Code loop 默认关
+
+`loops-claude-code` 依赖 `@anthropic-ai/claude-agent-sdk`——它不是开源许可（"© Anthropic PBC. All rights reserved."）。因此它是 optional peer，bundle 里那一行默认 `disabled: true`，装 samsara 不会把它装上。要用这条 loop：
+
+```sh
+dsh plugin --profile <name> add @anthropic-ai/claude-agent-sdk
+# 然后在 profile 的 patch 层：- { id: loops-claude-code, disabled: false, config: {...} }
+```
+
+没装就启用会报人话：`loops-claude-code: @anthropic-ai/claude-agent-sdk is not installed…`。框架其余部分不碰它。
+
 ## 参与与许可
 
 | 文件 | 内容 |

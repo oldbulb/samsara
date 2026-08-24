@@ -51,7 +51,11 @@
     pricePerMtok: { input: 0.28, output: 0.42, cacheRead: 0.028 }
 
 # Loop provider claude-code: the Claude Agent SDK pointed at the same gateway.
+# The bundle ships this row disabled — the SDK is proprietary and an optional
+# peer, so nothing installs it for you. To use the loop:
+#   dsh plugin --profile <name> add @anthropic-ai/claude-agent-sdk
 - id: loops-claude-code
+  disabled: false
   config:
     baseUrl: https://llm-gateway.example.com
     credentialRef: LLM_GATEWAY_API_KEY

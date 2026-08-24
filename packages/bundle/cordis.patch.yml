@@ -54,12 +54,18 @@
       name: '@oldbulb/samsara-loops-dsh'
       inject: [loops]
 
-    # Claude Agent SDK under the kernel's subprocess projection. The credential
-    # is a reference resolved through ctx.credentials (E5); the base URL is the
-    # external LLM proxy. Override both in the profile's own patch layer.
+    # Claude Agent SDK under the kernel's subprocess projection. Off by default:
+    # the SDK is proprietary ("© Anthropic PBC, all rights reserved") and is an
+    # optional peer, so nothing installs it for you. To use this loop, install it
+    # into the profile and flip the row:
+    #   dsh plugin --profile <name> add @anthropic-ai/claude-agent-sdk
+    #   - { id: loops-claude-code, disabled: false, config: { baseUrl: …, credentialRef: … } }
+    # The credential is a reference resolved through ctx.credentials (E5); the
+    # base URL is the external gateway. Both are deployment facts.
     - id: loops-claude-code
       name: '@oldbulb/samsara-loops-claude-code'
       inject: [loops]
+      disabled: true
       config:
         baseUrl: ''
         credentialRef: ''

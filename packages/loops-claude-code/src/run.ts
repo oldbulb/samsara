@@ -4,7 +4,7 @@
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { query, type Options, type Query, type SDKMessage, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+import type { Options, Query, SDKMessage, SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
 import { scrubbedParentEnv, type Context, type SubprocessHandle, type SubprocessSpawnSpec } from '@oldbulb/samsara-kernel'
 import { apply as applySandbox, type SandboxHost } from '@oldbulb/samsara-sandbox'
 import { buildEnv, configDir } from './env.ts'
@@ -16,6 +16,24 @@ import { readSubmit, stripFrontmatter, submitFileInstruction } from './submit.ts
 
 export const STREAM_FILE = 'claude-stream.jsonl'
 
+/** The SDK's `query`, named without importing it: the package is an optional peer. */
+export type QueryFn = typeof import('@anthropic-ai/claude-agent-sdk')['query']
+
+const MISSING_SDK =
+  'loops-claude-code: @anthropic-ai/claude-agent-sdk is not installed. It is an optional peer '
+  + 'dependency because it is proprietary ("© Anthropic PBC, all rights reserved"), so nothing '
+  + 'installs it for you. Add it to the profile to enable this loop: '
+  + 'dsh plugin --profile <name> add @anthropic-ai/claude-agent-sdk'
+
+/** Resolve the SDK on first use, so a deployment that does not want it never loads it. */
+async function loadQuery(): Promise<QueryFn> {
+  try {
+    return (await import('@anthropic-ai/claude-agent-sdk')).query
+  } catch {
+    throw new Error(MISSING_SDK)
+  }
+}
+
 export interface RunDeps {
   ctx: Pick<Context, 'effect' | 'subprocess'>
   credentialValue: string
@@ -23,7 +41,7 @@ export interface RunDeps {
   /** The sandbox host the child is wrapped for; defaults to the detected one. */
   host?: SandboxHost
   /** Test seam: replaces the SDK's `query`. */
-  queryFn?: typeof query
+  queryFn?: QueryFn
 }
 
 function thrown(value: unknown): Error {
@@ -70,7 +88,7 @@ export function queryOptions(
 
 export async function startRun(spec: AttemptSpec, deps: RunDeps): Promise<LoopRun> {
   if (spec.signal.aborted) throw new Error('loops-claude-code: attempt was aborted before startup')
-  const queryFn = deps.queryFn ?? query
+  const queryFn = deps.queryFn ?? (await loadQuery())
 
   mkdirSync(configDir(spec), { recursive: true })
   const streamPath = join(spec.tmpdir, STREAM_FILE)
