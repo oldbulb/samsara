@@ -10,11 +10,16 @@
   },
   "scripts": {
     "build": "tsc -b tsconfig.json",
-    "typecheck": "tsc -b tsconfig.json --noEmit false --emitDeclarationOnly false",
+    "changeset": "changeset",
+    "dsh": "dsh",
+    "release": "pnpm build && changeset publish",
     "test": "vitest run",
-    "dsh": "dsh"
+    "typecheck": "tsc -b tsconfig.json --noEmit false --emitDeclarationOnly false",
+    "version-packages": "changeset version"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^1.0.0",
+    "@changesets/cli": "^3.0.1",
     "@deepseek-ai/dsh-llm-replay": "0.1.1-rc.2",
     "@types/node": "^26.2.0",
     "typescript": "^7.0.2",

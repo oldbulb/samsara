@@ -6,7 +6,7 @@ dsh snapshot assumed: `b150a551` (0.1.1-rc.2). Every claim about dsh capability 
 
 ```
 samsara/
-├── CLAUDE.md  README.md  LICENSE
+├── CLAUDE.md  README.md  README.zh.md  LICENSE
 ├── package.json  pnpm-workspace.yaml       # cordis + dsh peers pinned to one commit; no npm publish until dsh leaves rc
 ├── profiles/
 │   └── host/  package.json  cordis.patch.yml   # what `dsh --profile host` boots; cordis.patch.yml == champion's kept rows

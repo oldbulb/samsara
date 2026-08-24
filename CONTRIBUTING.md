@@ -57,6 +57,23 @@ has the install notes, including the two ways it goes wrong.
 - Commits and code in English, present tense, saying what changed and why.
 - New behaviour comes with a test that fails without it. Tests stay offline.
 
+## Releasing
+
+Versions and the changelog come from [changesets](https://github.com/changesets/changesets).
+A pull request that changes behaviour carries one:
+
+```sh
+pnpm changeset            # pick packages, pick the bump, write the note
+```
+
+On `master`, `pnpm version-packages` applies them and `pnpm release` builds and
+publishes. Every package moves as one version — the bundle and its rows ship
+together.
+
+Publish with **pnpm, never npm**: these packages depend on each other through
+`workspace:*`, and only pnpm rewrites that to a real version on the way out. An
+`npm publish` would ship a manifest nobody can install.
+
 ## Submitting
 
 Fork, branch, open a pull request. Sign your commits off (`git commit -s`) to
