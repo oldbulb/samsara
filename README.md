@@ -14,7 +14,7 @@
 
 要领先的三件事：**holdout 记账**（Thresholdout/Ladder 在 agent 优化回路的首次工程化）、**延迟真值上的自动回路**、**活的 champion**（真值/scorer/模型/任务集变更 = 事件，沿祖先重打分并可降级）。在已有先例上闭环的三件事：surface 归因回馈 proposer、固定门下可撤销的跨 harness skill 认证、带采纳与结算标签的训练出口。完整论证与证据：`docs/design/philosophy.md`、`docs/research/vision-calibration-2026-08-23.md`。
 
-> 状态（2026-08-23）：M0–M5 与 P6 已实现并提交——两条 loop（dsh、Claude Code）在 Aider Polyglot 上跑通，gate-default / ledger(sqlite) / scope / signoff / champion / proposer 全链路在 null loop 上端到端验证。设计见 `docs/design/`，运行方式见下文"怎么跑"与 `ops/README.md`。
+> 状态（2026-08-24）：M0–M5、P5、P6 与其后的采纳（`--parallel`、`run --resume`、sandbox 策略、`env_sha`、OTel 导出）已实现并提交——两条 loop（dsh、Claude Code）在 Aider Polyglot 上跑通，gate-default / ledger(sqlite) / scope / signoff / champion / proposer 全链路端到端验证，真实一轮 `claude -p` 提案已跑通。设计见 `docs/design/`，运行方式见下文"怎么跑"与 `ops/README.md`；新机器从零重建见 `ops/bootstrap.md`。
 
 ## 先读什么
 
@@ -46,8 +46,8 @@ data/                $SAMSARA_HOME（gitignored）：ledger sqlite + attempt 产
 |---|---|---|
 | dsh | 钉 `b150a551` = npm `@deepseek-ai/dsh@0.1.1-rc.2`（同一 tag）；源码检出在 `../deepseek-harness` | 内核：scope / loader / storage / llm seam / subprocess |
 | Node + pnpm | Node ≥ 22.19，pnpm 11.7.0 | 工具链与 dsh 一致 |
-| gateway | `../gateway`；pod 单端口暴露 `/v1/*` | LLM 网关。dsh 经 `llm-pi-ai` 的手工路由（`api: anthropic-messages`，baseURL = pod 根）接入；Claude Code loop 经 `ANTHROPIC_BASE_URL`。主力模型 `deepseek-v4-flash`，两条 wire、tool call、流式、并发均已实测 |
-| Aider Polyglot | `Aider-AI/polyglot-benchmark`（Exercism 内容，MIT） | `packs/coding-tasks` 的 P1 任务源，先取 Python 34 + JS 49 题 |
+| gateway | 内网 pod，单端口暴露 `/v1/*`（不在内网的开发机上不可达——那时只有 null loop 与回放测试可用） | LLM 网关。dsh 经 `llm-pi-ai` 的手工路由（`api: anthropic-messages`，baseURL = pod 根）接入；Claude Code loop 经 `ANTHROPIC_BASE_URL`。主力模型 `deepseek-v4-flash`，两条 wire、tool call、流式、并发均已实测 |
+| Aider Polyglot | `Aider-AI/polyglot-benchmark`（Exercism 内容，MIT） | `packs/coding-tasks` 的 P1 任务源，取 Python 34 + JS 48 = 82 题 |
 | Python ≥ 3.11 | pack 命令可用任意语言 | `packs/pricing` 用 |
 
 凭据（gateway master key、the LLM gateway key）一律不进仓库：dsh 侧走 `$DSH_HOME/.credentials.yaml` 的 `apiKeyEnv` 引用，Claude Code 侧按 E5 显式注入。
@@ -87,8 +87,8 @@ P0（= M0）已全部完成；`dsh` 经 `npm i -g @deepseek-ai/dsh@0.1.1-rc.2` �
 ## 怎么跑
 
 ```sh
-export PATH=/Users/dxm/Library/pnpm/bin:$PATH
-pnpm install && pnpm build && pnpm test                 # 28 files / 204 tests，全部离线
+pnpm install && pnpm build && pnpm test                 # 40 files / 273 tests，全部离线；pricing 那份缺私有数据时整份跳过
+ops/leak-scan.sh                                        # 边界纪律 1：packages/ 里不许有领域词（CI 同款）
 dsh plugin --profile host install                       # 首次：把 packages/bundle 链接进 host profile
 dsh --profile host --dump-config | grep samsara         # 合成配置里应有 samsara 的行
 
@@ -110,7 +110,14 @@ dsh --profile host serve        # → samsara host serving; ui http://127.0.0.1:
 dsh --profile host run --pack packs/pricing --loop dsh --set smoke --limit 1
 # 跨 harness 认证表
 dsh --profile host certify --pack packs/coding-tasks --skill-dir <dir> --loops dsh,claude-code --set smoke --limit 2 --metric pass_rate
+# 并发与断点续跑：--parallel N 走流水线；SIGINT 后 --resume <dir> 只补没写 marker 的 attempt
+dsh --profile host run --pack packs/coding-tasks --loop dsh --set holdin --limit 32 --parallel 16 --out data/runs/x
+dsh --profile host run --resume data/runs/x
+# 导出：attempt 的 loop 事件 → OTel GenAI span
+dsh --profile host export --run data/runs/x --format otlp-json --out data/runs/x.otlp.json
 ```
+
+> ledger 是 cwd 相对的（`<cwd>/data/ledger/samsara_ledger.sqlite`），所以在仓库根跑的任何一次 `run` 都会写进那一个真实 ledger。只是想验证环境的话换个 cwd 跑。
 
 ## 里程碑（实际执行顺序）
 
@@ -123,9 +130,10 @@ dsh --profile host certify --pack packs/coding-tasks --skill-dir <dir> --loops d
 | M4 | scope（E1/E8 diff scan）、signoff（E2）、champion（E7）、`challenge/promote/demote/serve` | ✅ |
 | M5 | proposers（claude-p / human）、proposer 视图、`round`、champion skill 默认 | ✅ 真实 `claude -p` 一轮已跑通 |
 | P6 | `/samsara` 页面（host 路由插件，内联 HTML + JSON API，只读；Internal 设计体系）、`certify` 跨 harness 认证表、gate `facts:mismatch`、skill utilization | ✅ |
-| P5 | `packs/pricing`：pricing-standalone skill 接成 pack（`.task/data` 统一数据入口、token 定客户与 cutoff、vendored internal loader），0617 dev 面板任务，真值 mock 自判分表，Brier/pinball 按实际臂分层；dsh 与 Claude Code 各跑通 1 次真实 attempt | ✅（输入后端目前是本地 sqlite，Doris 中继后端进行中） |
+| P5 | `packs/pricing`：pricing-standalone skill 接成 pack（`.task/data` 统一数据入口、token 定客户与 cutoff、vendored internal loader），0617 dev 面板任务，真值 mock 自判分表，Brier/pinball 按实际臂分层；dsh 与 Claude Code 各跑通 1 次真实 attempt | ✅（本地 sqlite 与 Doris 中继两个输入后端都通；客户级数据不入库） |
+| 采纳 | `--parallel N` 流水线（32/32 实测）、durable step marker + `run --resume`、`@samsara/sandbox` landlock 策略、`env_sha` 取自 lock 文件、OTel GenAI span 映射 + `export --format otlp-json` | ✅ |
 
-已知局限：deepseek-v4-flash 在 Python/JS Exercism 上 pass_rate 恒为 1.0（噪声底 sd=0，`docs/design/notes/noise-floor-2026-08-23.md`），阳性对照晋升需要更难任务（更多 Polyglot 语言 / SWE-smith）；live tier（mSPRT）未实现；pricing pack、UI 未开始。
+已知局限：deepseek-v4-flash 在 Python/JS Exercism 上 pass_rate 恒为 1.0（噪声底 sd=0，`docs/design/notes/noise-floor-2026-08-23.md`），阳性对照晋升需要更难任务（更多 Polyglot 语言 / SWE-smith），统计门因此还没被真正证伪过；live tier（mSPRT）未实现；proposer 进程没有文件系统沙箱（E9，v1 开放，真正的修法在 pod 上）；SIGINT 会丢少量 ledger 写（`attempts.jsonl` 完整，`run --resume` 可重建）。
 
 ## 启动序（设计文档中的 P 序，供对照）
 
