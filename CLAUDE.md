@@ -26,7 +26,8 @@ book · task · settlement · champion · challenger · surface · scope · atte
 
 ## 工作方式
 - 按 `architecture.md` 的启动序走，每步有可观测门；做完一步与用户同步再继续
-- 分析优先于实现；先读现有代码再写；不加未要求的功能；最简单方案
+- 分析优先于实现：先理解问题全貌再动手；给出方案前先确认理解对不对；最简单的方案优先，不过度工程
+- 写代码前先读现有代码，跟着它的风格和模式写；不加未要求的功能、注释或重构
 - 已定决策（勿重开）：TS host、唯一 ledger 在 dsh storageDomain、v1 loops-dsh 先 CC 第二、v1 proposer 外部 CLI、UI 独立路由、结构化输出由 host 用 pack 契约校验、v1 不发 npm
 
 ## 与 dsh 的关系
@@ -38,5 +39,5 @@ book · task · settlement · champion · challenger · surface · scope · atte
 
 ## Environment
 - Node + pnpm；dsh 钉 `b150a551`（需要源码时重新 clone 并 checkout）
-- pack 命令可用任意语言；coding-tasks 自带两个 runtime（`runtime/py/.venv` CPython 3.12 + `runtime/js/node_modules`）
+- pack 命令可用任意语言；coding-tasks 自带两个 runtime（`runtime/py/.venv` CPython 3.12 + `runtime/js/node_modules`）。Python 一律走项目内的 venv，不用系统解释器
 - macOS 开发；跑批在 pod
