@@ -9,7 +9,7 @@
 - commit message 不加任何 Co-Authored-By 尾注
 
 ## 边界纪律（每次改动前自问）
-1. **框架不认识领域。** `packages/` 里不得出现任何表名、字段、业务词、具体指标名、中文业务术语；CI 泄露 grep 必须为空
+1. **框架不认识领域。** `packages/` 里不得出现任何表名、字段、业务词、具体指标名、中文业务术语；泄露 grep（`ops/leak-scan.sh`，CI 的 `leak-scan` job）必须为空
 2. **框架与 pack 只通过 `pack.yaml` + 命令 stdout 通信。** 不跨线 import；pack 命令永远是子进程
 3. **两个 pack 同时成立。** 一个框架改动若只对 coding-tasks 或只对 pricing 有意义，先怀疑抽象错了
 4. **legacy 不是依赖。** pricing pack 可以 vendor legacy 代码实现自己的命令；legacy 的 store / runner / 原则 / CLAUDE.md 不进框架。LLM proxy 由 gateway 接管，samsara 只经 base_url 使用，不实现 proxy

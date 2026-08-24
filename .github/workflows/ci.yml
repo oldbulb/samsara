@@ -1,0 +1,41 @@
+# The offline gate. Everything here runs without a model, without the LLM
+# gateway and without any private pack data: the pricing suite skips itself when
+# its task sets are absent, and the dsh replay test skips when no dsh checkout is
+# around to supply llm-replay. Real loops are never run in CI.
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19'
+
+      - name: enable pnpm
+        run: corepack enable && corepack prepare pnpm@11.7.0 --activate
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm test
+
+  leak-scan:
+    # Boundary discipline 1: packages/ must not know the domain.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ops/leak-scan.sh
