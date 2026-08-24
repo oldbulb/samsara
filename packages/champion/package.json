@@ -1,8 +1,24 @@
 {
   "name": "@oldbulb/samsara-champion",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "ctx.champion: the served configuration as an alias to content-addressed refs; promote/demote rewrite the profile patch layer and verify hot-apply by re-hashing the composed config (E7)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oldbulb/samsara.git",
+    "directory": "packages/champion"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "samsara",
+    "rsi",
+    "agent-evaluation"
+  ],
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -19,6 +35,12 @@
       "types": "./lib/types/settlement.d.ts",
       "default": "./lib/settlement.js"
     }
+  },
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=22.19"
   },
   "scripts": {
     "build": "tsc -b tsconfig.json",

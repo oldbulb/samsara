@@ -1,8 +1,24 @@
 {
   "name": "@oldbulb/samsara-scope",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "Disposable child scopes for challengers: diff scan (E8/S5), harness/env sha (E3), in-memory loader rows (E1), dispose to quiescence",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oldbulb/samsara.git",
+    "directory": "packages/scope"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "samsara",
+    "rsi",
+    "agent-evaluation"
+  ],
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -23,6 +39,12 @@
       "types": "./lib/types/sha.d.ts",
       "default": "./lib/sha.js"
     }
+  },
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=22.19"
   },
   "scripts": {
     "build": "tsc -b tsconfig.json",

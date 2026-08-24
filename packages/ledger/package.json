@@ -1,8 +1,24 @@
 {
   "name": "@oldbulb/samsara-ledger",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "ctx.ledger: the append-only control-plane record of challengers, attempts, scores, compares, consents and settlements, on a dsh storage domain",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oldbulb/samsara.git",
+    "directory": "packages/ledger"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "samsara",
+    "rsi",
+    "agent-evaluation"
+  ],
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -11,6 +27,12 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     }
+  },
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=22.19"
   },
   "scripts": {
     "build": "tsc -b tsconfig.json",

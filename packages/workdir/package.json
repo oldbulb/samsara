@@ -1,8 +1,24 @@
 {
   "name": "@oldbulb/samsara-workdir",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "Sealed per-attempt working directories: pack materialize, skill snapshot, attempt token, TMPDIR, deny guard, diff",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oldbulb/samsara.git",
+    "directory": "packages/workdir"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "samsara",
+    "rsi",
+    "agent-evaluation"
+  ],
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -15,6 +31,9 @@
   "files": [
     "lib"
   ],
+  "engines": {
+    "node": ">=22.19"
+  },
   "scripts": {
     "build": "tsc -b",
     "test": "vitest run --root ../.. packages/workdir/tests"

@@ -1,8 +1,24 @@
 {
   "name": "@oldbulb/samsara-ui",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "The read-only /samsara page and its JSON API on ctx.webServer: champion, last settlement, challengers by tier, pending sign-offs, certification table",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oldbulb/samsara.git",
+    "directory": "packages/ui"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "samsara",
+    "rsi",
+    "agent-evaluation"
+  ],
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -15,6 +31,12 @@
       "types": "./lib/types/api.d.ts",
       "default": "./lib/api.js"
     }
+  },
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=22.19"
   },
   "scripts": {
     "build": "tsc -b tsconfig.json",

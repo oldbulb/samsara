@@ -1,8 +1,24 @@
 {
   "name": "@oldbulb/samsara-submit",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "The submit tool: an attempt finishes by recording one schema-validated value into its workdir",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oldbulb/samsara.git",
+    "directory": "packages/submit"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "samsara",
+    "rsi",
+    "agent-evaluation"
+  ],
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -11,6 +27,12 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     }
+  },
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=22.19"
   },
   "scripts": {
     "build": "tsc -b tsconfig.json",

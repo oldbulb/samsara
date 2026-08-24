@@ -1,8 +1,24 @@
 {
   "name": "@oldbulb/samsara-loops",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "The loop-provider seam: a registry of agent loops and the AttemptSpec/LoopEvent contract every loop speaks",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oldbulb/samsara.git",
+    "directory": "packages/loops"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "samsara",
+    "rsi",
+    "agent-evaluation"
+  ],
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -19,6 +35,12 @@
       "types": "./lib/types/plugin-null.d.ts",
       "default": "./lib/plugin-null.js"
     }
+  },
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=22.19"
   },
   "scripts": {
     "build": "tsc -b tsconfig.json",
