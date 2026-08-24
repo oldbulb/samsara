@@ -8,7 +8,24 @@
 #
 #   cp profiles/host/cordis.patch.example.yml profiles/host/cordis.patch.yml
 
-# LLM route: any OpenAI/Anthropic-compatible gateway, on the anthropic-messages wire.
+# LLM route. Two shapes, pick one.
+#
+# (a) DeepSeek's official API — dsh ships the adapter, so this is the whole route:
+#
+#   - id: llm-deepseek
+#     config:
+#       apiKeyEnv: DEEPSEEK_API_KEY      # already the default
+#       baseURL: https://api.deepseek.com
+#   - id: agent-default-model
+#     config: { provider: deepseek-official, model: deepseek-v4-flash }
+#
+#   The Claude Agent SDK and `claude -p` speak the anthropic-messages wire, which
+#   DeepSeek serves at https://api.deepseek.com/anthropic — that URL goes on the
+#   loops-claude-code, proposer-claude-p and samsara-runner rows below.
+#   (loops-claude-code reads the *runner's* route, so samsara-runner is not optional.)
+#
+# (b) Any other OpenAI/Anthropic-compatible gateway, declared by hand:
+
 - id: llm-pi-ai
   config:
     providers:

@@ -14,7 +14,9 @@
 ## Host profile
 
 - `profiles/host` is symlinked to `~/.dsh/profiles/host`; after a fresh clone run `dsh plugin --profile host install` (links `packages/bundle` and the `@samsara/*` packages; `profiles/host/node_modules` is gitignored).
-- Credentials: `~/.dsh/.credentials.yaml` → `refs.LLM_GATEWAY_API_KEY`. Never in the repo.
+- Credentials: a named reference, resolved per request through `ctx.credentials` — `~/.dsh/.credentials.yaml`
+  under `refs.`, or plain environment. Never in the repo. `apiKeyEnv` (on the LLM row) and `credentialRef`
+  (on the loop, proposer and runner rows) name the same reference.
 - The ledger lives at `<cwd>/data/ledger/samsara_ledger.sqlite` (cwd-relative because bundle rows are `!!js`-free); run `dsh --profile host run ...` from the repo root or pin an absolute `path` in `profiles/host/cordis.patch.yml`.
 
 ## Running attempts
