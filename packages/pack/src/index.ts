@@ -264,6 +264,9 @@ export function surfaceBoundaries(def: PackDefinition): Record<string, SurfaceBo
 
 // ---------------------------------------------------------------- validateSubmit
 
+/** How long `exit` waits for the pipes to close before settling the call anyway. */
+const DRAIN_AFTER_EXIT_MS = 500
+
 const contractValidators = new WeakMap<PackDefinition, ValidateFunction>()
 
 /** Validate a structured submit object against the pack's contract schema. Throws PackError('submit'). */
@@ -327,7 +330,22 @@ export function runCommand(
     child.stderr.on('data', (b: Buffer) => err.push(b))
     child.on('error', (e) => reject(new PackError('spawn', `${name}: ${e.message}`, { command: name })))
     child.stdin.on('error', () => {}) // EPIPE when the command exits early; surfaced via exit code
-    child.on('close', (exitCode, signal) => {
+    // `close` waits for every writer on the pipes, so a command that leaves a
+    // grandchild holding stdout (a shell that forked, a runner that spawned a
+    // helper) would keep this promise pending forever — a timeout would fire
+    // inside the command and never be reported. `exit` always fires, so it
+    // settles the call after a short drain if `close` does not follow. Killing
+    // the command does not reap such a grandchild; the caller sees the verdict,
+    // the stray process is the operating system's to clean up.
+    let settled = false
+    const finish = (exitCode: number | null, signal: NodeJS.Signals | null): void => {
+      if (settled) return
+      settled = true
+      onClose(exitCode, signal)
+    }
+    child.on('exit', (exitCode, signal) => { setTimeout(() => finish(exitCode, signal), DRAIN_AFTER_EXIT_MS).unref() })
+    child.on('close', (exitCode, signal) => { finish(exitCode, signal) })
+    const onClose = (exitCode: number | null, signal: NodeJS.Signals | null): void => {
       const stderr = Buffer.concat(err).toString('utf8')
       if (signal) {
         const timedOut = opts.timeoutMs !== undefined && signal === 'SIGKILL'
@@ -370,7 +388,7 @@ export function runCommand(
         }
       }
       resolvePromise(rows)
-    })
+    }
     child.stdin.end(input)
   })
 }
