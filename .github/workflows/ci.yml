@@ -1,7 +1,7 @@
-# The offline gate. Everything here runs without a model, without the LLM
-# gateway and without any private pack data: the pricing suite skips itself when
-# its task sets are absent, and the dsh replay test skips when no dsh checkout is
-# around to supply llm-replay. Real loops are never run in CI.
+# The offline gate. Everything here runs without a model and without the LLM
+# gateway: the dsh replay test skips when no dsh checkout is around to supply
+# llm-replay, and everything else is pure TS or the coding-tasks pack's own
+# runtimes. Real loops are never run in CI.
 name: ci
 
 on:

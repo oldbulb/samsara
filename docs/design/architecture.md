@@ -26,8 +26,7 @@ samsara/
 │   ├── proposers/                     adapters that turn an external optimizer (claude -p, codex exec, gepa, human) into proposals
 │   └── ui/                            /samsara SPA route + sidebar/overlay seats
 ├── packs/
-│   ├── coding-tasks/    PUBLIC  immediate-truth pack; CI runs it; doubles as the demo
-│   └── pricing/         PRIVATE, in-repo for now; delayed-truth pack; vendors legacy code for its commands
+│   └── coding-tasks/    PUBLIC  immediate-truth pack; CI runs it; doubles as the demo
 ├── examples/            minimal host profiles wiring one pack + one loop
 ├── ops/                 pod deployment: storage layering, bootstrap, restart, archive (see docs/design/migration.md)
 ├── tests/               framework tests run against packs/coding-tasks and dsh-llm-replay fixtures
@@ -177,7 +176,7 @@ S1–S4, S7, S8 are the behaviour of `gate-default`; a user-supplied gate policy
 | 2 | `kernel` + `scope` + `workdir` + `submit` + `loops-dsh` on a null skill; surface boundaries and diff scan (E8); single-surface constraint | 20/20 valid submits; dispose leaves zero processes, registry size restored, profile sha unchanged (E1); token guard denies deny_patterns; a patch touching `bin/truth` or crossing its surface glob is rejected before any run |
 | 3 | `ledger` + `champion` + `signoff` round trip; append-only re-scoring; champion as content-addressed alias; model-upgrade settlement event | restart ⇒ identical ledger; promote without consent refused; consent via socket only; hot-apply verified by sha; replay check passes; a model-pool change re-scores the ancestry |
 | 4 | coding-tasks end to end with `claude -p` proposer; tiers; holdout budget live; CI green on the public pack | a real skill diff runs smoke→holdin→holdout; `|Δ|<MDE` refused; overnight K=4 run promotes nothing without sign-off; budget exhaustion rotates the holdout; a truth revision re-scores and demotes |
-| 5 | `packs/pricing`: delayed-truth book, `data` command with token, stratified scoring | settlement event re-scores held rows; `data --cutoff` denied; gated query 403 from the sandbox; framework unchanged except through declared pack fields |
+| 5 | delayed truth end to end: `status: pending` until settlement, `data` command with token, stratified scoring | settlement event re-scores held rows; `data --cutoff` denied; gated query 403 from the sandbox; framework unchanged except through declared pack fields |
 | 6 | `loops-claude-code` + `ui`; cross-harness certification output | two loops as two rows; A/B refused when facts differ; `skill_utilization` and pass rate reported separately per harness; adapter version on the row; UI first screen = champion · settlement · challengers · sign-offs |
 
 Then: historical replay tier, codex/pi loops, optimizer-as-surface, training export.

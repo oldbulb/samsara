@@ -72,11 +72,11 @@ Four seams are how anyone plugs in: **pack** (what to evaluate), **proposer** (h
 
 - **Leading**: the three items above, built — each would be the first implementation.
 - **Done well**: one round on a laptop in ten minutes; a known-good patch gets promoted and a pure-noise task set promotes nothing overnight; the ledger is identical after a restart; a truth revision re-scores automatically and can demote the champion.
-- **Valuable**: one record on the pricing pack of a promoted skill confirmed by next month's truth; a second pack costs a tenth of the first to onboard; GEPA runs as a proposer.
+- **Valuable**: one record of a promoted skill confirmed by truth that only arrived after the promotion; a second pack costs a tenth of the first to onboard; GEPA runs as a proposer.
 
 ## Honest caveats
 
-The first year's value comes from the pricing case; the framework exists to make the second case ten times cheaper. Whether holdout accounting has any power at tens-to-hundreds of tasks (the Thresholdout bound wants thousands) is uncalculated; it is computed in bring-up step 0, and if infeasible v1 falls back to a parameter-free Ladder threshold with promotion-count rotation, keeping Thresholdout as a gate plugin with its scale preconditions documented.
+The framework earns its keep on the second case, not the first: the first pack pays for the machinery, and the claim is that the next one costs a tenth to onboard. That claim is untested — there is one pack in tree. Whether holdout accounting has any power at tens-to-hundreds of tasks (the Thresholdout bound wants thousands) is uncalculated; it is computed in bring-up step 0, and if infeasible v1 falls back to a parameter-free Ladder threshold with promotion-count rotation, keeping Thresholdout as a gate plugin with its scale preconditions documented.
 
 ## Vocabulary
 
@@ -105,12 +105,12 @@ dsh (kernel)        scopes, plugins, services, storage, jobs, subprocess, web
         ├─ loops            dsh / claude-code / codex / pi   (replaceable)
         ├─ gate policies    default strict / user-supplied   (replaceable)
         ├─ proposers        claude -p / codex exec / gepa / human   (replaceable)
-        └─ packs            coding-tasks (public) · pricing (private)   (replaceable)
+        └─ packs            coding-tasks (public)   (replaceable)
 ```
 
 - samsara depends on dsh through one shim module; re-pinning dsh is a one-file change.
 - samsara talks to a pack only through `pack.yaml` and the pack's commands' stdout. No imports across the line.
 - A pack talks to samsara only through the sealed workdir (task token, skill snapshot, submit tool). It never sees the ledger.
-- legacy is not a dependency. The pricing pack may *vendor* legacy code to implement its commands; legacy's principles and store are not imported into the framework.
+- legacy is not a dependency. A pack may *vendor* whatever code it likes to implement its commands; legacy's principles and store are not imported into the framework.
 
 Evidence for the claims above: `docs/research/vision-calibration-2026-08-23.md`.

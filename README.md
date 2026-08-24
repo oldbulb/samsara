@@ -23,7 +23,7 @@
 | `CLAUDE.md` | 纪律：边界、硬约束索引、词汇、已定决策 |
 | `docs/design/philosophy.md` | 理念与边界：三个不动点（book / gate / sign-off）在回路之外，其余一切可变 |
 | `docs/design/architecture.md` | 仓库布局、插件与服务、**surface 分类（13 项）**、pack 契约、ledger 数据模型、生命周期、硬约束 E1–E8 / S1–S8、启动序 |
-| `docs/design/packs.md` | 两个消费者：`coding-tasks`（公开、即时真值）与 `pricing`（私有、延迟真值） |
+| `docs/design/packs.md` | pack 契约与消费者：`coding-tasks`（公开、即时真值）；第二个 pack 需要什么 |
 | `docs/design/migration.md` | legacy 的基础设施各自落到哪一层 |
 | `docs/research/` | 设计记录：dsh 源码调研、自改进方法综述、三份独立设计、对抗评审（其 blocker 即硬约束） |
 
@@ -34,8 +34,7 @@ profiles/host/       dsh --profile host 启动的东西；cordis.patch.yml == ch
 packages/            框架：TS 写的 dsh 插件，一个概念一个包
   kernel book pack ledger scope champion gate signoff loops loops-dsh loops-claude-code workdir submit proposers ui
 packs/
-  coding-tasks/      公开、即时真值；CI 跑它；也是开源 demo
-  pricing/           私有、延迟真值；vendor legacy 代码实现自己的命令
+  coding-tasks/      公开、即时真值；CI 跑它；也是开源 demo（唯一在树内的 pack）
 examples/  ops/  tests/  docs/
 data/                $SAMSARA_HOME（gitignored）：ledger sqlite + attempt 产物
 ```
@@ -48,14 +47,14 @@ data/                $SAMSARA_HOME（gitignored）：ledger sqlite + attempt 产
 | Node + pnpm | Node ≥ 22.19，pnpm 11.7.0 | 工具链与 dsh 一致 |
 | gateway | 内网 pod，单端口暴露 `/v1/*`（不在内网的开发机上不可达——那时只有 null loop 与回放测试可用） | LLM 网关。dsh 经 `llm-pi-ai` 的手工路由（`api: anthropic-messages`，baseURL = pod 根）接入；Claude Code loop 经 `ANTHROPIC_BASE_URL`。主力模型 `deepseek-v4-flash`，两条 wire、tool call、流式、并发均已实测 |
 | Aider Polyglot | `Aider-AI/polyglot-benchmark`（Exercism 内容，MIT） | `packs/coding-tasks` 的 P1 任务源，取 Python 34 + JS 48 = 82 题 |
-| Python ≥ 3.11 | pack 命令可用任意语言 | `packs/pricing` 用 |
+| Python + Node | pack 命令可用任意语言 | `packs/coding-tasks` 自带 `runtime/py/.venv`（3.12 + pytest）与 `runtime/js/node_modules` |
 
 凭据（gateway master key、the LLM gateway key）一律不进仓库：dsh 侧走 `$DSH_HOME/.credentials.yaml` 的 `apiKeyEnv` 引用，Claude Code 侧按 E5 显式注入。
 
 ## 已定决策（勿重开）
 
 - TS host；唯一 ledger 在 dsh `storageDomain`（sqlite）；v1 先做 `loops-dsh`，Claude Code 第二；v1 proposer 是外部 CLI；UI 独立路由；结构化输出由 host 用 pack 契约校验；v1 不发 npm
-- `packs/pricing` 直接放本仓库，开源发布时再拆；发布前本仓库不对外
+- 业务领域不进本仓库：私有的 pricing pack 已于 2026-08-24 移出（历史仍可取回），本仓库只剩 `docs/handover/` 一处私有内容；发布前本仓库不对外
 - 本地开发、本地验证，LLM 指 gateway pod；之后再迁 pod
 - gate 初值：α = 0.05、β = 0.20、bootstrap B = 2000、n_eff 下限 20；SE 来自 ≥3 次同配置 rerun 的实测噪声底，不用假设 sd
 - coding-tasks 从 Aider Polyglot 起步；后续用 SWE-smith 式合成 bug 补"真实 repo 结构"
@@ -78,7 +77,7 @@ data/                $SAMSARA_HOME（gitignored）：ledger sqlite + attempt 产
 | 12 | `dsh --profile host --dump-config` 含 gateway 路由；headless 对 deepseek-v4-flash 说一句话成功 | ✅ P0 门 |
 | 13 | 三份 schema 文件：`pack.yaml`（含 `holdout` 与 `surfaces` 段）、`truth`/`score` stdout（含 cost 指标）、contract 校验方式 | ✅ |
 | 14 | `LICENSE`；tests 运行方式 | ✅ |
-| 15 | **holdout 可行性计算**：用 83 题与 pricing 实际 n 代入 Thresholdout/Ladder 界，结果写进 S7 | ✅ |
+| 15 | **holdout 可行性计算**：用 83 题的实际 n 代入 Thresholdout/Ladder 界，结果写进 S7 | ✅ |
 | 16 | **dsh 暴露配置键清单**（compaction / hooks / sub-agent / runtime control）= v1 surface 在 dsh 上的分母 | ✅ |
 | 17 | 一轮成本模型（重复次数 × 任务数 × K） | ✅ |
 
@@ -87,7 +86,7 @@ P0（= M0）已全部完成；`dsh` 经 `npm i -g @deepseek-ai/dsh@0.1.1-rc.2` �
 ## 怎么跑
 
 ```sh
-pnpm install && pnpm build && pnpm test                 # 40 files / 273 tests，全部离线；pricing 那份缺私有数据时整份跳过
+pnpm install && pnpm build && pnpm test                 # 39 files / 270 tests，全部离线
 ops/leak-scan.sh                                        # 边界纪律 1：packages/ 里不许有领域词（CI 同款）
 dsh plugin --profile host install                       # 首次：把 packages/bundle 链接进 host profile
 dsh --profile host --dump-config | grep samsara         # 合成配置里应有 samsara 的行
@@ -106,8 +105,6 @@ node packages/signoff/lib/cli.js confirm --socket data/signoff.sock --key data/s
 dsh --profile host demote <challengerId> --reason "..."
 # UI：`serve` 会打印实际端口（默认 OS 分配；要固定端口在 profile patch 里给 webserver 行设 port）
 dsh --profile host serve        # → samsara host serving; ui http://127.0.0.1:<port>/samsara
-# pricing pack（需要本机 internal.db 或 Doris 中继；客户级 tasks/truth 不入库，用 tools/build_tasks.py 重建）
-dsh --profile host run --pack packs/pricing --loop dsh --set smoke --limit 1
 # 跨 harness 认证表
 dsh --profile host certify --pack packs/coding-tasks --skill-dir <dir> --loops dsh,claude-code --set smoke --limit 2 --metric pass_rate
 # 并发与断点续跑：--parallel N 走流水线；SIGINT 后 --resume <dir> 只补没写 marker 的 attempt
@@ -130,7 +127,7 @@ dsh --profile host export --run data/runs/x --format otlp-json --out data/runs/x
 | M4 | scope（E1/E8 diff scan）、signoff（E2）、champion（E7）、`challenge/promote/demote/serve` | ✅ |
 | M5 | proposers（claude-p / human）、proposer 视图、`round`、champion skill 默认 | ✅ 真实 `claude -p` 一轮已跑通 |
 | P6 | `/samsara` 页面（host 路由插件，内联 HTML + JSON API，只读；Internal 设计体系）、`certify` 跨 harness 认证表、gate `facts:mismatch`、skill utilization | ✅ |
-| P5 | `packs/pricing`：pricing-standalone skill 接成 pack（`.task/data` 统一数据入口、token 定客户与 cutoff、vendored internal loader），0617 dev 面板任务，真值 mock 自判分表，Brier/pinball 按实际臂分层；dsh 与 Claude Code 各跑通 1 次真实 attempt | ✅（本地 sqlite 与 Doris 中继两个输入后端都通；客户级数据不入库） |
+| P5 | 延迟真值那条线（`status: pending` → settlement 重打分、带 token 的 `data` 命令、按 `stratum` 分层打分）由一个私有 pack 验证过：两条 loop 各跑通 1 次真实 attempt。该 pack 已于 2026-08-24 移出本仓库，框架侧的能力留下了 | ✅（能力在；树内没有 pack 驱动它） |
 | 采纳 | `--parallel N` 流水线（32/32 实测）、durable step marker + `run --resume`、`@samsara/sandbox` landlock 策略、`env_sha` 取自 lock 文件、OTel GenAI span 映射 + `export --format otlp-json` | ✅ |
 
 已知局限：deepseek-v4-flash 在 Python/JS Exercism 上 pass_rate 恒为 1.0（噪声底 sd=0，`docs/design/notes/noise-floor-2026-08-23.md`），阳性对照晋升需要更难任务（更多 Polyglot 语言 / SWE-smith），统计门因此还没被真正证伪过；live tier（mSPRT）未实现；proposer 进程没有文件系统沙箱（E9，v1 开放，真正的修法在 pod 上）；SIGINT 会丢少量 ledger 写（`attempts.jsonl` 完整，`run --resume` 可重建）。
@@ -144,7 +141,7 @@ dsh --profile host export --run data/runs/x --format otlp-json --out data/runs/x
 | P2 | `kernel` + `scope` + `workdir` + `submit` + `loops-dsh`（null skill）；surface 边界与 diff 扫描（E8）；单 surface 约束 | 20/20 valid submits；dispose 后零进程、registry 复原、profile sha 不变（E1）；token guard 拒 deny_patterns；触碰 `bin/truth` 或越过 surface glob 的 patch 在运行前被拒 |
 | P3 | `ledger` + `champion` + `signoff`；重打分 append 语义；champion 为内容寻址 alias；模型升级事件 | 重启后 ledger 一致；无 consent 的 promote 被拒；consent 只认 socket；热应用 sha 验证（E7）；model pool 变更触发祖先重打分 |
 | P4 | coding-tasks 端到端 + `claude -p` proposer + tiers + holdout 预算 + CI | 真实 skill diff 跑完 smoke→holdin→holdout；`|Δ|<MDE` 被拒；过夜 K=4 无签字零晋升；预算耗尽轮换 holdout；真值修订重打分并降级 |
-| P5 | `packs/pricing`：延迟真值、带 token 的 `data` 命令、分层打分 | settlement 事件重打分 held rows；`--cutoff` 被拒；sandbox 内 gated query 403 |
+| P5 | 延迟真值：pending 真值、带 token 的 `data` 命令、分层打分 | settlement 事件重打分 held rows；时间参数被拒；sandbox 内 gated query 403 |
 | P6 | `loops-claude-code` + `ui`；跨 harness 认证输出 | 两条 loop 两行；facts 不同拒 A/B；`skill_utilization` 与 pass rate 分列；adapter 版本入账；UI 首屏 = champion · settlement · challengers · sign-offs |
 
 之后：历史回放 tier、codex / pi loop、optimizer 作为 surface、训练导出。
