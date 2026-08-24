@@ -1,4 +1,4 @@
-// @samsara/pack — load a pack.yaml, run its commands as subprocesses, validate
+// @oldbulb/samsara-pack — load a pack.yaml, run its commands as subprocesses, validate
 // what comes back. The framework never imports pack code: every command is a
 // child process speaking jsonl on stdin/stdout.
 

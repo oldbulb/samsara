@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { resolve } from 'node:path'
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { loadPack } from '@samsara/pack'
+import { loadPack } from '@oldbulb/samsara-pack'
 import { materialize, policyPaths, workdirDiff, denyGuard, hashDir, WorkdirError, type Workdir } from '../src/index.ts'
 
 const MINI = resolve(import.meta.dirname, '..', '..', 'pack', 'tests', 'fixtures', 'minipack')

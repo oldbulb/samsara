@@ -1,4 +1,4 @@
-# @samsara/ui
+# @oldbulb/samsara-ui
 
 The read-only `/samsara` page and its JSON API, as a host plugin on
 `ctx.webServer` (dsh's `@deepseek-ai/dsh-host-webserver`). Binding design:
@@ -53,7 +53,7 @@ Add the webserver row and this row to a bundle patch (never mount
       name: '@deepseek-ai/dsh-host-webserver'
       config: { host: 127.0.0.1, port: 3099 }
     - id: samsara-ui
-      name: '@samsara/ui'
+      name: '@oldbulb/samsara-ui'
       inject: [webServer, ledger, champion, signoff]
       config: { basePath: /samsara, refreshMs: 5000 }
 ```
@@ -63,8 +63,8 @@ Then `dsh --profile host …` and open `http://127.0.0.1:3099/samsara`.
 ## Build and test
 
 ```
-pnpm --filter @samsara/ui build
-pnpm --filter @samsara/ui test      # vitest, offline
+pnpm --filter @oldbulb/samsara-ui build
+pnpm --filter @oldbulb/samsara-ui test      # vitest, offline
 ```
 
 `tests/api.test.ts` unit-tests the builders and the handler with a fake

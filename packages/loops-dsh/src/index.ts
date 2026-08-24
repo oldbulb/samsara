@@ -1,4 +1,4 @@
-// @samsara/loops-dsh — the 'dsh' loop provider: one attempt runs as an
+// @oldbulb/samsara-loops-dsh — the 'dsh' loop provider: one attempt runs as an
 // in-process dsh child agent created through ctx.agents (s5 §A.5 / §B.3),
 // composed in its creation window (restricted tools, submit tool, skill and
 // submit prompt sections, deny guard, limits) and driven for exactly one turn.
@@ -16,9 +16,9 @@ import {
   type AgentHandle,
   type Context,
   type SessionEvent,
-} from '@samsara/kernel'
-import type { AttemptSpec, HarnessFacts, LoopEvent, LoopProvider, LoopRun } from '@samsara/loops'
-import { createSubmitTool, submitInstruction } from '@samsara/submit'
+} from '@oldbulb/samsara-kernel'
+import type { AttemptSpec, HarnessFacts, LoopEvent, LoopProvider, LoopRun } from '@oldbulb/samsara-loops'
+import { createSubmitTool, submitInstruction } from '@oldbulb/samsara-submit'
 import { matchesDeny, serializeArgs } from './deny.ts'
 import { createEventMapper, finish } from './events.ts'
 import { createLimits, type PriceTable } from './limits.ts'

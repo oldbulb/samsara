@@ -1,5 +1,5 @@
 {
-  "name": "@samsara/signoff",
+  "name": "@oldbulb/samsara-signoff",
   "version": "0.0.0",
   "private": true,
   "description": "The sign-off seam: consent proofs are Ed25519-signed nonces delivered over a 0600 unix socket; HTTP is never a proof",
@@ -31,6 +31,6 @@
     "test": "vitest run --root ../.. packages/signoff/tests"
   },
   "dependencies": {
-    "@samsara/kernel": "workspace:*"
+    "@oldbulb/samsara-kernel": "workspace:*"
   }
 }

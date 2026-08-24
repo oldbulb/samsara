@@ -6,8 +6,8 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Schema, scrubbedParentEnv, type SubprocessHandle, type SubprocessSpawnSpec } from '@samsara/kernel'
-import { apply as applySandbox, type SandboxHost } from '@samsara/sandbox'
+import { Schema, scrubbedParentEnv, type SubprocessHandle, type SubprocessSpawnSpec } from '@oldbulb/samsara-kernel'
+import { apply as applySandbox, type SandboxHost } from '@oldbulb/samsara-sandbox'
 import {
   PROPOSAL_DRAFT_SCHEMA,
   canonicalJson,

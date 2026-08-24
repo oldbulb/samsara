@@ -1,7 +1,7 @@
 // policyFor / assertPolicy / apply with an injected host: no launcher is
 // spawned, no kernel is consulted, nothing on disk is read.
 import { describe, expect, it } from 'vitest'
-import type { SubprocessSpawnSpec } from '@samsara/kernel'
+import type { SubprocessSpawnSpec } from '@oldbulb/samsara-kernel'
 import {
   DEFAULT_SYSTEM_ROOTS,
   HOME_DENIED,

@@ -1,4 +1,4 @@
-# @samsara/loops-dsh
+# @oldbulb/samsara-loops-dsh
 
 Loop provider `dsh`: one attempt runs as an in-process dsh child agent. The
 plugin (`name: 'loops-dsh'`, `inject: ['loops', 'agents', 'sessions']`)
@@ -14,7 +14,7 @@ Modeled on dsh's headless runner and in-process subagent driver
 2. Inside `setup(agentCtx)`, in this order:
    - join the host's preset composition (`agentPresets.composeFrom`) when a preset service exists;
    - `tools.restrict({ allow: spec.tools.allow })` when `allow` is non-empty;
-   - register the submit tool from `@samsara/submit` (writes `<workdir>/<name>.json`, concludes the turn);
+   - register the submit tool from `@oldbulb/samsara-submit` (writes `<workdir>/<name>.json`, concludes the turn);
    - system-prompt sections `samsara:skill` (order 150, the `SKILL.md` body without frontmatter) and `samsara:submit` (order 190, `submitInstruction`);
    - a `tools.guard` denying any call whose serialized arguments match one of `spec.tools.deny` (regex, substring fallback);
    - a scoped `session/event` listener mapping the committed log to `LoopEvent`s (see below);
@@ -55,7 +55,7 @@ cancels the agent with stopReason `budget`.
 ```
 systemPromptMode: 'dsh-persona'      skillDelivery: 'prompt-inline'
 schemaEnforcement: 'scoped-tool+retry'   permission: 'approval/policy=never'
-version.loop: DSH_PIN (from @samsara/kernel)
+version.loop: DSH_PIN (from @oldbulb/samsara-kernel)
 ```
 
 Why `prompt-inline` and not `agents-skills-dir`: `dsh-skill-filesystem` does
@@ -88,10 +88,10 @@ the agent scope and is visible regardless of the restriction.
 - A dsh host context with the `agents` factory (`dsh-agent-loop`), `tools`,
   `sessions`, `system-prompt`, an LLM provider route for `spec.route.provider`
   and the tool rows above — i.e. a profile built on dsh-base, booted through
-  `@samsara/kernel`. Credentials come from the host's `credentials` service for
+  `@oldbulb/samsara-kernel`. Credentials come from the host's `credentials` service for
   that route; the in-process loop cannot take `spec.env` or a per-attempt
   `baseUrl` (`capabilities.perAttemptEnv/perAttemptBaseUrl = false`).
-- A sealed workdir from `@samsara/workdir`: `spec.skill.dir` must contain
+- A sealed workdir from `@oldbulb/samsara-workdir`: `spec.skill.dir` must contain
   `SKILL.md`; the submit file lands at `<workdir>/<submitTool.name>.json` for the
   host to validate against the pack contract.
 - Nothing here spawns processes itself; the child agent's tools (`bash`) go
@@ -102,12 +102,12 @@ the agent scope and is visible regardless of the restriction.
 None; `HARNESS_FACTS.sandbox` is `'none'`. The agent's `bash` tool runs through
 dsh's mode-based sandbox seam (`read-only` / `workspace-write` over one root,
 built as `--ro /` under Landlock), which cannot take the per-attempt read
-allow-list `@samsara/sandbox` composes, so the pack's `tasks/`, `data/` and
+allow-list `@oldbulb/samsara-sandbox` composes, so the pack's `tasks/`, `data/` and
 `bin/` stay reachable from an in-process attempt. The subprocess-based loop
 (`loops-claude-code`) is the confined one; see `packages/sandbox/README.md`.
 
 ## Tests
 
-`pnpm --filter @samsara/loops-dsh test` — unit tests of the event mapper,
+`pnpm --filter @oldbulb/samsara-loops-dsh test` — unit tests of the event mapper,
 `finish`, the limits, the deny guard, the queue and the skill body reader,
 driven by synthetic session events. No agent, no LLM, no network.

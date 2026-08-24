@@ -1,5 +1,5 @@
 {
-  "name": "@samsara/loops",
+  "name": "@oldbulb/samsara-loops",
   "version": "0.0.0",
   "private": true,
   "description": "The loop-provider seam: a registry of agent loops and the AttemptSpec/LoopEvent contract every loop speaks",
@@ -25,6 +25,6 @@
     "test": "vitest run --root ../.. packages/loops/tests"
   },
   "dependencies": {
-    "@samsara/kernel": "workspace:*"
+    "@oldbulb/samsara-kernel": "workspace:*"
   }
 }

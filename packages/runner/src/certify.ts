@@ -5,10 +5,10 @@
 // cross-loop compare is put through the gate once, to show the refusal.
 
 import { basename, resolve } from 'node:path'
-import { mean } from '@samsara/gate'
-import { gatePolicy, type GateVerdictRow, type ScoredAttempt } from '@samsara/gate'
-import type { AttemptRow as LedgerAttemptRow } from '@samsara/ledger'
-import { factsSha, type LoopProvider } from '@samsara/loops'
+import { mean } from '@oldbulb/samsara-gate'
+import { gatePolicy, type GateVerdictRow, type ScoredAttempt } from '@oldbulb/samsara-gate'
+import type { AttemptRow as LedgerAttemptRow } from '@oldbulb/samsara-ledger'
+import { factsSha, type LoopProvider } from '@oldbulb/samsara-loops'
 import { challenge as runChallenge, scoredAttemptsOf, type ChallengeDeps, type ChallengeRequest, type ChallengeResult, type GatePolicyName } from './challenge.ts'
 import type { RunRequest } from './run.ts'
 

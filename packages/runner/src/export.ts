@@ -4,7 +4,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
-import { toSpans, toResourceSpans, type AttemptMeta, type LoopEvent, type OtlpResourceSpans, type OtlpSpan } from '@samsara/loops'
+import { toSpans, toResourceSpans, type AttemptMeta, type LoopEvent, type OtlpResourceSpans, type OtlpSpan } from '@oldbulb/samsara-loops'
 
 export type ExportFormat = 'otlp-json'
 

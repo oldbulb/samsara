@@ -3,7 +3,7 @@
 The dsh bundle that mounts samsara over `@deepseek-ai/dsh-base`. A profile lists it in `dsh.profile.bundles`:
 
 ```json
-{ "dsh": { "profile": { "bundles": ["@deepseek-ai/dsh-base", "samsara"] } } }
+{ "dsh": { "profile": { "bundles": ["@deepseek-ai/dsh-base", "@oldbulb/samsara"] } } }
 ```
 
 `cordis.patch.yml` inserts, in order: `loops` (the registry), `loops-null`, `loops-dsh`, `loops-claude-code`, `samsara-run-startup`, `samsara-runner`. Every row is plain YAML (no `!!js`, E3). The runner row injects `samsaraRun`, the service the startup row provides after parsing the command line, so it mounts only when `run` was actually invoked with valid arguments.

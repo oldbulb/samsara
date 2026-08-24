@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { SubprocessHandle, SubprocessOutcome, SubprocessSpawnSpec } from '@samsara/kernel'
+import type { SubprocessHandle, SubprocessOutcome, SubprocessSpawnSpec } from '@oldbulb/samsara-kernel'
 
 export function tempRoot(): string {
   return mkdtempSync(join(tmpdir(), 'samsara-proposers-'))

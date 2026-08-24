@@ -1,4 +1,4 @@
-# @samsara/scope
+# @oldbulb/samsara-scope
 
 `ctx.scopes`: open a challenger — the champion plus one patch on one surface — as a disposable child scope, and close it leaving nothing behind. Binding design: `docs/design/architecture.md` (Plugins table row `scope`, "Surfaces", E1/E3/E8, S5).
 
@@ -6,10 +6,10 @@
 
 | module | export | what |
 |---|---|---|
-| `@samsara/scope` | `ScopeManager` (default export, cordis Service on `ctx.scopes`), `ScopeError`, types | the seam |
-| `@samsara/scope/diffscan` | `scan(patch, boundaries, taskIds, forbiddenPaths?, literals?)` | pure boundary / judge-pipeline / task-literal / `!!`js scan |
-| `@samsara/scope/sha` | `harnessSha(entries)`, `harnessShaOfLayers(layers)`, `envSha(env?)`, `envFacts`, `canonicalJson` | pure coordinates recorded beside every challenger |
-| `@samsara/scope/envlock` | `envLock({ repoRoot, packDir, loops, imageDigest? })`, `findRepoRoot`, `packRuntimeLocks`, `venvListing` | environment fingerprint from lock files (E3; adoptions item 3) |
+| `@oldbulb/samsara-scope` | `ScopeManager` (default export, cordis Service on `ctx.scopes`), `ScopeError`, types | the seam |
+| `@oldbulb/samsara-scope/diffscan` | `scan(patch, boundaries, taskIds, forbiddenPaths?, literals?)` | pure boundary / judge-pipeline / task-literal / `!!`js scan |
+| `@oldbulb/samsara-scope/sha` | `harnessSha(entries)`, `harnessShaOfLayers(layers)`, `envSha(env?)`, `envFacts`, `canonicalJson` | pure coordinates recorded beside every challenger |
+| `@oldbulb/samsara-scope/envlock` | `envLock({ repoRoot, packDir, loops, imageDigest? })`, `findRepoRoot`, `packRuntimeLocks`, `venvListing` | environment fingerprint from lock files (E3; adoptions item 3) |
 
 ## Patch shapes
 
@@ -76,6 +76,6 @@ The runner calls it once per run (`envLockOf(def, loop)`), writes `<runDir>/env-
 ## Run
 
 ```
-pnpm --filter @samsara/scope build     # tsc -b
-pnpm --filter @samsara/scope test      # vitest, no network / model
+pnpm --filter @oldbulb/samsara-scope build     # tsc -b
+pnpm --filter @oldbulb/samsara-scope test      # vitest, no network / model
 ```

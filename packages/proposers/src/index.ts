@@ -1,10 +1,10 @@
-// @samsara/proposers — `ctx.proposers`: the registry of proposer adapters.
+// @oldbulb/samsara-proposers — `ctx.proposers`: the registry of proposer adapters.
 //
 // An adapter plugin registers itself with `ctx.effect(() => ctx.proposers.register(a))`,
 // so the host's proposer set equals its enabled plugins. The registry holds
 // adapters; it never renders a view and never touches the ledger.
 
-import { Context, Service } from '@samsara/kernel'
+import { Context, Service } from '@oldbulb/samsara-kernel'
 import type { ProposerAdapter } from './types.ts'
 
 export * from './types.ts'
@@ -25,7 +25,7 @@ export {
   type SpawnFn,
 } from './claude-p.ts'
 
-declare module '@samsara/kernel' {
+declare module '@oldbulb/samsara-kernel' {
   interface Context {
     proposers: Proposers
   }

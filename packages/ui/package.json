@@ -1,5 +1,5 @@
 {
-  "name": "@samsara/ui",
+  "name": "@oldbulb/samsara-ui",
   "version": "0.0.0",
   "private": true,
   "description": "The read-only /samsara page and its JSON API on ctx.webServer: champion, last settlement, challengers by tier, pending sign-offs, certification table",
@@ -21,9 +21,9 @@
     "test": "vitest run --root ../.. packages/ui/tests"
   },
   "dependencies": {
-    "@samsara/champion": "workspace:*",
-    "@samsara/kernel": "workspace:*",
-    "@samsara/ledger": "workspace:*",
-    "@samsara/signoff": "workspace:*"
+    "@oldbulb/samsara-champion": "workspace:*",
+    "@oldbulb/samsara-kernel": "workspace:*",
+    "@oldbulb/samsara-ledger": "workspace:*",
+    "@oldbulb/samsara-signoff": "workspace:*"
   }
 }

@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@samsara/kernel'
+import { Context } from '@oldbulb/samsara-kernel'
 import { Signoff, SignoffError, PENDING_TTL_MS, internals, generateKeypair, sign, type ProofPayload } from '../src/index.ts'
 import { confirm, keygen, pending, SignoffClientError } from '../src/client.ts'
 

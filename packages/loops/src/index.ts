@@ -1,4 +1,4 @@
-// @samsara/loops — `ctx.loops`: the registry of loop providers.
+// @oldbulb/samsara-loops — `ctx.loops`: the registry of loop providers.
 //
 // A provider plugin registers itself with `ctx.effect(() => ctx.loops.register(p))`,
 // so the host's loop set equals its enabled plugins. `start` wraps the provider's
@@ -6,7 +6,7 @@
 // events end with exactly one 'finished', and `result` never rejects after
 // publication.
 
-import { Context, Service } from '@samsara/kernel'
+import { Context, Service } from '@oldbulb/samsara-kernel'
 import type { AttemptSpec, FinishedEvent, LoopEvent, LoopProvider, LoopRun } from './types.ts'
 
 export * from './types.ts'
@@ -14,7 +14,7 @@ export { NullLoopProvider, NULL_HARNESS_FACTS } from './null.ts'
 export { toSpans, toResourceSpans, OTEL_SCOPE_NAME } from './otel.ts'
 export type { AttemptMeta, OtlpSpan, OtlpAttribute, OtlpValue, OtlpResourceSpans } from './otel.ts'
 
-declare module '@samsara/kernel' {
+declare module '@oldbulb/samsara-kernel' {
   interface Context {
     loops: LoopRegistry
   }

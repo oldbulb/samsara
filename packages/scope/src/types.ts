@@ -1,6 +1,6 @@
-// @samsara/scope types — a challenger is the champion plus one patch on one surface.
+// @oldbulb/samsara-scope types — a challenger is the champion plus one patch on one surface.
 
-import type { EntryOptions, PatchOptions } from '@samsara/kernel'
+import type { EntryOptions, PatchOptions } from '@oldbulb/samsara-kernel'
 
 export type { EntryOptions, PatchOptions }
 

@@ -4,8 +4,8 @@
 // first; `finish()` builds it from what the mapper has seen plus the limits.
 
 import { createHash } from 'node:crypto'
-import type { SessionEvent, ContentBlock } from '@samsara/kernel'
-import type { HarnessFacts, LoopEvent, TokenUsage } from '@samsara/loops'
+import type { SessionEvent, ContentBlock } from '@oldbulb/samsara-kernel'
+import type { HarnessFacts, LoopEvent, TokenUsage } from '@oldbulb/samsara-loops'
 import { addUsage, type Limits } from './limits.ts'
 
 type Finished = Extract<LoopEvent, { t: 'finished' }>

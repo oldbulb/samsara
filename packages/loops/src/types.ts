@@ -1,4 +1,4 @@
-// @samsara/loops — the seam types, verbatim from docs/design/loops.md.
+// @oldbulb/samsara-loops — the seam types, verbatim from docs/design/loops.md.
 //
 // A loop runs one attempt of one task under one configuration. The framework
 // never talks to a loop except through these shapes.
@@ -18,10 +18,16 @@ export interface AttemptSpec {
   env?: Record<string, string>
   tmpdir: string
   signal: AbortSignal
-  /** Filesystem policy for the loop's subprocesses (composed by @samsara/sandbox); absent = unconfined. */
+  /** Filesystem policy for the loop's subprocesses (composed by @oldbulb/samsara-sandbox); absent = unconfined. */
   sandbox?: { readOnly: string[]; readWrite: string[]; denied: string[] }
 }
 
+/**
+ * Disjoint counts: `inputTokens` is the prompt the provider actually billed as
+ * input, with any cached prefix already excluded and reported as
+ * `cacheReadTokens`. A provider that reports them overlapping must subtract
+ * before it fills this in, not after.
+ */
 export interface TokenUsage {
   inputTokens: number
   outputTokens: number

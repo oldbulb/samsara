@@ -2,8 +2,8 @@
 // the UiDeps slices, with one promoted champion, one judged challenger and a
 // held-out attempt so the human view is exercised end to end.
 import { createHash } from 'node:crypto'
-import type { ChampionState } from '@samsara/champion'
-import type { AttemptRow, ChallengerRow, CompareRow, ConsentRow, ScoreRow, SettlementRow, View, ViewRows, Viewer } from '@samsara/ledger'
+import type { ChampionState } from '@oldbulb/samsara-champion'
+import type { AttemptRow, ChallengerRow, CompareRow, ConsentRow, ScoreRow, SettlementRow, View, ViewRows, Viewer } from '@oldbulb/samsara-ledger'
 import type { UiDeps } from '../src/api.ts'
 
 export const sha = (s: string) => createHash('sha256').update(s).digest('hex')

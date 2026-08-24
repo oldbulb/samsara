@@ -1,5 +1,5 @@
 {
-  "name": "@samsara/proposers",
+  "name": "@oldbulb/samsara-proposers",
   "version": "0.0.0",
   "private": true,
   "description": "ctx.proposers: the registry of proposer adapters and the Proposal contract every adapter returns (claude-p, human)",
@@ -37,8 +37,8 @@
     "test": "vitest run --root ../.. packages/proposers/tests"
   },
   "dependencies": {
-    "@samsara/kernel": "workspace:*",
-    "@samsara/sandbox": "workspace:*",
+    "@oldbulb/samsara-kernel": "workspace:*",
+    "@oldbulb/samsara-sandbox": "workspace:*",
     "ajv": "8.20.0"
   }
 }

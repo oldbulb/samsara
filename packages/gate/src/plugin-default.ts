@@ -1,6 +1,6 @@
 // Plugin: mounts gate-default on `ctx.gate` for the lifetime of its scope.
 
-import { Context, Schema } from '@samsara/kernel'
+import { Context, Schema } from '@oldbulb/samsara-kernel'
 import { gateDefault, GATE_DEFAULT_NAME, GATE_DEFAULT_VERSION } from './default.ts'
 
 export const name = 'gate-default'

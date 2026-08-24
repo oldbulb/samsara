@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context, DomainFacility, JsonStorageBackend, Storage, storageBackendServiceKey } from '@samsara/kernel'
+import { Context, DomainFacility, JsonStorageBackend, Storage, storageBackendServiceKey } from '@oldbulb/samsara-kernel'
 import {
   Ledger,
   LedgerError,

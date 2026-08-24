@@ -9,7 +9,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { delimiter, dirname, join, relative, resolve, sep } from 'node:path'
-import { DSH_PIN } from '@samsara/kernel'
+import { DSH_PIN } from '@oldbulb/samsara-kernel'
 import { canonicalJson, envFacts, sha256 } from './sha.ts'
 
 export interface EnvLockOptions {

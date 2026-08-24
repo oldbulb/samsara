@@ -4,7 +4,7 @@
 
 import { EventEmitter } from 'node:events'
 import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
-import { scrubbedParentEnv, type SubprocessHandle, type SubprocessOutcome, type SubprocessSpawnSpec } from '@samsara/kernel'
+import { scrubbedParentEnv, type SubprocessHandle, type SubprocessOutcome, type SubprocessSpawnSpec } from '@oldbulb/samsara-kernel'
 
 function thrown(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))

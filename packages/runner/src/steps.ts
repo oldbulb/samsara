@@ -7,7 +7,7 @@
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import type { FinishedEvent } from '@samsara/loops'
+import type { FinishedEvent } from '@oldbulb/samsara-loops'
 import type { AttemptRow, RunRequest, ScoreLine, SubmitRead } from './run.ts'
 
 export const STEPS = ['materialize', 'loop', 'submit', 'truth', 'score', 'record'] as const

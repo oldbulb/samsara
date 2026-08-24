@@ -120,14 +120,14 @@ dsh --profile host export --run data/runs/x --format otlp-json --out data/runs/x
 | 里程碑 | 内容 | 状态 |
 |---|---|---|
 | M0 | workspace、kernel、schema、host profile ↔ 网关、可行性/配置键/成本三份 note | ✅ |
-| M1 | `packs/coding-tasks`（Polyglot py+js 82 题）、`@samsara/pack`、`@samsara/book` | ✅ |
+| M1 | `packs/coding-tasks`（Polyglot py+js 82 题）、`@oldbulb/samsara-pack`、`@oldbulb/samsara-book` | ✅ |
 | M2 | loops seam + null、workdir、submit、loops-dsh、loops-claude-code、runner；两条 loop smoke 8/8；replay 离线测试 | ✅ |
 | M3 | gate-default（BCa/Holm/MDE/Ladder + 策略定义模拟）、ledger on sqlite、runner 写 ledger | ✅ |
 | M4 | scope（E1/E8 diff scan）、signoff（E2）、champion（E7）、`challenge/promote/demote/serve` | ✅ |
 | M5 | proposers（claude-p / human）、proposer 视图、`round`、champion skill 默认 | ✅ 真实 `claude -p` 一轮已跑通 |
 | P6 | `/samsara` 页面（host 路由插件，内联 HTML + JSON API，只读；Internal 设计体系）、`certify` 跨 harness 认证表、gate `facts:mismatch`、skill utilization | ✅ |
 | P5 | 延迟真值那条线（`status: pending` → settlement 重打分、带 token 的 `data` 命令、按 `stratum` 分层打分）由一个私有 pack 验证过：两条 loop 各跑通 1 次真实 attempt。该 pack 已于 2026-08-24 移出本仓库，框架侧的能力留下了 | ✅（能力在；树内没有 pack 驱动它） |
-| 采纳 | `--parallel N` 流水线（32/32 实测）、durable step marker + `run --resume`、`@samsara/sandbox` landlock 策略、`env_sha` 取自 lock 文件、OTel GenAI span 映射 + `export --format otlp-json` | ✅ |
+| 采纳 | `--parallel N` 流水线（32/32 实测）、durable step marker + `run --resume`、`@oldbulb/samsara-sandbox` landlock 策略、`env_sha` 取自 lock 文件、OTel GenAI span 映射 + `export --format otlp-json` | ✅ |
 
 已知局限：主力模型在 Python/JS Exercism 上 pass_rate 恒为 1.0（3 次同配置 rerun 实测噪声底 sd=0），阳性对照晋升需要更难任务（更多 Polyglot 语言 / SWE-smith），统计门因此还没被真正证伪过；live tier（mSPRT）未实现；proposer 进程在 macOS 上没有文件系统沙箱（E9，v1 开放）；SIGINT 会丢少量 ledger 写（`attempts.jsonl` 完整，`run --resume` 可重建）。
 

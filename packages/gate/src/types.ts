@@ -1,4 +1,4 @@
-// @samsara/gate — the seam types, verbatim from docs/design/gate.md.
+// @oldbulb/samsara-gate — the seam types, verbatim from docs/design/gate.md.
 //
 // The gate turns scores into a verdict. Inputs come from the ledger, never from
 // the loop; the framework knows nothing about what a metric means.

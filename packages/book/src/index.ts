@@ -1,4 +1,4 @@
-// @samsara/book — the truth fixed point, as a plain in-memory implementation.
+// @oldbulb/samsara-book — the truth fixed point, as a plain in-memory implementation.
 //
 // No dsh / cordis imports here: `Book` is a plain interface so a later cordis
 // Service can wrap it and back it with storageDomain. Everything the loop is

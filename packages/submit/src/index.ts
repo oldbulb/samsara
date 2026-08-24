@@ -1,4 +1,4 @@
-// @samsara/submit — how an attempt ends.
+// @oldbulb/samsara-submit — how an attempt ends.
 //
 // A loop finishes by recording exactly one value. With a custom-tool harness
 // (dsh in-process) that is a tool call shaped like dsh's own structured-output
@@ -11,7 +11,7 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Ajv2020, type ErrorObject } from 'ajv/dist/2020.js'
-import { ToolArgsError, type ToolDefinition, type ToolRunContext } from '@samsara/kernel'
+import { ToolArgsError, type ToolDefinition, type ToolRunContext } from '@oldbulb/samsara-kernel'
 
 export interface SubmitToolOptions {
   /** Model-facing tool name; also the basename of `<workdir>/<name>.json`. */

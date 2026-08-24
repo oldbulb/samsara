@@ -1,4 +1,4 @@
-// @samsara/ledger — `ctx.ledger`: the one control-plane record.
+// @oldbulb/samsara-ledger — `ctx.ledger`: the one control-plane record.
 //
 // A cordis Service over a dsh storage domain (`samsara_ledger`). Every write
 // goes through the domain tables (put / update), so durability precedes
@@ -6,7 +6,7 @@
 // content-addressed (spec.ts), which is what makes propose() idempotent,
 // scores append-only and compares first-verdict-wins.
 
-import { Context, Service, type Domain, type KvTable } from '@samsara/kernel'
+import { Context, Service, type Domain, type KvTable } from '@oldbulb/samsara-kernel'
 import {
   ledgerDomainSpec,
   challengerId,
@@ -32,7 +32,7 @@ export * from './spec.ts'
 export { sha256, canonicalJson, keyOf } from './id.ts'
 export { importAttemptsJsonl, attemptRowOf, type ImportOptions, type ImportResult } from './import.ts'
 
-declare module '@samsara/kernel' {
+declare module '@oldbulb/samsara-kernel' {
   interface Context {
     ledger: Ledger
   }

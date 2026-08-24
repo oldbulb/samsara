@@ -1,11 +1,11 @@
-// @samsara/ui — the JSON builders behind /samsara/api/*. Pure functions over
+// @oldbulb/samsara-ui — the JSON builders behind /samsara/api/*. Pure functions over
 // structural slices of ctx.ledger / ctx.champion / ctx.signoff so fakes
 // compose in tests. Every ledger read is the `human` view: the page has no way
 // to ask for more (held-out per-task rows are whatever that view returns).
 
-import { stateSha, type ChampionState, type ReplayResult } from '@samsara/champion'
-import type { AttemptRow, ChallengerRow, CompareRow, ConsentRow, SettlementRow, Tier, ViewRows, View, Viewer } from '@samsara/ledger'
-import type { PendingSignoff } from '@samsara/signoff'
+import { stateSha, type ChampionState, type ReplayResult } from '@oldbulb/samsara-champion'
+import type { AttemptRow, ChallengerRow, CompareRow, ConsentRow, SettlementRow, Tier, ViewRows, View, Viewer } from '@oldbulb/samsara-ledger'
+import type { PendingSignoff } from '@oldbulb/samsara-signoff'
 
 export interface UiLedger {
   read<N extends View>(view: N, viewer: Viewer): ViewRows[N]

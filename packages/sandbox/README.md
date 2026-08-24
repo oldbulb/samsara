@@ -1,4 +1,4 @@
-# @samsara/sandbox
+# @oldbulb/samsara-sandbox
 
 Filesystem policy for the processes the framework runs on behalf of a
 challenger — the attempt's loop subprocess and the proposer — and the wrapper
@@ -24,7 +24,7 @@ Two pure functions and one probe:
   Fail-closed: an enforcing host with no policy throws rather than running
   unconfined.
 - `detectHost()` probes once per process (`landlockProbe` through
-  `@samsara/kernel`); `sandboxModeOf(host)` is `'landlock' | 'none'` and is what
+  `@oldbulb/samsara-kernel`); `sandboxModeOf(host)` is `'landlock' | 'none'` and is what
   a loop provider writes into `HarnessFacts.sandbox`, so the enforcement mode
   is part of `facts_sha` and a champion judged under one mode never compares
   against a challenger judged under the other.
@@ -41,7 +41,7 @@ not passed to the launcher — it is the invariant `policyFor` checks the grants
 against. Two consequences:
 
 - The pack root is never granted; only `skill/` and `loader/` are. A pack that
-  needs more at run time puts it under `runtime/` (`@samsara/workdir` lists the
+  needs more at run time puts it under `runtime/` (`@oldbulb/samsara-workdir` lists the
   existing `runtime/*` directories as `policyPaths.runtimeDirs`).
 - A fixture entry must live outside the pack's `fixtures/` (a host-side cache
   entry, or files the pack's `materialize` copied into the workdir). Granting
@@ -81,7 +81,7 @@ a read allow-list.
 
 ## The in-process dsh loop
 
-`@samsara/loops-dsh` runs the agent in-process; its `bash` tool goes through
+`@oldbulb/samsara-loops-dsh` runs the agent in-process; its `bash` tool goes through
 dsh's sandbox seam (`dsh-bash-sandbox` + `dsh-sandbox-local` +
 `dsh-sandbox-policy`). That seam's policy is `{ mode: read-only |
 workspace-write | danger-full-access, workspaceRoot }` — the Landlock profile
@@ -97,7 +97,7 @@ or running the dsh agent itself as a confined child process.
 ## Wiring
 
 ```ts
-const wd = await materialize(...)                       // @samsara/workdir
+const wd = await materialize(...)                       // @oldbulb/samsara-workdir
 const sandbox = policyFor({ ...wd.policyPaths, ledgerDir, homeDir: os.homedir() })
 await ctx.loops.start('claude-code', { ...spec, sandbox })
 await adapter.propose({ viewDir, workDir, signal, sandbox: policyFor({ workdir: workDir, packDir, runtimeDirs, readOnly: [viewDir] }) })
@@ -111,7 +111,7 @@ guess them.
 
 ## Tests
 
-`pnpm --filter @samsara/sandbox test` — composition (the denied set is never
+`pnpm --filter @oldbulb/samsara-sandbox test` — composition (the denied set is never
 reachable through a grant, in either direction), refusal of overlapping inputs,
 the macOS no-op, and the Linux branch through an injected host (argv/env shape
 asserted, no kernel required). Consumers' tests (`loops-claude-code`,

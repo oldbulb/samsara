@@ -1,4 +1,4 @@
-// @samsara/signoff — `ctx.signoff`: the consent channel the loop cannot reach.
+// @oldbulb/samsara-signoff — `ctx.signoff`: the consent channel the loop cannot reach.
 //
 // A caller inside the host asks `request(rowId, action)` for a nonce; a human
 // signs {nonce, rowId, action, who, issuedAt} with a private key that lives in
@@ -10,7 +10,7 @@ import { randomBytes } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { chmod, rm } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
-import { Context, Schema, Service } from '@samsara/kernel'
+import { Context, Schema, Service } from '@oldbulb/samsara-kernel'
 import {
   SIGNOFF_ACTIONS,
   proofSha,
@@ -26,7 +26,7 @@ export * from './proof.ts'
 export { SIGNOFF_SOCKET_MODE, parseSocketRequest, type SocketRequest, type SocketResponse } from './protocol.ts'
 import { SIGNOFF_SOCKET_MODE, parseSocketRequest, type SocketResponse } from './protocol.ts'
 
-declare module '@samsara/kernel' {
+declare module '@oldbulb/samsara-kernel' {
   interface Context {
     signoff: Signoff
   }

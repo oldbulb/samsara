@@ -1,15 +1,15 @@
-// @samsara/ui — host plugin `samsara-ui`: one prefix route on ctx.webServer
+// @oldbulb/samsara-ui — host plugin `samsara-ui`: one prefix route on ctx.webServer
 // serving the read-only /samsara page and its JSON API. Config comes from the
 // row (never the command line: a co-resident web-app startup row would reject
 // unknown flags). Sign-off never goes through HTTP (E2): the page only shows
 // the command to run.
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { Context, Schema } from '@samsara/kernel'
+import { Context, Schema } from '@oldbulb/samsara-kernel'
 // Value imports so the ctx.ledger / ctx.champion / ctx.signoff augmentations are installed.
-import '@samsara/ledger'
-import '@samsara/champion'
-import '@samsara/signoff'
+import '@oldbulb/samsara-ledger'
+import '@oldbulb/samsara-champion'
+import '@oldbulb/samsara-signoff'
 import { buildCertification, buildChallenger, buildSummary, type UiDeps } from './api.ts'
 import { renderPage } from './page.ts'
 

@@ -117,8 +117,8 @@ describe('finish', () => {
     const mapper = createEventMapper({ submitToolName: 'submit_x' })
     feed(mapper, [assistant(1, 'a', { inputTokens: 1_000_000, outputTokens: 500_000, cacheReadTokens: 500_000 }), turnEnd({ kind: 'completed' })])
     const limits = createLimits({ maxTurns: 5, price: { input: 2, output: 8, cacheRead: 0.5 } })
-    // 500k uncached input @2 + 500k cached @0.5 + 500k output @8
-    expect(finish({ at: 5, mapper, limits }).cost).toEqual({ usd: 1 + 0.25 + 4, source: 'price-table' })
+    // disjoint counts: 1M billed input @2 + 500k cached @0.5 + 500k output @8
+    expect(finish({ at: 5, mapper, limits }).cost).toEqual({ usd: 2 + 0.25 + 4, source: 'price-table' })
   })
 })
 

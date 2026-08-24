@@ -1,10 +1,10 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { Context } from '@samsara/kernel'
+import { Context } from '@oldbulb/samsara-kernel'
 import { Proposers, ProposerRegistryError, type ProposerAdapter } from '../src/index.ts'
 import * as pluginHuman from '../src/plugin-human.ts'
-import { policyFor } from '@samsara/sandbox'
+import { policyFor } from '@oldbulb/samsara-sandbox'
 import { createAdapter } from '../src/plugin-claude-p.ts'
 import { fakeSpawn, tempRoot, writeSkill } from './fixture.ts'
 

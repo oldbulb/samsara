@@ -4,10 +4,10 @@
 // data in / data out; the runner re-runs `score`, the gate re-judges, and the
 // result comes back through `rescored` as a new append-only compare row.
 
-import type { GateVerdictRow } from '@samsara/gate'
-import type { AttemptRow, ChallengerRow, CompareRow, SettlementRow, Tier } from '@samsara/ledger'
+import type { GateVerdictRow } from '@oldbulb/samsara-gate'
+import type { AttemptRow, ChallengerRow, CompareRow, SettlementRow, Tier } from '@oldbulb/samsara-ledger'
 
-/** The book's `book/settled` payload (structural; matches @samsara/book Settlement). */
+/** The book's `book/settled` payload (structural; matches @oldbulb/samsara-book Settlement). */
 export interface SettledEvent {
   id: string
   kind: SettlementRow['kind']

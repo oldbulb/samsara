@@ -1,5 +1,5 @@
 {
-  "name": "@samsara/loops-dsh",
+  "name": "@oldbulb/samsara-loops-dsh",
   "version": "0.0.0",
   "private": true,
   "description": "Loop provider 'dsh': one attempt as an in-process dsh child agent with restricted tools, a submit tool and hard limits",
@@ -17,8 +17,8 @@
     "test": "vitest run --root ../.. packages/loops-dsh/tests"
   },
   "dependencies": {
-    "@samsara/kernel": "workspace:*",
-    "@samsara/loops": "workspace:*",
-    "@samsara/submit": "workspace:*"
+    "@oldbulb/samsara-kernel": "workspace:*",
+    "@oldbulb/samsara-loops": "workspace:*",
+    "@oldbulb/samsara-submit": "workspace:*"
   }
 }

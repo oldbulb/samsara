@@ -1,6 +1,6 @@
 // Plugin: registers the null loop on `ctx.loops` for the lifetime of its scope.
 
-import { Context, Schema } from '@samsara/kernel'
+import { Context, Schema } from '@oldbulb/samsara-kernel'
 import { NullLoopProvider } from './null.ts'
 
 export const name = 'loops-null'

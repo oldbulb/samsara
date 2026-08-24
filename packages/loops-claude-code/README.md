@@ -1,4 +1,4 @@
-# @samsara/loops-claude-code
+# @oldbulb/samsara-loops-claude-code
 
 Loop provider `claude-code` for the `loops` seam (`docs/design/loops.md`). One attempt = one
 `query()` of `@anthropic-ai/claude-agent-sdk@0.3.220`, whose real `claude` CLI process is spawned
@@ -69,7 +69,7 @@ process tree, waits for exit, awaits the settled result, releases the effect, an
 
 ## Filesystem isolation
 
-The CLI process is spawned through `@samsara/sandbox`'s `apply` with
+The CLI process is spawned through `@oldbulb/samsara-sandbox`'s `apply` with
 `spec.sandbox` (composed by the host from the workdir's `policyPaths`). On a
 Linux host whose launcher probes usable the argv is wrapped in `landlock-run`
 grants and the provider's `harnessFacts.sandbox` is `'landlock'`; elsewhere
@@ -80,6 +80,6 @@ attempt that carries no policy fails closed at spawn. The `host` in `RunDeps`
 ## Run
 
 ```sh
-pnpm --filter @samsara/loops-claude-code build
+pnpm --filter @oldbulb/samsara-loops-claude-code build
 pnpm exec vitest run packages/loops-claude-code   # no process spawn, no network
 ```

@@ -1,4 +1,4 @@
-# @samsara/champion
+# @oldbulb/samsara-champion
 
 `ctx.champion`: the served configuration. The champion is an alias to a set of content-addressed refs (`surface:sha`); its on-disk form is a generated section at the end of the host profile's patch layer (`profiles/host/cordis.patch.yml`). Promotion needs two things the loop cannot write, a gate verdict of `promote` and a `consents` row from signoff, and is proven by recomposing the profile exactly as `dsh --profile <name> --dump-config` does and hashing what the kept rows read back as (E7).
 
@@ -6,9 +6,9 @@
 
 | module | export | what |
 |---|---|---|
-| `@samsara/champion` | `Champion` (default export, cordis Service on `ctx.champion`, inject `['ledger', 'signoff']`), `Config`, `ChampionError` | the service |
-| `@samsara/champion/state` | `ChampionState`, `KeptPatch`, `stateOf`, `stateSha`, `renderProfilePatch`, `parseProfilePatch`, `verifyHotApply`, `replayCheck` | pure: text/data in, text/data out |
-| `@samsara/champion/settlement` | `SettledEvent`, `RescoreEvent`, `planRescore`, `compareRowOf` | pure settlement bookkeeping |
+| `@oldbulb/samsara-champion` | `Champion` (default export, cordis Service on `ctx.champion`, inject `['ledger', 'signoff']`), `Config`, `ChampionError` | the service |
+| `@oldbulb/samsara-champion/state` | `ChampionState`, `KeptPatch`, `stateOf`, `stateSha`, `renderProfilePatch`, `parseProfilePatch`, `verifyHotApply`, `replayCheck` | pure: text/data in, text/data out |
+| `@oldbulb/samsara-champion/settlement` | `SettledEvent`, `RescoreEvent`, `planRescore`, `compareRowOf` | pure settlement bookkeeping |
 
 `Config = { profileDir, skillStore }`. `profileDir` must be `<home>/profiles/<name>` (the layout `loadProfile` resolves); `skillStore` holds content-addressed skill snapshots at `<skillStore>/<skill_sha>/`.
 

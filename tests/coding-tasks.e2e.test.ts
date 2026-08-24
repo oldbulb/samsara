@@ -1,4 +1,4 @@
-// End-to-end: the framework (@samsara/pack + @samsara/book) drives the
+// End-to-end: the framework (@oldbulb/samsara-pack + @oldbulb/samsara-book) drives the
 // coding-tasks pack purely through pack.yaml and subprocess jsonl.
 import { beforeAll, describe, expect, it } from 'vitest'
 import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'

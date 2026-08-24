@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { AttemptRow, ChallengerProposal, ScoreRow } from '@samsara/ledger'
-import { sha256 } from '@samsara/ledger'
+import type { AttemptRow, ChallengerProposal, ScoreRow } from '@oldbulb/samsara-ledger'
+import { sha256 } from '@oldbulb/samsara-ledger'
 import { challengerProposalOf, scoredAttemptsOf, GATE_PERMISSIVE } from '../src/challenge.ts'
 import { resolve } from 'node:path'
 

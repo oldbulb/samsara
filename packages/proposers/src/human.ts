@@ -4,7 +4,7 @@
 
 import { existsSync, statSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
-import type { PatchOptions } from '@samsara/kernel'
+import type { PatchOptions } from '@oldbulb/samsara-kernel'
 import { canonicalJson, sha256, validateProposal, type Prediction, type Proposal, type ProposeInput, type ProposerAdapter, type Surface } from './types.ts'
 
 export const HUMAN_NAME = 'human'

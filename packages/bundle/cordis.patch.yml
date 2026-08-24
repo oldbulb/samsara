@@ -29,36 +29,36 @@
 
     # ctx.ledger: the one control-plane record, on the samsara_ledger domain.
     - id: ledger
-      name: '@samsara/ledger'
+      name: '@oldbulb/samsara-ledger'
       inject: [storageDomain]
 
     # ctx.gate: the registry of gate policies; gate-default registers on it.
     - id: gate
-      name: '@samsara/gate'
+      name: '@oldbulb/samsara-gate'
 
     - id: gate-default
-      name: '@samsara/gate/plugin-default'
+      name: '@oldbulb/samsara-gate/plugin-default'
       inject: [gate]
 
     # ctx.loops: the registry every loop provider registers on.
     - id: loops
-      name: '@samsara/loops'
+      name: '@oldbulb/samsara-loops'
 
     # The null loop: a provider that finishes at once without an LLM; smoke tests the seam.
     - id: loops-null
-      name: '@samsara/loops/plugin-null'
+      name: '@oldbulb/samsara-loops/plugin-null'
       inject: [loops]
 
     # In-process dsh child agent.
     - id: loops-dsh
-      name: '@samsara/loops-dsh'
+      name: '@oldbulb/samsara-loops-dsh'
       inject: [loops]
 
     # Claude Agent SDK under the kernel's subprocess projection. The credential
     # is a reference resolved through ctx.credentials (E5); the base URL is the
     # external LLM proxy. Override both in the profile's own patch layer.
     - id: loops-claude-code
-      name: '@samsara/loops-claude-code'
+      name: '@oldbulb/samsara-loops-claude-code'
       inject: [loops]
       config:
         baseUrl: ''
@@ -66,12 +66,12 @@
 
     # ctx.proposers: the registry every proposer adapter registers on.
     - id: proposers
-      name: '@samsara/proposers'
+      name: '@oldbulb/samsara-proposers'
 
     # The operator as proposer: without a configured patch this registers
     # nothing; `round --proposer human --skill-dir … --intent …` supplies it.
     - id: proposer-human
-      name: '@samsara/proposers/plugin-human'
+      name: '@oldbulb/samsara-proposers/plugin-human'
       inject: [proposers]
 
     # `claude -p` as proposer, spawned through the kernel's subprocess seam with
@@ -79,26 +79,26 @@
     # and live in the profile's own patch layer (like loops-claude-code); a
     # patch replaces the whole config, so the profile restates `command` too.
     - id: proposer-claude-p
-      name: '@samsara/proposers/plugin-claude-p'
+      name: '@oldbulb/samsara-proposers/plugin-claude-p'
       inject: [proposers, subprocess, credentials]
       config:
         command: claude
 
     # ctx.scopes: disposable child scopes for challengers (E1: in-memory loader rows only).
     - id: scopes
-      name: '@samsara/scope'
+      name: '@oldbulb/samsara-scope'
 
     # ctx.signoff: the consent channel (E2). Literal paths resolved against the
     # launch cwd; generate the key with `samsara-signoff keygen --out data/signoff`.
     - id: signoff
-      name: '@samsara/signoff'
+      name: '@oldbulb/samsara-signoff'
       config:
         socketPath: data/signoff.sock
         publicKeyPath: data/signoff/signoff.pub
 
     # ctx.champion: owns the generated section of profiles/host/cordis.patch.yml.
     - id: champion
-      name: '@samsara/champion'
+      name: '@oldbulb/samsara-champion'
       inject: [ledger, signoff]
       config:
         profileDir: profiles/host
@@ -116,7 +116,7 @@
     # The read-only /samsara page and JSON API on ctx.webServer. Config comes
     # from this row, never from the command line.
     - id: samsara-ui
-      name: '@samsara/ui'
+      name: '@oldbulb/samsara-ui'
       inject: [webServer, ledger, champion, signoff]
       config:
         basePath: /samsara
@@ -124,11 +124,11 @@
 
     # Parses `dsh --profile host run ...` and provides ctx.samsaraRun.
     - id: samsara-run-startup
-      name: '@samsara/runner/startup'
+      name: '@oldbulb/samsara-runner/startup'
 
     # Runs the set; waits on the samsaraRun service instead of reading config.
     - id: samsara-runner
-      name: '@samsara/runner'
+      name: '@oldbulb/samsara-runner'
       inject: [samsaraRun, ledger]
       config:
         baseUrl: ''

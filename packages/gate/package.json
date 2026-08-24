@@ -1,5 +1,5 @@
 {
-  "name": "@samsara/gate",
+  "name": "@oldbulb/samsara-gate",
   "version": "0.0.0",
   "private": true,
   "description": "The verdict seam: a registry of gate policies and gate-default (paired deltas, cluster BCa bootstrap, Holm, MDE from the noise floor, futility-only early stop, cost budget, Ladder exposure)",
@@ -25,6 +25,6 @@
     "test": "vitest run --root ../.. packages/gate/tests"
   },
   "dependencies": {
-    "@samsara/kernel": "workspace:*"
+    "@oldbulb/samsara-kernel": "workspace:*"
   }
 }

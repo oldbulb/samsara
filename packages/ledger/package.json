@@ -1,5 +1,5 @@
 {
-  "name": "@samsara/ledger",
+  "name": "@oldbulb/samsara-ledger",
   "version": "0.0.0",
   "private": true,
   "description": "ctx.ledger: the append-only control-plane record of challengers, attempts, scores, compares, consents and settlements, on a dsh storage domain",
@@ -17,6 +17,6 @@
     "test": "vitest run --root ../.. packages/ledger/tests"
   },
   "dependencies": {
-    "@samsara/kernel": "workspace:*"
+    "@oldbulb/samsara-kernel": "workspace:*"
   }
 }

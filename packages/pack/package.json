@@ -1,5 +1,5 @@
 {
-  "name": "@samsara/pack",
+  "name": "@oldbulb/samsara-pack",
   "version": "0.0.0",
   "private": true,
   "description": "Pack loader and command runner: pack.yaml in, validated jsonl out; packs are subprocesses, never imports",

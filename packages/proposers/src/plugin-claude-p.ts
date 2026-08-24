@@ -3,7 +3,7 @@
 // credential is resolved per proposal through `ctx.credentials` and reaches the
 // adapter only as an env map (E5).
 
-import { type Context, type CredentialRef, type SubprocessHandle, type SubprocessSpawnSpec } from '@samsara/kernel'
+import { type Context, type CredentialRef, type SubprocessHandle, type SubprocessSpawnSpec } from '@oldbulb/samsara-kernel'
 import { ClaudePAdapter, Config } from './claude-p.ts'
 import type {} from './index.ts'
 

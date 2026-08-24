@@ -5,9 +5,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk'
-import type { SubprocessHandle, SubprocessSpawnSpec } from '@samsara/kernel'
-import { factsSha } from '@samsara/loops'
-import { policyFor, type SandboxHost } from '@samsara/sandbox'
+import type { SubprocessHandle, SubprocessSpawnSpec } from '@oldbulb/samsara-kernel'
+import { factsSha } from '@oldbulb/samsara-loops'
+import { policyFor, type SandboxHost } from '@oldbulb/samsara-sandbox'
 
 const UNENFORCED: SandboxHost = { platform: 'darwin', enforcement: 'unusable', launcher: '', exists: () => true }
 import { ClaudeCodeLoopProvider } from '../src/index.ts'

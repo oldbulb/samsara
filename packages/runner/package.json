@@ -1,5 +1,5 @@
 {
-  "name": "@samsara/runner",
+  "name": "@oldbulb/samsara-runner",
   "version": "0.0.0",
   "private": true,
   "description": "samsara-runner: run one pack task set through one loop as champion attempts and write attempts.jsonl",
@@ -36,18 +36,18 @@
     "test": "vitest run --root ../.. packages/runner/tests"
   },
   "dependencies": {
-    "@samsara/book": "workspace:*",
-    "@samsara/champion": "workspace:*",
-    "@samsara/gate": "workspace:*",
-    "@samsara/kernel": "workspace:*",
-    "@samsara/ledger": "workspace:*",
-    "@samsara/loops": "workspace:*",
-    "@samsara/pack": "workspace:*",
-    "@samsara/proposers": "workspace:*",
-    "@samsara/sandbox": "workspace:*",
-    "@samsara/scope": "workspace:*",
-    "@samsara/signoff": "workspace:*",
-    "@samsara/submit": "workspace:*",
-    "@samsara/workdir": "workspace:*"
+    "@oldbulb/samsara-book": "workspace:*",
+    "@oldbulb/samsara-champion": "workspace:*",
+    "@oldbulb/samsara-gate": "workspace:*",
+    "@oldbulb/samsara-kernel": "workspace:*",
+    "@oldbulb/samsara-ledger": "workspace:*",
+    "@oldbulb/samsara-loops": "workspace:*",
+    "@oldbulb/samsara-pack": "workspace:*",
+    "@oldbulb/samsara-proposers": "workspace:*",
+    "@oldbulb/samsara-sandbox": "workspace:*",
+    "@oldbulb/samsara-scope": "workspace:*",
+    "@oldbulb/samsara-signoff": "workspace:*",
+    "@oldbulb/samsara-submit": "workspace:*",
+    "@oldbulb/samsara-workdir": "workspace:*"
   }
 }

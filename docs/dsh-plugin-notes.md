@@ -64,7 +64,7 @@ dsh 在 cordis 上加了一层"配置即系统"的装配：
 
 - 每一个需要被替换/注入的边界都做成 cordis service（`ctx.loops`、`ctx.gate`、`ctx.book`、`ctx.ledger`…），Definition + Provider + Consumer 一起发布；
 - 纯函数（统计、哈希、校验）**不**做成 service，就是普通导出；
-- 于是"换一个统计门"= 把 `gate-default` 那行的 `name` 换掉；"多一条 loop"= 加一行 `{id: loops-codex, name: @samsara/loops-codex, inject: [loops]}`。
+- 于是"换一个统计门"= 把 `gate-default` 那行的 `name` 换掉；"多一条 loop"= 加一行 `{id: loops-codex, name: @oldbulb/samsara-loops-codex, inject: [loops]}`。
 
 `packages/bundle/cordis.patch.yml` 就是这个思路的完整样本：19 行 insert，从 storage 到 UI 到 runner，每行一个概念。
 
@@ -193,7 +193,7 @@ function need<K extends ...>(ctx: Context, key: K): Context[K] {
         port: 0
 ```
 
-profile 的 bundles 就两层：`['@deepseek-ai/dsh-base', 'samsara']`。代价是没有 dsh 自带的聊天 UI——我们不需要（见 C5）。
+profile 的 bundles 就两层：`['@deepseek-ai/dsh-base', '@oldbulb/samsara']`。代价是没有 dsh 自带的聊天 UI——我们不需要（见 C5）。
 
 如果你**必须**共存：那就别做 cmdline 解析，配置全部从自己那行的 YAML `config` 读，只 `inject: ['webServer']` 挂路由（named route 比 SPA fallback 先匹配）。
 
@@ -669,7 +669,7 @@ context.loader.builtins.include = Include
 const modules = new Map<string, unknown>([
   ['@deepseek-ai/dsh-host-webserver', HttpServer],
   ['fake-ledger', FakeLedger], …
-  ['@samsara/ui', Ui],
+  ['@oldbulb/samsara-ui', Ui],
 ])
 context.loader.internal = { version: 'v2', async import(spec) {
   if (!modules.has(spec)) throw new Error(`unexpected Loader import: ${spec}`)
@@ -745,7 +745,7 @@ export const inject = [SAMSARA_RUN_SERVICE, 'loops', 'agentDefaultModel', 'ledge
 **必须串行（有真依赖）：**
 
 - kernel → 其他所有需要 dsh 运行时的包。kernel 不定下来，`ctx.tools` 之类根本过不了类型。
-- loops seam（`@samsara/loops` 的类型 + registry）→ 任何 provider。**先把 seam 的类型写死、写一个 null provider 打通端到端，再写第一个真 provider**——我们 `d4f393c` 一个 commit 里 seam + null + 两个真 provider 一起落，事后看 null provider 是当天最值钱的东西：它让 runner / ledger / 打分链路可以在零模型成本下反复跑。
+- loops seam（`@oldbulb/samsara-loops` 的类型 + registry）→ 任何 provider。**先把 seam 的类型写死、写一个 null provider 打通端到端，再写第一个真 provider**——我们 `d4f393c` 一个 commit 里 seam + null + 两个真 provider 一起落，事后看 null provider 是当天最值钱的东西：它让 runner / ledger / 打分链路可以在零模型成本下反复跑。
 - bundle patch 行 → profile 安装 → `--dump-config` 冒烟。这三步顺序错了会浪费很多时间在错误的地方 debug。
 - 录制 fixture → 回放测试。fixture 必须来自一次真实运行。
 
@@ -795,7 +795,7 @@ export const inject = [SAMSARA_RUN_SERVICE, 'loops', 'agentDefaultModel', 'ledge
 ### E3. 进程沙箱只接受 mode，不接受路径白名单
 
 - **现状**：`SandboxMode` 是 `'read-only' | 'workspace-write' | 'danger-full-access'`；per-call 的 `SandboxExecutionPolicy` 是 `{mode, workspaceRoot, sessionId?}`（`docs/subsystems/sandbox.md`）。没有"额外可读根"的表达。
-- **为什么疼**：我们要的策略是"**只**能写 attempt workdir；**只**能读 pack 的 `skill/` 和 `loader/`、runtime venv、这一条任务的 fixture 缓存；**绝不能**读 `tasks/`、`data/`（真值）、`bin/truth`、`bin/score`"。这在 `workspace-write` 里表达不出来——它要么给你整棵 workspace，要么什么都不给。结果是 in-process agent 的 bash 工具没法按我们的策略收敛，`loops-dsh` 只能把 `HarnessFacts.sandbox` 记成 `'none'` 并在注释里写明为什么（`packages/loops-dsh/src/index.ts:67-72`）。我们只好在框架侧另建 `@samsara/sandbox`，Linux 上直接调 `node-addon-landlock-run` 给**子进程**做 allow-list——但那覆盖不到 in-process 的 bash。
+- **为什么疼**：我们要的策略是"**只**能写 attempt workdir；**只**能读 pack 的 `skill/` 和 `loader/`、runtime venv、这一条任务的 fixture 缓存；**绝不能**读 `tasks/`、`data/`（真值）、`bin/truth`、`bin/score`"。这在 `workspace-write` 里表达不出来——它要么给你整棵 workspace，要么什么都不给。结果是 in-process agent 的 bash 工具没法按我们的策略收敛，`loops-dsh` 只能把 `HarnessFacts.sandbox` 记成 `'none'` 并在注释里写明为什么（`packages/loops-dsh/src/index.ts:67-72`）。我们只好在框架侧另建 `@oldbulb/samsara-sandbox`，Linux 上直接调 `node-addon-landlock-run` 给**子进程**做 allow-list——但那覆盖不到 in-process 的 bash。
 - **提议**：给 `SandboxExecutionPolicy` 加一个可选的 `extraReadOnlyRoots` / `extraWritableRoots`（Landlock ruleset 本来就是 allow-list，backend 侧几乎是直通；Seatbelt 和 Windows ACL 需要各自映射）。
 - **价值**：高，对任何"跑不可信 agent 去解题、同时手里握着答案"的评测系统都是刚需。
 - **代价**：中。要动 seam 的类型 + 三个 backend 的映射，还要定义"backend 表达不了额外根时怎么办"（大概是 `partial` enforcement 或者 fail-closed）。

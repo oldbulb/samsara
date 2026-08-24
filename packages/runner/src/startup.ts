@@ -3,8 +3,8 @@
 // @deepseek-ai/dsh-headless/startup: the runner plugin injects the service,
 // so nothing runs on --help or on a usage error.
 
-import { Command, parseCmdline, type Context } from '@samsara/kernel'
-import { TASK_SETS, type TaskSet } from '@samsara/book'
+import { Command, parseCmdline, type Context } from '@oldbulb/samsara-kernel'
+import { TASK_SETS, type TaskSet } from '@oldbulb/samsara-book'
 import type { RunRequest } from './run.ts'
 import type { ChallengeRequest, GatePolicyName } from './challenge.ts'
 import type { RoundRequest } from './round.ts'

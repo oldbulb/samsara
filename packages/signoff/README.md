@@ -1,4 +1,4 @@
-# @samsara/signoff
+# @oldbulb/samsara-signoff
 
 `ctx.signoff`: the human consent channel. `request(rowId, action)` opens a 10-minute nonce; a person signs `{nonce, rowId, action, who, issuedAt}` with an Ed25519 key and submits the proof over a unix socket; `confirm(proof)` yields a `ConsentRecord` the ledger stores beside the verdict. `samsara-signoff keygen | pending | confirm` is the human side.
 

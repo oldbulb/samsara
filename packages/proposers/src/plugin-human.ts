@@ -3,7 +3,7 @@
 // nothing is registered; `round --proposer human --skill-dir … --intent …`
 // then builds the adapter from the command line instead.
 
-import { Schema, type Context } from '@samsara/kernel'
+import { Schema, type Context } from '@oldbulb/samsara-kernel'
 import { HumanAdapter, type HumanProposalConfig } from './human.ts'
 import { SURFACES } from './types.ts'
 import type {} from './index.ts'

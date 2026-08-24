@@ -1,4 +1,4 @@
-// @samsara/champion — `ctx.champion`: the served configuration.
+// @oldbulb/samsara-champion — `ctx.champion`: the served configuration.
 //
 // The champion is an alias to content-addressed refs; its on-disk form is the
 // generated section of the host profile's patch layer. promote() needs a
@@ -11,9 +11,9 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { EventEmitter } from 'node:events'
 import { basename, dirname, join, resolve } from 'node:path'
-import { Context, Schema, Service, loadProfile, renderConfigDump, PROFILE_PATCH_FILENAME, type PatchOptions } from '@samsara/kernel'
-import type { GateVerdictRow } from '@samsara/gate'
-import type { AttemptRow, ChallengerRow, CompareRow, ConsentRow, SettlementRow } from '@samsara/ledger'
+import { Context, Schema, Service, loadProfile, renderConfigDump, PROFILE_PATCH_FILENAME, type PatchOptions } from '@oldbulb/samsara-kernel'
+import type { GateVerdictRow } from '@oldbulb/samsara-gate'
+import type { AttemptRow, ChallengerRow, CompareRow, ConsentRow, SettlementRow } from '@oldbulb/samsara-ledger'
 import {
   EMPTY_STATE,
   parseProfilePatch,
@@ -33,7 +33,7 @@ import { compareRowOf, planRescore, type CompareCoords, type RescoreEvent, type 
 export * from './state.ts'
 export * from './settlement.ts'
 
-declare module '@samsara/kernel' {
+declare module '@oldbulb/samsara-kernel' {
   interface Context {
     champion: Champion
   }

@@ -1,4 +1,4 @@
-# @samsara/proposers
+# @oldbulb/samsara-proposers
 
 `ctx.proposers`: the registry of proposer adapters, the `Proposal` contract
 (`docs/design/proposers.md`) with its JSON schema, and two v1 adapters:
@@ -24,9 +24,9 @@ and becomes `optimizer_config_sha` on the challenger row.
 
 | module | name | inject | registers |
 |---|---|---|---|
-| `@samsara/proposers` (default export) | `proposers` | — | the service |
-| `@samsara/proposers/plugin-claude-p` | `proposer-claude-p` | `proposers`, `subprocess`, `credentials` | `ClaudePAdapter` |
-| `@samsara/proposers/plugin-human` | `proposer-human` | `proposers` | `HumanAdapter` |
+| `@oldbulb/samsara-proposers` (default export) | `proposers` | — | the service |
+| `@oldbulb/samsara-proposers/plugin-claude-p` | `proposer-claude-p` | `proposers`, `subprocess`, `credentials` | `ClaudePAdapter` |
+| `@oldbulb/samsara-proposers/plugin-human` | `proposer-human` | `proposers` | `HumanAdapter` |
 
 ## `claude-p`
 
@@ -66,9 +66,9 @@ failure). `configSha` = sha256 of the canonical resolved config (`command`, `arg
 
 ```yaml
 - id: proposers
-  name: '@samsara/proposers'
+  name: '@oldbulb/samsara-proposers'
 - id: proposer-claude-p
-  name: '@samsara/proposers/plugin-claude-p'
+  name: '@oldbulb/samsara-proposers/plugin-claude-p'
   config:
     command: claude              # or an absolute path; default 'claude'
     model: <model id the gateway routes>
@@ -89,7 +89,7 @@ give `baseUrl` a route segment per proposer.
 
 ```yaml
 - id: proposer-human
-  name: '@samsara/proposers/plugin-human'
+  name: '@oldbulb/samsara-proposers/plugin-human'
   config:
     skillDir: ./candidates/v2     # relative paths resolve against workDir
     intent: "Add an explicit verification step before submitting."
@@ -99,7 +99,7 @@ give `baseUrl` a route segment per proposer.
 
 ## Filesystem isolation (E9)
 
-`ClaudePAdapter.propose` spawns the proposal run through `@samsara/sandbox`'s
+`ClaudePAdapter.propose` spawns the proposal run through `@oldbulb/samsara-sandbox`'s
 `apply` with `input.sandbox` (the host composes it: the work directory
 writable, the rendered view read-only, the pack's `tasks/`, `data/`, `bin/`
 unreachable). Enforced on Linux under `landlock-run`; unchanged where nothing
@@ -108,7 +108,7 @@ is not confined (no prompt, no view). `ClaudePDeps.host` is the test seam.
 
 ## Tests
 
-`pnpm --filter @samsara/proposers test` — schema validation, `HumanAdapter`, `ClaudePAdapter`
+`pnpm --filter @oldbulb/samsara-proposers test` — schema validation, `HumanAdapter`, `ClaudePAdapter`
 against a fake spawn that writes `proposal.json` + `skill/` (argv shape, env contents and
 absence of inherited `*_KEY`/secret names, timeout and abort terminate the child, `configSha`
 stability), the service and both plugins. No process is started and no network is touched.

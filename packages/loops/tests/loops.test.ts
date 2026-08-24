@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@samsara/kernel'
+import { Context } from '@oldbulb/samsara-kernel'
 import {
   LoopRegistry,
   LoopRegistryError,

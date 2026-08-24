@@ -1,4 +1,4 @@
-// @samsara/loops — OpenTelemetry GenAI vocabulary for a loop's event stream.
+// @oldbulb/samsara-loops — OpenTelemetry GenAI vocabulary for a loop's event stream.
 //
 // LoopEvent stays the seam; this module is the one place that maps it to the
 // OTel GenAI semantic conventions (gen-ai-agent-spans.md) and renders the

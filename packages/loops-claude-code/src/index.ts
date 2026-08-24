@@ -1,4 +1,4 @@
-// @samsara/loops-claude-code — LoopProvider 'claude-code'.
+// @oldbulb/samsara-loops-claude-code — LoopProvider 'claude-code'.
 //
 // The Claude Agent SDK's `query` drives a real `claude` CLI; that process is
 // spawned through `ctx.subprocess` inside this plugin's own effect (E4). The
@@ -6,11 +6,11 @@
 // the child only as an explicit env value (E5). Per-attempt HOME / TMPDIR /
 // CLAUDE_CONFIG_DIR live under `spec.tmpdir` (E6).
 
-import { Schema, type Context, type CredentialRef } from '@samsara/kernel'
-import { detectHost, sandboxModeOf, type SandboxHost } from '@samsara/sandbox'
+import { Schema, type Context, type CredentialRef } from '@oldbulb/samsara-kernel'
+import { detectHost, sandboxModeOf, type SandboxHost } from '@oldbulb/samsara-sandbox'
 import { startRun } from './run.ts'
 import type { AttemptSpec, HarnessFacts, LoopCapabilities, LoopProvider, LoopRun } from './seam.ts'
-import type {} from '@samsara/loops'
+import type {} from '@oldbulb/samsara-loops'
 
 export * from './seam.ts'
 export { buildEnv, configDir } from './env.ts'

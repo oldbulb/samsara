@@ -2,8 +2,8 @@
 // and the environment it ran in. Never a secret: env names only, never values.
 
 import { createHash } from 'node:crypto'
-import { DSH_PIN, composeEntries } from '@samsara/kernel'
-import type { EntryOptions, PatchOptions } from '@samsara/kernel'
+import { DSH_PIN, composeEntries } from '@oldbulb/samsara-kernel'
+import type { EntryOptions, PatchOptions } from '@oldbulb/samsara-kernel'
 
 export function sha256(input: string): string {
   return createHash('sha256').update(input).digest('hex')

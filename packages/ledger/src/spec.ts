@@ -3,7 +3,7 @@
 // immutable data; every key is a sha256 over the row's coordinate tuple (see
 // id.ts) so a re-submission of the same facts lands on the same row.
 
-import { defineDomain, domainTable, z } from '@samsara/kernel'
+import { defineDomain, domainTable, z } from '@oldbulb/samsara-kernel'
 import { keyOf } from './id.ts'
 
 const sha = z.string().regex(/^[0-9a-f]{64}$/)

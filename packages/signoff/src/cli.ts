@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // samsara-signoff: keygen | pending | confirm. The human side of the sign-off
 // channel; the private key never leaves the file this CLI reads it from.
-import { Command } from '@samsara/kernel'
+import { Command } from '@oldbulb/samsara-kernel'
 import { SIGNOFF_ACTIONS, type SignoffAction } from './proof.ts'
 import { confirm, keygen, pending, SignoffClientError } from './client.ts'
 

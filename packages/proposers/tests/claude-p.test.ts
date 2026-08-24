@@ -3,8 +3,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import type { SubprocessSpawnSpec } from '@samsara/kernel'
-import { policyFor, type SandboxHost } from '@samsara/sandbox'
+import type { SubprocessSpawnSpec } from '@oldbulb/samsara-kernel'
+import { policyFor, type SandboxHost } from '@oldbulb/samsara-sandbox'
 import { ClaudePAdapter, DEFAULT_TEMPLATE, argvOf, buildEnv, renderPrompt, resolveConfig } from '../src/claude-p.ts'
 import { fakeHandle, fakeSpawn, tempRoot, writeSkill, type FakeHandle } from './fixture.ts'
 

@@ -3,7 +3,7 @@
 // duration timer into `agent.cancel`, and `observeUsage` into every
 // `assistant/message`. The first limit to fire owns the stop reason.
 
-import type { TokenUsage } from '@samsara/loops'
+import type { TokenUsage } from '@oldbulb/samsara-loops'
 
 export type LimitStop = 'max_turns' | 'timeout' | 'budget' | 'aborted'
 
@@ -49,12 +49,17 @@ export function addUsage(total: TokenUsage, usage: TokenUsage | undefined): Toke
   return out
 }
 
+/**
+ * `inputTokens` and `cacheReadTokens` are disjoint (see TokenUsage), so each is
+ * priced on its own and neither is subtracted from the other. Subtracting —
+ * which an earlier gateway made look necessary, because it reported the whole
+ * prompt as cache reads — bills cache-missed input at zero on any provider that
+ * reports the two counts correctly.
+ */
 export function priceUsage(usage: TokenUsage, price: PriceTable): number {
   const cacheRead = usage.cacheReadTokens ?? 0
   const cacheReadPrice = price.cacheRead ?? price.input
-  return (
-    (Math.max(usage.inputTokens - cacheRead, 0) * price.input + cacheRead * cacheReadPrice + usage.outputTokens * price.output) / 1e6
-  )
+  return (usage.inputTokens * price.input + cacheRead * cacheReadPrice + usage.outputTokens * price.output) / 1e6
 }
 
 export function createLimits(options: LimitsOptions): Limits {

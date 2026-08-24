@@ -1,4 +1,4 @@
-// The loop-provider seam lives in @samsara/loops; this module re-exports the
+// The loop-provider seam lives in @oldbulb/samsara-loops; this module re-exports the
 // names this package uses so its internal imports stay local.
 
 export type {
@@ -14,4 +14,4 @@ export type {
   LoopCapabilities,
   LoopProvider,
   LoopRegistry,
-} from '@samsara/loops'
+} from '@oldbulb/samsara-loops'

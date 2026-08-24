@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { AttemptRow, ChallengerRow, ScoreRow } from '@samsara/ledger'
-import { sha256 } from '@samsara/ledger'
-import { gateDefault, GATE_DEFAULT_NAME, GATE_DEFAULT_VERSION, type CompareRequest } from '@samsara/gate'
-import { factsSha, type HarnessFacts, type LoopProvider } from '@samsara/loops'
+import type { AttemptRow, ChallengerRow, ScoreRow } from '@oldbulb/samsara-ledger'
+import { sha256 } from '@oldbulb/samsara-ledger'
+import { gateDefault, GATE_DEFAULT_NAME, GATE_DEFAULT_VERSION, type CompareRequest } from '@oldbulb/samsara-gate'
+import { factsSha, type HarnessFacts, type LoopProvider } from '@oldbulb/samsara-loops'
 import { certify, formatCertify, utilizationOf, type CertifyDeps, type CertifyRequest } from '../src/certify.ts'
 import type { ChallengeRequest, ChallengeResult } from '../src/challenge.ts'
 

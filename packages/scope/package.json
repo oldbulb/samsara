@@ -1,5 +1,5 @@
 {
-  "name": "@samsara/scope",
+  "name": "@oldbulb/samsara-scope",
   "version": "0.0.0",
   "private": true,
   "description": "Disposable child scopes for challengers: diff scan (E8/S5), harness/env sha (E3), in-memory loader rows (E1), dispose to quiescence",
@@ -29,7 +29,7 @@
     "test": "vitest run --root ../.. packages/scope/tests"
   },
   "dependencies": {
-    "@samsara/kernel": "workspace:*",
-    "@samsara/workdir": "workspace:*"
+    "@oldbulb/samsara-kernel": "workspace:*",
+    "@oldbulb/samsara-workdir": "workspace:*"
   }
 }

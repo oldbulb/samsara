@@ -1,4 +1,4 @@
-# @samsara/gate
+# @oldbulb/samsara-gate
 
 The verdict seam (`ctx.gate`) and the shipped policy `gate-default`. Binding design: `docs/design/gate.md`; the numbers come from the policy simulation in `tests/sim.test.ts`.
 
@@ -8,9 +8,9 @@ The gate is a fixed point outside the loop: it reads ledger rows (`ScoredAttempt
 
 | module | export | what |
 |---|---|---|
-| `@samsara/gate` | `GateRegistry` (default export, cordis Service on `ctx.gate`), types, `gatePolicy`, stats | the seam |
-| `@samsara/gate/default` | `gateDefault(req)` | the policy, a pure function |
-| `@samsara/gate/plugin-default` | plugin `gate-default` (inject `['gate']`) | mounts `gateDefault` as `gate-default@0.1.0` |
+| `@oldbulb/samsara-gate` | `GateRegistry` (default export, cordis Service on `ctx.gate`), types, `gatePolicy`, stats | the seam |
+| `@oldbulb/samsara-gate/default` | `gateDefault(req)` | the policy, a pure function |
+| `@oldbulb/samsara-gate/plugin-default` | plugin `gate-default` (inject `['gate']`) | mounts `gateDefault` as `gate-default@0.1.0` |
 
 `GateRegistry.register({ name, version, judge })` returns a disposer; `current()` is the most recently registered policy still mounted; `judge(req)` returns `{ compare, verdict, gateMethod }`.
 
@@ -49,7 +49,7 @@ All statistics are computed once per request and stored in `Compare`; the rules 
 ## Mounting another policy
 
 ```ts
-import type { GatePolicyProvider } from '@samsara/gate'
+import type { GatePolicyProvider } from '@oldbulb/samsara-gate'
 
 export const name = 'gate-mine'
 export const inject = ['gate']
@@ -63,4 +63,4 @@ The policy registered last decides; every verdict records `gateMethod`. E1–E8,
 
 ## Tests
 
-`pnpm --filter @samsara/gate test` (or `npx vitest run packages/gate/tests` from the root; ~4 s, no model, no network). `tests/sim.test.ts` holds the policy-defining simulations from `gate.md`: null siblings K=4 false-keep `< alpha*K`, a pure-noise task set promotes nothing over 20 rounds, a bigger-budget arm is not promoted more often, a known-good challenger at `+1.5*mde` has power `>= 0.8`, judge-kind `invalid`, `nEff` floor `hold:underpowered`, cost ratio 1.5 `drop`; plus unit tests for the normal quantile, MDE, Holm, jackknife acceleration, and BCa coverage.
+`pnpm --filter @oldbulb/samsara-gate test` (or `npx vitest run packages/gate/tests` from the root; ~4 s, no model, no network). `tests/sim.test.ts` holds the policy-defining simulations from `gate.md`: null siblings K=4 false-keep `< alpha*K`, a pure-noise task set promotes nothing over 20 rounds, a bigger-budget arm is not promoted more often, a known-good challenger at `+1.5*mde` has power `>= 0.8`, judge-kind `invalid`, `nEff` floor `hold:underpowered`, cost ratio 1.5 `drop`; plus unit tests for the normal quantile, MDE, Holm, jackknife acceleration, and BCa coverage.

@@ -1,4 +1,4 @@
-# @samsara/ledger
+# @oldbulb/samsara-ledger
 
 `ctx.ledger` — the one control-plane record: challengers, attempts, scores,
 compares, consents, settlements. A cordis `Service` over the dsh storage
@@ -53,7 +53,7 @@ open.
 ## API
 
 ```ts
-import Ledger, { challengerId, importAttemptsJsonl, LedgerError } from '@samsara/ledger'
+import Ledger, { challengerId, importAttemptsJsonl, LedgerError } from '@oldbulb/samsara-ledger'
 
 // verbs (all async; writes go through the domain's single write chain)
 await ctx.ledger.propose(proposal)            // → id (dedupe by id)
@@ -98,7 +98,7 @@ In a host profile the ledger is one row after the storage rows:
   name: '@deepseek-ai/dsh-storage-domain'
   config: { backend: json, routes: { samsara_ledger: json } }
 - id: ledger
-  name: '@samsara/ledger'
+  name: '@oldbulb/samsara-ledger'
 ```
 
 `Ledger` injects `storageDomain`, opens `ledgerDomainSpec` in `[Service.init]`
@@ -109,9 +109,9 @@ In a bare `Context` (tests): mount `Storage`, register a `JsonStorageBackend`
 (also `ctx.provide(storageBackendServiceKey('json'), backend)`), construct a
 `DomainFacility({ backend: 'json' })`, `ctx.storage.mount('domain', facility)`,
 `ctx.provide('storageDomain', facility)`, then `await ctx.plugin(Ledger)`. All
-of these come from `@samsara/kernel`; see `tests/ledger.test.ts`.
+of these come from `@oldbulb/samsara-kernel`; see `tests/ledger.test.ts`.
 
 ```
-pnpm --filter @samsara/ledger build
-pnpm --filter @samsara/ledger test
+pnpm --filter @oldbulb/samsara-ledger build
+pnpm --filter @oldbulb/samsara-ledger test
 ```

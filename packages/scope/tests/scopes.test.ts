@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context, Group, Loader, type Fiber } from '@samsara/kernel'
+import { Context, Group, Loader, type Fiber } from '@oldbulb/samsara-kernel'
 import { ScopeManager, ScopeError, SCOPE_GROUP_PREFIX, type Challenger } from '../src/index.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))

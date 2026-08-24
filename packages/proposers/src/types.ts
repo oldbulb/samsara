@@ -4,7 +4,7 @@
 
 import { createHash } from 'node:crypto'
 import { Ajv2020, type ErrorObject } from 'ajv/dist/2020.js'
-import type { PatchOptions } from '@samsara/kernel'
+import type { PatchOptions } from '@oldbulb/samsara-kernel'
 
 export const SURFACES = ['skill', 'prompt', 'memory', 'tools', 'runtime', 'route', 'context'] as const
 export type Surface = (typeof SURFACES)[number]
@@ -47,7 +47,7 @@ export interface ProposeInput {
   signal: AbortSignal
   /** Challenger id the proposal builds on; falls back to the draft's own `parent`. */
   parent?: string
-  /** Filesystem policy for the proposer process (composed by @samsara/sandbox; E9); absent = unconfined. */
+  /** Filesystem policy for the proposer process (composed by @oldbulb/samsara-sandbox; E9); absent = unconfined. */
   sandbox?: { readOnly: string[]; readWrite: string[]; denied: string[] }
 }
 

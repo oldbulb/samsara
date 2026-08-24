@@ -1,18 +1,18 @@
-// @samsara/gate — `ctx.gate`: the registry of gate policies.
+// @oldbulb/samsara-gate — `ctx.gate`: the registry of gate policies.
 //
 // A policy plugin registers itself with `ctx.gate.register(policy)`; the most
 // recently registered live policy is `current()`, and `judge(req)` stamps its
 // verdict with `gateMethod = name@version` so the ledger can record which
 // policy decided. The gate injects nothing from the loop.
 
-import { Context, Service } from '@samsara/kernel'
+import { Context, Service } from '@oldbulb/samsara-kernel'
 import type { CompareRequest, GateJudgement, GatePolicyProvider } from './types.ts'
 
 export * from './types.ts'
 export * from './stats.ts'
 export { gateDefault, GATE_DEFAULT_NAME, GATE_DEFAULT_VERSION } from './default.ts'
 
-declare module '@samsara/kernel' {
+declare module '@oldbulb/samsara-kernel' {
   interface Context {
     gate: GateRegistry
   }

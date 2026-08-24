@@ -10,14 +10,14 @@
 import { createWriteStream, mkdirSync, readFileSync, appendFileSync, existsSync, writeFileSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { relative, resolve } from 'node:path'
-import { createBook, type Book, type TaskSet } from '@samsara/book'
-import { attemptRowOf, sha256, canonicalJson, type ChallengerProposal, type Ledger, type Tier } from '@samsara/ledger'
-import { factsSha, type AttemptSpec, type FinishedEvent, type LoopEvent, type LoopProvider, type LoopRun, type TokenUsage } from '@samsara/loops'
-import { loadPack, runCommand, validateSubmit, PackError, type PackDefinition, type TaskLine } from '@samsara/pack'
-import { envLock, findRepoRoot, type EnvLock } from '@samsara/scope'
-import { policyFor } from '@samsara/sandbox'
-import { submitPath } from '@samsara/submit'
-import { materialize as materializeWorkdir, hashDir, policyPaths, SKILLS_DIR, TMP_DIR, type MaterializeOptions, type Workdir } from '@samsara/workdir'
+import { createBook, type Book, type TaskSet } from '@oldbulb/samsara-book'
+import { attemptRowOf, sha256, canonicalJson, type ChallengerProposal, type Ledger, type Tier } from '@oldbulb/samsara-ledger'
+import { factsSha, type AttemptSpec, type FinishedEvent, type LoopEvent, type LoopProvider, type LoopRun, type TokenUsage } from '@oldbulb/samsara-loops'
+import { loadPack, runCommand, validateSubmit, PackError, type PackDefinition, type TaskLine } from '@oldbulb/samsara-pack'
+import { envLock, findRepoRoot, type EnvLock } from '@oldbulb/samsara-scope'
+import { policyFor } from '@oldbulb/samsara-sandbox'
+import { submitPath } from '@oldbulb/samsara-submit'
+import { materialize as materializeWorkdir, hashDir, policyPaths, SKILLS_DIR, TMP_DIR, type MaterializeOptions, type Workdir } from '@oldbulb/samsara-workdir'
 import { Semaphore, WriterQueue, runPool } from './pool.ts'
 import { isComplete, readRunRecord, readStep, stepPath, writeRunRecord, writeStep } from './steps.ts'
 
@@ -63,14 +63,22 @@ export interface RouteConfig {
   provider: string
   model: string
   baseUrl?: string
+  /** Declared kind for the ledger; inferred from `baseUrl` when absent. */
+  baseUrlKind?: 'direct' | 'proxy'
   credentialRef: string
   reasoning?: Record<string, unknown>
+}
+
+/** The route as it enters `env_sha`: everything that changes behaviour, nothing that only changes a label. */
+export function envRoute(route: RouteConfig): Omit<RouteConfig, 'baseUrlKind'> {
+  const { baseUrlKind: _label, ...rest } = route
+  return rest
 }
 
 export interface RunDeps {
   loops: Loops
   route: RouteConfig
-  /** Defaults to @samsara/workdir's materialize; tests substitute. */
+  /** Defaults to @oldbulb/samsara-workdir's materialize; tests substitute. */
   materialize?: Materialize
   /** When present, every attempt and its scores are also recorded under a champion challenger row. */
   ledger?: LedgerSink
@@ -146,7 +154,7 @@ export interface SubmitRead {
 
 /**
  * Read the submit file the loop left at `<workdir>/<submitTool>.json` (the
- * @samsara/submit convention) and validate it against the pack contract.
+ * @oldbulb/samsara-submit convention) and validate it against the pack contract.
  */
 export function readSubmit(def: PackDefinition, workdir: string): SubmitRead {
   const file = submitPath(workdir, submitToolName(def))
@@ -374,8 +382,10 @@ export function championProposal(def: PackDefinition, book: Book, req: RunReques
     parent_ids: [],
     patch_sha: NONE_SHA,
     harness_sha,
-    // The lock-file fingerprint plus the route and limits this deployment runs under.
-    env_sha: sha256(canonicalJson({ env_lock: lock.sha, route: deps.route, limits })),
+    // The lock-file fingerprint plus the route and limits this deployment runs
+    // under. `baseUrlKind` is only how the route is labelled in the ledger, so
+    // it stays out: relabelling must not make earlier rows incomparable.
+    env_sha: sha256(canonicalJson({ env_lock: lock.sha, route: envRoute(deps.route), limits })),
     skill_sha,
     taskset_sha: book.tasksetSha(req.set),
     route: {
@@ -384,7 +394,7 @@ export function championProposal(def: PackDefinition, book: Book, req: RunReques
       model_id: deps.route.model,
       ...(effort !== undefined ? { effort: String(effort) } : {}),
       model_pool_sha: sha256(canonicalJson({ provider: deps.route.provider, model: deps.route.model })),
-      base_url_kind: deps.route.baseUrl ? 'proxy' : 'direct',
+      base_url_kind: deps.route.baseUrlKind ?? (deps.route.baseUrl ? 'proxy' : 'direct'),
     },
     optimizer_config_sha: NONE_SHA,
     lineage: 'main',

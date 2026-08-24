@@ -1,4 +1,4 @@
-// @samsara/sandbox — the filesystem policy an attempt's or a proposer's
+// @oldbulb/samsara-sandbox — the filesystem policy an attempt's or a proposer's
 // subprocess runs under, and the wrapper that enforces it.
 //
 // Landlock rulesets are allow-lists: everything not granted is denied and a
@@ -21,7 +21,7 @@ import {
   landlockProbe,
   type LandlockEnforcement,
   type SubprocessSpawnSpec,
-} from '@samsara/kernel'
+} from '@oldbulb/samsara-kernel'
 
 // ---------------------------------------------------------------- types
 

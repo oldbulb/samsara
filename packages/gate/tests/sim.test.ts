@@ -3,7 +3,7 @@
 // network; the rep counts are sized so the file runs well under a minute.
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@samsara/kernel'
+import { Context } from '@oldbulb/samsara-kernel'
 import {
   GateRegistry,
   GateRegistryError,

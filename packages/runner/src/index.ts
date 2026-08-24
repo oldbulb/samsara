@@ -6,14 +6,14 @@
 
 import { dirname, resolve } from 'node:path'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { Schema, type Context } from '@samsara/kernel'
-import type {} from '@samsara/loops'
-import type {} from '@samsara/ledger'
-import type {} from '@samsara/scope'
-import type {} from '@samsara/gate'
-import type {} from '@samsara/champion'
-import type {} from '@samsara/proposers'
-import type { ConsentRecord, Signoff } from '@samsara/signoff'
+import { Schema, type Context } from '@oldbulb/samsara-kernel'
+import type {} from '@oldbulb/samsara-loops'
+import type {} from '@oldbulb/samsara-ledger'
+import type {} from '@oldbulb/samsara-scope'
+import type {} from '@oldbulb/samsara-gate'
+import type {} from '@oldbulb/samsara-champion'
+import type {} from '@oldbulb/samsara-proposers'
+import type { ConsentRecord, Signoff } from '@oldbulb/samsara-signoff'
 import { runSet, type RouteConfig } from './run.ts'
 import { readRunRecord } from './steps.ts'
 import { challenge, formatChallenge } from './challenge.ts'
@@ -33,12 +33,20 @@ export interface Config {
   credentialRef?: string
   /** Optional lane tag forwarded under route.reasoning.lane for proxies that key on it. */
   lane?: string
+  /**
+   * What the ledger records as `route.base_url_kind`. A base URL is not by
+   * itself evidence of a proxy — a vendor may serve a second wire on its own
+   * host — so a deployment that sets `baseUrl` for that reason declares
+   * `direct` here. Omitted, the kind is inferred from `baseUrl`.
+   */
+  baseUrlKind?: 'direct' | 'proxy'
 }
 
 export const Config: Schema<Config> = Schema.object({
   baseUrl: Schema.string(),
   credentialRef: Schema.string(),
   lane: Schema.string(),
+  baseUrlKind: Schema.union(['direct', 'proxy'] as const),
 })
 
 export { runSet, readSubmit, submitToolName, sanitizeId, newRunId, championProposal, envLockOf, writeEnvLock, PACK_STAGE_CAP, HEARTBEAT_MS } from './run.ts'
@@ -73,6 +81,7 @@ export function routeOf(selection: { provider: string; model: string; reasoningE
     model: selection.model,
     credentialRef: config.credentialRef ?? '',
     ...(config.baseUrl ? { baseUrl: config.baseUrl } : {}),
+    ...(config.baseUrlKind ? { baseUrlKind: config.baseUrlKind } : {}),
     ...(Object.keys(reasoning).length ? { reasoning } : {}),
   }
 }

@@ -36,7 +36,11 @@ describe('limits', () => {
   it('sums and prices usage', () => {
     const total = addUsage(addUsage({ inputTokens: 0, outputTokens: 0 }, { inputTokens: 1, outputTokens: 2, reasoningTokens: 3 }), { inputTokens: 4, outputTokens: 5, cacheReadTokens: 6 })
     expect(total).toEqual({ inputTokens: 5, outputTokens: 7, reasoningTokens: 3, cacheReadTokens: 6 })
-    expect(priceUsage({ inputTokens: 2_000_000, outputTokens: 1_000_000, cacheReadTokens: 1_000_000 }, { input: 1, output: 3 })).toBe(1 + 1 + 3)
+    // disjoint counts: 2M input at 1, 1M cache read at the input price, 1M output at 3
+    expect(priceUsage({ inputTokens: 2_000_000, outputTokens: 1_000_000, cacheReadTokens: 1_000_000 }, { input: 1, output: 3 })).toBe(2 + 1 + 3)
+    expect(priceUsage({ inputTokens: 2_000_000, outputTokens: 1_000_000, cacheReadTokens: 1_000_000 }, { input: 1, output: 3, cacheRead: 0.1 })).toBeCloseTo(2 + 0.1 + 3, 10)
+    // a cached prefix far larger than the billed input is normal, not a sign of overlap
+    expect(priceUsage({ inputTokens: 20_000, outputTokens: 2_000, cacheReadTokens: 100_000 }, { input: 0.44, output: 1.32, cacheRead: 0.014 })).toBeCloseTo((20_000 * 0.44 + 100_000 * 0.014 + 2_000 * 1.32) / 1e6, 12)
   })
 })
 

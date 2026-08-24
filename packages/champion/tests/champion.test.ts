@@ -3,9 +3,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@samsara/kernel'
-import type { AttemptRow, ChallengerRow, CompareRow, ConsentRow, SettlementRow } from '@samsara/ledger'
-import type { GateVerdictRow } from '@samsara/gate'
+import { Context } from '@oldbulb/samsara-kernel'
+import type { AttemptRow, ChallengerRow, CompareRow, ConsentRow, SettlementRow } from '@oldbulb/samsara-ledger'
+import type { GateVerdictRow } from '@oldbulb/samsara-gate'
 import {
   Champion,
   ChampionError,

@@ -1,5 +1,5 @@
 {
-  "name": "@samsara/kernel",
+  "name": "@oldbulb/samsara-kernel",
   "version": "0.0.0",
   "private": true,
   "description": "The only samsara package that imports dsh internals by path; re-pin dsh here",

@@ -1,4 +1,4 @@
-// @samsara/scope — `ctx.scopes`: open a challenger as a disposable child scope.
+// @oldbulb/samsara-scope — `ctx.scopes`: open a challenger as a disposable child scope.
 //
 // open() runs the diff scan first (E8/S5) and creates nothing on rejection.
 // Config rows are created through the loader's in-memory tree (E1): one
@@ -6,9 +6,9 @@
 // rows; never through the file-backed include, so no profile file changes.
 // dispose() removes that entry (EntryTree.remove) and waits for quiescence.
 
-import { Context, Group, Service } from '@samsara/kernel'
-import type { EntryOptions, Fiber, Loader } from '@samsara/kernel'
-import { hashDir } from '@samsara/workdir'
+import { Context, Group, Service } from '@oldbulb/samsara-kernel'
+import type { EntryOptions, Fiber, Loader } from '@oldbulb/samsara-kernel'
+import { hashDir } from '@oldbulb/samsara-workdir'
 import { scan } from './diffscan.ts'
 import { envSha, harnessSha } from './sha.ts'
 import type { Challenger, PatchOptions, Violation } from './types.ts'
@@ -19,7 +19,7 @@ export { harnessSha, harnessShaOfLayers, envSha, envFacts, canonicalJson, sha256
 export { envLock, findRepoRoot, packRuntimeLocks, venvListing, claudeVersionOnPath, RUNTIME_LOCK_FILES } from './envlock.ts'
 export type { EnvLock, EnvLockInputs, EnvLockOptions } from './envlock.ts'
 
-declare module '@samsara/kernel' {
+declare module '@oldbulb/samsara-kernel' {
   interface Context {
     scopes: ScopeManager
   }

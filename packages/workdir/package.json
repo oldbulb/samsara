@@ -1,5 +1,5 @@
 {
-  "name": "@samsara/workdir",
+  "name": "@oldbulb/samsara-workdir",
   "version": "0.0.0",
   "private": true,
   "description": "Sealed per-attempt working directories: pack materialize, skill snapshot, attempt token, TMPDIR, deny guard, diff",
@@ -20,6 +20,6 @@
     "test": "vitest run --root ../.. packages/workdir/tests"
   },
   "dependencies": {
-    "@samsara/pack": "workspace:*"
+    "@oldbulb/samsara-pack": "workspace:*"
   }
 }

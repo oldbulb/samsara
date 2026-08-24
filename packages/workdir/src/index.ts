@@ -1,4 +1,4 @@
-// @samsara/workdir — seal one attempt's working directory.
+// @oldbulb/samsara-workdir — seal one attempt's working directory.
 //
 // materialize() builds <baseDir>/<attemptId>/ from the pack's `materialize`
 // command, a content-addressed skill snapshot, a read-only attempt token and a
@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync, type Dirent } from 'node:fs'
 import { chmod, cp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { join, relative, resolve, sep } from 'node:path'
-import { runCommand, type PackDefinition } from '@samsara/pack'
+import { runCommand, type PackDefinition } from '@oldbulb/samsara-pack'
 
 // ---------------------------------------------------------------- types
 
@@ -40,7 +40,7 @@ export interface Workdir {
   tokenPath: string
   /** Snapshot of every file in the workdir right after sealing. */
   baseline: Baseline
-  /** Input for @samsara/sandbox's policyFor: this workdir, its pack and the pack's runtime roots. */
+  /** Input for @oldbulb/samsara-sandbox's policyFor: this workdir, its pack and the pack's runtime roots. */
   policyPaths: PolicyPaths
   dispose(): Promise<void>
 }

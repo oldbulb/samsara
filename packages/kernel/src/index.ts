@@ -60,7 +60,7 @@ export type { CredentialRef, ResolvedCredential } from '@deepseek-ai/dsh-credent
 export { parseCmdline } from '@deepseek-ai/dsh-cmdline'
 
 // Landlock launcher (Linux-only enforcement; the entry package resolves, probes
-// and speaks the binary's CLI contract). @samsara/sandbox is its only consumer.
+// and speaks the binary's CLI contract). @oldbulb/samsara-sandbox is its only consumer.
 export {
   launcherPath as landlockLauncherPath,
   probe as landlockProbe,

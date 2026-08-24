@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ToolArgsError, type ToolRunContext } from '@samsara/kernel'
+import { ToolArgsError, type ToolRunContext } from '@oldbulb/samsara-kernel'
 import { createSubmitTool, readSubmit, submitFileInstruction, submitInstruction } from '../src/index.ts'
 
 const schema = {

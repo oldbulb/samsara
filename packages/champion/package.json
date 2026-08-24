@@ -1,5 +1,5 @@
 {
-  "name": "@samsara/champion",
+  "name": "@oldbulb/samsara-champion",
   "version": "0.0.0",
   "private": true,
   "description": "ctx.champion: the served configuration as an alias to content-addressed refs; promote/demote rewrite the profile patch layer and verify hot-apply by re-hashing the composed config (E7)",
@@ -25,9 +25,9 @@
     "test": "vitest run --root ../.. packages/champion/tests"
   },
   "dependencies": {
-    "@samsara/gate": "workspace:*",
-    "@samsara/kernel": "workspace:*",
-    "@samsara/ledger": "workspace:*",
+    "@oldbulb/samsara-gate": "workspace:*",
+    "@oldbulb/samsara-kernel": "workspace:*",
+    "@oldbulb/samsara-ledger": "workspace:*",
     "yaml": "2.9.0"
   }
 }

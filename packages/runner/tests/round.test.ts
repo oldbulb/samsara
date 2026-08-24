@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import type { AttemptRow, CompareRow, Ledger, ScoreRow } from '@samsara/ledger'
+import type { AttemptRow, CompareRow, Ledger, ScoreRow } from '@oldbulb/samsara-ledger'
 import { renderView } from '../src/round.ts'
 
 const MINI_SKILL = resolve(import.meta.dirname, '..', '..', 'pack', 'tests', 'fixtures', 'minipack', 'skill')
@@ -21,7 +21,7 @@ function compare(tier: CompareRow['tier']): CompareRow {
   }
 }
 
-/** A ledger whose proposer reads are already redacted the way @samsara/ledger redacts them. */
+/** A ledger whose proposer reads are already redacted the way @oldbulb/samsara-ledger redacts them. */
 const ledger: Pick<Ledger, 'read'> = {
   read: ((view: string, viewer: string) => {
     if (viewer !== 'proposer') throw new Error('the view must be rendered as the proposer')

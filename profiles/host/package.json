@@ -2,24 +2,24 @@
   "name": "dsh-profile-host",
   "private": true,
   "dependencies": {
-    "@samsara/champion": "link:../../packages/champion",
-    "@samsara/gate": "link:../../packages/gate",
-    "@samsara/ledger": "link:../../packages/ledger",
-    "@samsara/loops": "link:../../packages/loops",
-    "@samsara/loops-claude-code": "link:../../packages/loops-claude-code",
-    "@samsara/loops-dsh": "link:../../packages/loops-dsh",
-    "@samsara/proposers": "link:../../packages/proposers",
-    "@samsara/runner": "link:../../packages/runner",
-    "@samsara/scope": "link:../../packages/scope",
-    "@samsara/signoff": "link:../../packages/signoff",
-    "@samsara/ui": "link:../../packages/ui",
-    "samsara": "link:../../packages/bundle"
+    "@oldbulb/samsara-champion": "link:../../packages/champion",
+    "@oldbulb/samsara-gate": "link:../../packages/gate",
+    "@oldbulb/samsara-ledger": "link:../../packages/ledger",
+    "@oldbulb/samsara-loops": "link:../../packages/loops",
+    "@oldbulb/samsara-loops-claude-code": "link:../../packages/loops-claude-code",
+    "@oldbulb/samsara-loops-dsh": "link:../../packages/loops-dsh",
+    "@oldbulb/samsara-proposers": "link:../../packages/proposers",
+    "@oldbulb/samsara-runner": "link:../../packages/runner",
+    "@oldbulb/samsara-scope": "link:../../packages/scope",
+    "@oldbulb/samsara-signoff": "link:../../packages/signoff",
+    "@oldbulb/samsara-ui": "link:../../packages/ui",
+    "@oldbulb/samsara": "link:../../packages/bundle"
   },
   "dsh": {
     "profile": {
       "bundles": [
         "@deepseek-ai/dsh-base",
-        "samsara"
+        "@oldbulb/samsara"
       ]
     }
   }

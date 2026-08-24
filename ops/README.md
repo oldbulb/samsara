@@ -13,7 +13,7 @@
 
 ## Host profile
 
-- `profiles/host` is symlinked to `~/.dsh/profiles/host`; after a fresh clone run `dsh plugin --profile host install` (links `packages/bundle` and the `@samsara/*` packages; `profiles/host/node_modules` is gitignored).
+- `profiles/host` is symlinked to `~/.dsh/profiles/host`; after a fresh clone run `dsh plugin --profile host install` (links `packages/bundle` and the `@oldbulb/samsara-*` packages; `profiles/host/node_modules` is gitignored).
 - Credentials: a named reference, resolved per request through `ctx.credentials` — `~/.dsh/.credentials.yaml`
   under `refs.`, or plain environment. Never in the repo. `apiKeyEnv` (on the LLM row) and `credentialRef`
   (on the loop, proposer and runner rows) name the same reference.

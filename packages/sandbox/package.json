@@ -1,5 +1,5 @@
 {
-  "name": "@samsara/sandbox",
+  "name": "@oldbulb/samsara-sandbox",
   "version": "0.0.0",
   "private": true,
   "description": "Filesystem policy for attempt and proposer subprocesses: allow-list composition, landlock wrapping on Linux through the kernel, recorded enforcement mode",
@@ -20,6 +20,6 @@
     "test": "vitest run --root ../.. packages/sandbox/tests"
   },
   "dependencies": {
-    "@samsara/kernel": "workspace:*"
+    "@oldbulb/samsara-kernel": "workspace:*"
   }
 }

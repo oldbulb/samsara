@@ -3,8 +3,8 @@
 // profile's patch layer (profiles/host/cordis.patch.yml). Everything here is
 // text in / text out or data in / data out: no filesystem, no context.
 
-import type { EntryOptions, PatchOptions } from '@samsara/kernel'
-import { canonicalJson, sha256 } from '@samsara/ledger'
+import type { EntryOptions, PatchOptions } from '@oldbulb/samsara-kernel'
+import { canonicalJson, sha256 } from '@oldbulb/samsara-ledger'
 import { parse as parseYaml, stringify as stringifyYaml, type ScalarTag } from 'yaml'
 
 /** `name:sha` of one kept surface object. */
@@ -105,7 +105,7 @@ function assertPlainData(value: unknown, at: string): void {
 
 export const PROFILE_HEADER = `# samsara host profile patch. Rows above the champion marker are the deployment
 # facts the host owns (edit by hand). The marked section below them is the
-# champion state rendered by @samsara/champion and is rewritten on every
+# champion state rendered by @oldbulb/samsara-champion and is rewritten on every
 # promote/demote; the ledger is its source of truth.
 `
 export const CHAMPION_BEGIN = '# == samsara champion (generated; do not edit by hand)'

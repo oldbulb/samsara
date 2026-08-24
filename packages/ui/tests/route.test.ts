@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context, HttpServer, Include, Loader, Service } from '@samsara/kernel'
+import { Context, HttpServer, Include, Loader, Service } from '@oldbulb/samsara-kernel'
 import * as Ui from '../src/index.ts'
 import { CHAL, fakeDeps } from './fixtures.ts'
 
@@ -52,7 +52,7 @@ async function loadComposition(): Promise<Context> {
     '- name: fake-champion',
     '- name: fake-signoff',
     '- id: ui',
-    "  name: '@samsara/ui'",
+    "  name: '@oldbulb/samsara-ui'",
     '  config:',
     '    refreshMs: 1000',
     '',
@@ -67,7 +67,7 @@ async function loadComposition(): Promise<Context> {
     ['fake-ledger', FakeLedger],
     ['fake-champion', FakeChampion],
     ['fake-signoff', FakeSignoff],
-    ['@samsara/ui', Ui],
+    ['@oldbulb/samsara-ui', Ui],
   ])
   context.loader.internal = {
     version: 'v2',
