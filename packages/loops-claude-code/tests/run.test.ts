@@ -8,6 +8,8 @@ import type { Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { SubprocessHandle, SubprocessSpawnSpec } from '@samsara/kernel'
 import { factsSha } from '@samsara/loops'
 import { policyFor, type SandboxHost } from '@samsara/sandbox'
+
+const UNENFORCED: SandboxHost = { platform: 'darwin', enforcement: 'unusable', launcher: '', exists: () => true }
 import { ClaudeCodeLoopProvider } from '../src/index.ts'
 import { startRun, type RunDeps } from '../src/run.ts'
 import type { AttemptSpec, LoopEvent } from '../src/seam.ts'
@@ -105,6 +107,10 @@ function deps(messages: SDKMessage[], capture: { child?: ReturnType<typeof fakeC
       capture.closed = closed
       return q
     }) as unknown as RunDeps['queryFn'],
+    // Tests that are not about the sandbox pin a host that cannot enforce, so a
+    // Linux runner (where `apply` fails closed on a spec with no policy) sees the
+    // same behaviour as a developer machine; the sandbox block below overrides it.
+    host: UNENFORCED,
   }
 }
 
@@ -116,7 +122,7 @@ async function collect(events: AsyncIterable<LoopEvent>): Promise<LoopEvent[]> {
 
 describe('sandbox', () => {
   const linux: SandboxHost = { platform: 'linux', enforcement: 'full', launcher: '/opt/landlock-run', exists: () => true }
-  const mac: SandboxHost = { platform: 'darwin', enforcement: 'unusable', launcher: '', exists: () => true }
+  const mac = UNENFORCED
 
   it('spawns the CLI under the launcher with the attempt policy on an enforcing host', async () => {
     const root = mkdtempSync(join(tmpdir(), 'lcc-'))

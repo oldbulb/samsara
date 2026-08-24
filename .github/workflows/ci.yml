@@ -31,6 +31,15 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+
+      # The coding-tasks e2e drives the pack for real: pytest and jest must be
+      # there, and the runtimes are gitignored (they are installs, not source).
+      - name: provision the pack runtimes
+        run: |
+          python3 -m venv packs/coding-tasks/runtime/py/.venv
+          packs/coding-tasks/runtime/py/.venv/bin/pip install --quiet -r packs/coding-tasks/runtime/py/requirements.txt
+          pnpm --dir packs/coding-tasks/runtime/js install --frozen-lockfile
+
       - run: pnpm test
 
   leak-scan:
