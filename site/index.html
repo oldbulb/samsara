@@ -193,6 +193,7 @@ footer{border-top:1px solid var(--color-border); background:var(--color-surface-
       <span class="badge warn"><span lang="en">pre-release</span><span lang="zh">未发布</span></span>
       <span class="badge info"><span lang="en">built on DeepSeek Harness</span><span lang="zh">构建在 DeepSeek Harness 上</span></span>
       <span class="badge pos">MIT</span>
+      <span class="badge info"><span lang="en">344 tests, all offline</span><span lang="zh">344 个测试，全部离线</span></span>
     </div>
     <h1>
       <span lang="en">A harness that improves itself, under evidence it cannot fake.</span>
@@ -215,6 +216,15 @@ footer{border-top:1px solid var(--color-border); background:var(--color-surface-
     <p lang="zh">
       每个改动是一个 <em>challenger</em>，在可处置的子 scope 里求值；只有凭回路之外的真值通过统计门，
       并由人经回路够不到的通道签字，才成为 <em>champion</em>。改的是 <strong>harness，不是权重</strong>。
+    </p>
+    <p lang="en">
+      It is also <strong>the bench</strong>: any optimizer is a proposer, any accept rule is a gate — both in any
+      language — and all of them are judged on one ledger against one measured noise floor. Other people's
+      optimizers are our positive controls.
+    </p>
+    <p lang="zh">
+      它同时是<strong>评测台</strong>：任何优化器都是 proposer，任何接受准则都是 gate——都可以用任意语言写——
+      全部在同一个 ledger、同一个实测噪声底上被裁决。别人的优化器就是我们的正面对照。
     </p>
   </section>
 
@@ -378,36 +388,47 @@ footer{border-top:1px solid var(--color-border); background:var(--color-surface-
   <hr class="rule">
 
   <section>
-    <p class="eyebrow"><span lang="en">Where it intends to lead</span><span lang="zh">要领先的地方</span></p>
-    <h2><span lang="en">Three things nobody has built yet</span><span lang="zh">三件还没人做过的事</span></h2>
-    <p lang="en">Stated with the prior art named honestly — the theory exists in every case; the engineering does not.</p>
-    <p lang="zh">先例照实点名——三件事的理论都已存在，工程实现没有。</p>
+    <p class="eyebrow"><span lang="en">What it contributes</span><span lang="zh">它贡献什么</span></p>
+    <h2><span lang="en">The record, the arena, and truth that arrives late</span><span lang="zh">记录、竞技场，和迟到的真值</span></h2>
+    <p lang="en">Stated against the 2026 literature, with the prior art named and the limits attached.</p>
+    <p lang="zh">对照 2026 年的文献来说，先例照实点名，边界一并附上。</p>
     <ol class="steps">
       <li>
-        <span lang="en"><strong>Holdout accounting.</strong> Recursive reuse of a holdout across generations learns it
-          away. samsara budgets holdout revelations (Thresholdout / Ladder — Dwork et al. 2015, Blum &amp; Hardt 2015),
-          declares <code>n / mde / budget</code> per pack, fails fast when the holdout cannot support the round, and
-          rotates from newly settled tasks when the budget is spent. No agent-optimization system does this today.</span>
-        <span lang="zh"><strong>holdout 记账。</strong>跨代递归复用 holdout 会把它学掉。samsara 给每次揭示记账
-          （Thresholdout / Ladder——Dwork et al. 2015、Blum &amp; Hardt 2015），每个 pack 声明
-          <code>n / mde / budget</code>，holdout 撑不起这一轮就当场失败，预算耗尽则从新结算的任务里轮换。
-          目前没有任何 agent 优化系统这样做。</span>
+        <span lang="en"><strong>The record.</strong> Five 2026 systems report a self-improvement run five incompatible
+          ways, so no two runs can be compared — which is why nobody ever audited the field's most-cited curve. samsara's
+          ledger row carries the lineage, the one surface touched, paired per-task scores, the measured noise floor, the
+          gate and its parameters, cost, settlements and append-only re-scores; its spine is a coordinate tuple, and
+          <em>comparable</em> is a rule the gate checks, not a convention.</span>
+        <span lang="zh"><strong>记录。</strong>2026 年五个系统用五种互不相容的口径报告自改进运行，两次运行无法比较——
+          这就是为什么没人审计过这个领域被引最多的那条曲线。samsara 的 ledger 行带谱系、碰的那一个 surface、
+          成对逐题分数、实测噪声底、gate 及参数、成本、settlement 与只追加的重打分；它的脊梁是坐标元组，
+          "可比"是 gate 检查的规则，不是约定。</span>
       </li>
       <li>
-        <span lang="en"><strong>An automated loop on delayed truth.</strong> Every RSI and skill-optimization system
-          evaluates on immediate benchmarks. Tasks whose truth arrives next month can still drive the loop here — the
-          step from RSI-on-benchmarks to RSI-in-production.</span>
-        <span lang="zh"><strong>延迟真值上的自动回路。</strong>现有的自改进与 skill 优化系统都在即时 benchmark 上评测。
-          真值下个月才到的任务在这里照样能驱动回路——这是从「benchmark 上的 RSI」走向「生产中的 RSI」的一步。</span>
+        <span lang="en"><strong>The arena.</strong> Every published accept rule is a plugin, not a rival: thirteen ship in
+          <code>gate-catalog</code> — keep-better, DGM, Self-Harness, RSEA, Ladder, Miller, McNemar, PACE, HCL,
+          AutoScientists, <code>gate-default</code> — and <code>gate bench</code> runs any of them, or yours, on recorded
+          reruns of one configuration, where every acceptance is a false one. On our data: keep-better 0.51, DGM
+          0.72–1.00, Ladder 0.12–0.20, <code>gate-default</code> 0.06 against a declared 0.05, Miller 0.04.</span>
+        <span lang="zh"><strong>竞技场。</strong>每一条已发表的接受准则都是插件而不是对手：<code>gate-catalog</code> 带了十三条——
+          keep-better、DGM、Self-Harness、RSEA、Ladder、Miller、McNemar、PACE、HCL、AutoScientists、<code>gate-default</code>——
+          <code>gate bench</code> 能把其中任何一条、或你写的一条，跑在"同一配置的重跑"上，那里每次接受都是假阳性。
+          我们的数据上：keep-better 0.51、DGM 0.72–1.00、Ladder 0.12–0.20、<code>gate-default</code> 0.06（声明 0.05）、Miller 0.04。</span>
       </li>
       <li>
-        <span lang="en"><strong>A living champion.</strong> A truth revision, a scorer bump, a model upgrade or a
-          task-set change is an event: it re-scores the ancestry append-only and can demote the champion. Existing
-          tools offer manual, per-run back-fill; the automatic trigger is new.</span>
-        <span lang="zh"><strong>活的 champion。</strong>真值修订、scorer 升版、模型升级、任务集变更都是事件：
-          沿祖先追加式重打分，并且可以把 champion 降级。现有工具只提供手动的、逐次运行的回填；自动触发是新的。</span>
+        <span lang="en"><strong>Truth that arrives late — built, unexercised.</strong> Every benchmark in the field
+          verifies immediately. Here a book declares truth latency, settlement is an event, and a revision re-scores
+          the ancestry append-only and can demote the champion. No pack in tree drives it yet; it is written here as
+          a direction with dormant machinery, not a demonstrated capability.</span>
+        <span lang="zh"><strong>迟到的真值——已建成，未驱动。</strong>这个领域的每个 benchmark 都即时验证。这里 book 声明真值延迟，
+          settlement 是事件，一次修订沿祖先追加式重打分并可降级 champion。树内还没有 pack 驱动它；它在这里是
+          一个方向加一套休眠的机器，不是演示过的能力。</span>
       </li>
     </ol>
+    <p lang="en"><em>Not claimed:</em> holdout accounting (engineering, not a lead — Thresholdout is infeasible at this
+      scale), sequential testing (Statsig, Eppo, PACE), retention (HCL's; adopted as a calibrated bound).</p>
+    <p lang="zh"><em>不声称的：</em>holdout 记账（是工程不是领先——Thresholdout 在这个规模不可行）、序贯检验（Statsig、Eppo、PACE）、
+      保留规则（HCL 的；我们以校准的上界形式采纳）。</p>
   </section>
 
   <hr class="rule">
@@ -435,22 +456,48 @@ dsh --profile host promote &lt;challengerId&gt; --wait 60</code></pre>
   <hr class="rule">
 
   <section>
+    <p class="eyebrow"><span lang="en">Plug in</span><span lang="zh">接入</span></p>
+    <h2><span lang="en">Your gate, your optimizer — in any language, in an afternoon</span><span lang="zh">你的 gate、你的优化器——任意语言，一个下午</span></h2>
+    <p lang="en">
+      A gate is a program: a compare request on stdin, a verdict on stdout. A proposer is a program: a view directory
+      in, a proposal directory out. SDKs in TypeScript and Python; a zero-spend dry run; a bench that tells you your
+      rule's false-promote rate on real reruns before you trust it.
+    </p>
+    <p lang="zh">
+      gate 是一个程序：stdin 读比较请求，stdout 写裁决。proposer 是一个程序：读一个 view 目录，写一个提案目录。
+      TypeScript 与 Python 两份 SDK；零花费的 dry run；一个 bench，在你信任你的规则之前先告诉你它在真实重跑上的假晋升率。
+    </p>
+    <pre><code><span class="c"># a gate in stdlib Python (examples/gates/keep_better.py), measured against the catalog</span>
+dsh --profile host gate bench --attempts data/runs/noise/attempts.jsonl \
+    --tasks packs/coding-tasks/tasks/holdin.jsonl --metric pass_rate \
+    --gates default,keep-better,pace,miller --gate-command ./my_gate.py
+
+<span class="c"># an optimizer in Python (sdk/py), run against the champion's view — no scope, no attempt, no spend</span>
+dsh --profile host propose --pack packs/coding-tasks --proposer ./my_optimizer.py \
+    --set holdin --limit 8 --metric pass_rate --dry-run</code></pre>
+  </section>
+
+  <hr class="rule">
+
+  <section>
     <p class="eyebrow"><span lang="en">Status</span><span lang="zh">现状</span></p>
     <h2><span lang="en">What is built, and what is honestly not</span><span lang="zh">做完了什么，什么老实说还没有</span></h2>
     <div class="grid">
       <div class="card">
         <p class="eyebrow"><span lang="en">Built</span><span lang="zh">已完成</span></p>
         <ul class="plain">
-          <li><span lang="en">18 packages: kernel, book, pack, ledger, scope, champion, gate, signoff, loops (+ dsh and Claude Code providers), workdir, submit, proposers, sandbox, runner, ui.</span><span lang="zh">18 个包：kernel、book、pack、ledger、scope、champion、gate、signoff、loops（含 dsh 与 Claude Code 两个 provider）、workdir、submit、proposers、sandbox、runner、ui。</span></li>
+          <li><span lang="en">20 packages: kernel, book, pack, ledger, scope, champion, gate, gate-catalog, signoff, loops (+ dsh and Claude Code providers), workdir, submit, proposers, proposer-sdk, sandbox, runner, ui — plus a Python proposer SDK and stdlib examples.</span><span lang="zh">20 个包：kernel、book、pack、ledger、scope、champion、gate、gate-catalog、signoff、loops（含 dsh 与 Claude Code 两个 provider）、workdir、submit、proposers、proposer-sdk、sandbox、runner、ui——外加 Python 的 proposer SDK 与纯标准库范例。</span></li>
+          <li><span lang="en">A measured noise floor (83 tasks × 3 reruns, closed-book) and a gate calibrated on it: 0.06 false-promote against a declared 0.05, 0 of 6 real rerun pairs.</span><span lang="zh">实测噪声底（83 题 × 3 次重跑，closed-book）和在其上校准过的 gate：假晋升率 0.06（声明 0.05），6 对真实重跑上 0/6。</span></li>
           <li><span lang="en">Two harnesses run the same tasks and certify against each other; A/B is refused when their facts differ.</span><span lang="zh">两个 harness 跑同一批任务并互相认证；facts 不同的两行拒绝 A/B 比较。</span></li>
           <li><span lang="en">Append-only ledger on sqlite; disposable scopes; Ed25519 sign-off; hot-apply verified by re-hashing.</span><span lang="zh">sqlite 上的追加式 ledger；可处置 scope；Ed25519 签字；热应用靠重新哈希验证。</span></li>
-          <li><span lang="en">39 test files / 270 tests, all offline — no model, no network.</span><span lang="zh">39 个测试文件 / 270 个测试，全部离线——不调模型、不联网。</span></li>
+          <li><span lang="en">47 test files / 344 tests, all offline — no model, no network.</span><span lang="zh">47 个测试文件 / 344 个测试，全部离线——不调模型、不联网。</span></li>
         </ul>
       </div>
       <div class="card">
         <p class="eyebrow"><span lang="en">Not yet</span><span lang="zh">还没有</span></p>
         <ul class="plain">
-          <li><span lang="en">The task set is at ceiling for the model under test, so the noise floor is zero and <strong>no positive control has promoted yet</strong>. The statistical gate has not been falsified against a known-good change.</span><span lang="zh">当前任务集对被测模型来说在天花板上，噪声底为零，<strong>阳性对照还没有晋升过</strong>。统计门还没有被一个已知有效的改动真正证伪过。</span></li>
+          <li><span lang="en"><strong>The gate has never promoted anything.</strong> The effect this pack can detect (≈0.14 at 3 reruns) is above the SESOI it declares (0.05), so every real comparison ends <code>hold:underpowered</code> — right in kind, unfalsified in fact. At the held-out tier's 29 entities the bootstrap runs ≈1.5× nominal.</span><span lang="zh"><strong>gate 从未晋升过任何东西。</strong>这个 pack 能检出的效应（3 次重跑约 0.14）高于它声明的 SESOI（0.05），每次真实比较都以 <code>hold:underpowered</code> 结束——性质上对，事实上未被证伪。held-out tier 的 29 个 entity 上 bootstrap 约为标称的 1.5 倍。</span></li>
+          <li><span lang="en">The pack's truth is partly self-graded: agent-written tests are counted alongside the hidden ones (open bug; <code>solved</code> is unaffected).</span><span lang="zh">pack 的真值部分自评：agent 自己写的测试和隐藏测试一起计数（未修；<code>solved</code> 不受影响）。</span></li>
           <li><span lang="en">The live tier (mSPRT) is not implemented.</span><span lang="zh">live tier（mSPRT）未实现。</span></li>
           <li><span lang="en">The proposer process has no filesystem sandbox yet; diff scanning and the gate are the current mitigations.</span><span lang="zh">proposer 进程还没有文件系统沙箱；目前靠 diff 扫描与 gate 兜底。</span></li>
         </ul>
@@ -461,6 +508,11 @@ dsh --profile host promote &lt;challengerId&gt; --wait 60</code></pre>
         with, but there is no package, no versioned API and no support. Interfaces will change without notice.</p>
       <p lang="zh"><strong>尚未发布。</strong>仓库公开是为了让设计可读、可被质疑；没有发包、没有稳定 API、没有支持。
         接口会不打招呼地变。</p>
+      <p lang="en"><strong>Where this goes.</strong> The next consumer is a place, not a pack: dsh as the workbench on
+        which RSI experiments are run — you talk to dsh, the agent drives samsara through tools, the conversation is
+        the notebook, <code>/samsara</code> commands are the only place consent happens, the ledger is the record.</p>
+      <p lang="zh"><strong>走向。</strong>下一个消费者是一个地方，不是一个 pack：把 dsh 变成跑 RSI 实验的台子——你跟 dsh 说话，
+        agent 经工具驱动 samsara，对话就是笔记本，<code>/samsara</code> 命令是签字唯一发生的地方，ledger 是记录。</p>
     </div>
   </section>
 
@@ -485,6 +537,12 @@ dsh --profile host promote &lt;challengerId&gt; --wait 60</code></pre>
         <h3><a href="https://github.com/oldbulb/samsara/blob/master/docs/design/gate.md">gate.md</a></h3>
         <p lang="en">The gate seam and what <code>gate-default</code> actually decides.</p>
         <p lang="zh">gate 这条缝，以及 <code>gate-default</code> 到底怎么判。</p>
+      </div>
+      <div class="card">
+        <h3><a href="https://github.com/oldbulb/samsara/blob/master/packages/gate-catalog/README.md">gate-catalog</a></h3>
+        <p lang="en">Thirteen published accept rules as policies, their sources, and the bench that measures any gate on
+          recorded reruns.</p>
+        <p lang="zh">十三条已发表的接受准则作为 policy、各自的出处，以及在录好的重跑上测任何 gate 的 bench。</p>
       </div>
       <div class="card">
         <h3><a href="https://github.com/oldbulb/samsara/blob/master/docs/design/loops.md">loops.md</a></h3>
