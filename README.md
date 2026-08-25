@@ -78,11 +78,11 @@ honestly, currently unexercised (see Status).
 Everything in samsara is replaceable except three things, and they are outside
 the loop by construction:
 
-| | | |
-|:---|:---|:---|
-| 📖 **book** | truth | task sets, settlement, holdout visibility and budget |
-| ⚖️ **gate** | the verdict | statistics decide promotion; the loop cannot write it |
-| ✍️ **sign-off** | consent | an Ed25519 signature over a nonce on a `0600` unix socket — an HTTP request is never a proof |
+| | |
+|:---|:---|
+| 📖&nbsp;&nbsp;**book** — truth | task sets, settlement, holdout visibility and budget |
+| ⚖️&nbsp;&nbsp;**gate** — the verdict | statistics decide promotion; the loop cannot write it |
+| ✍️&nbsp;&nbsp;**sign-off** — consent | an Ed25519 signature over a nonce on a `0600` unix socket — an HTTP request is never a proof |
 
 The optimizer itself may be optimized. The judge and the right to sign may not.
 
@@ -103,7 +103,9 @@ A **pack** is what supplies reality: tasks, truth, and a score. The framework
 knows nothing about any domain — it talks to a pack only through `pack.yaml` and
 the stdout of the pack's commands, which are always subprocesses, never imports.
 `packs/coding-tasks` (148 Exercism exercises in Python, JavaScript, Rust and Go,
-from the Aider polyglot benchmark) is the one that ships.
+from the Aider polyglot benchmark) is the one that ships. `packs/synthetic` is
+a control: a coin with a known bias, so the whole pipeline runs at zero cost
+under an injected effect (must promote) and as an A/A rerun (must not).
 
 A **loop** is one attempt of one task under one configuration. Two ship: dsh's
 own in-process agent, and Claude Code as a subprocess. Adding a third is a
