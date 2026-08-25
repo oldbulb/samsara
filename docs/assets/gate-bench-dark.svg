@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 326" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+<rect width="720" height="326" fill="#0b1220" rx="12"/>
+<text x="24" y="28" font-size="11" font-weight="600" letter-spacing="1" fill="#94a3b8">FALSE-PROMOTE RATE UNDER THE NULL</text>
+<text x="696" y="28" font-size="10" fill="#94a3b8" text-anchor="end">same configuration rerun vs itself · 83 tasks, 43 entities, 3 reruns · entity bootstrap</text>
+<text x="238" y="67" font-size="12" fill="#e2e8f0" text-anchor="end">keep-better</text>
+<rect x="250" y="52" width="440" height="20" rx="4" fill="#1e293b"/>
+<rect x="250" y="52" width="224.4" height="20" rx="4" fill="#f472b6"/>
+<text x="482.4" y="66" font-size="11" font-weight="600" fill="#e2e8f0">0.51</text>
+<text x="238" y="97" font-size="12" fill="#e2e8f0" text-anchor="end">DGM keep_better (leeway .1)</text>
+<rect x="250" y="82" width="440" height="20" rx="4" fill="#1e293b"/>
+<rect x="250" y="82" width="316.8" height="20" rx="4" fill="#f472b6"/>
+<text x="574.8" y="96" font-size="11" font-weight="600" fill="#e2e8f0">0.72</text>
+<text x="238" y="127" font-size="12" fill="#e2e8f0" text-anchor="end">Self-Harness</text>
+<rect x="250" y="112" width="440" height="20" rx="4" fill="#1e293b"/>
+<rect x="250" y="112" width="167.2" height="20" rx="4" fill="#f472b6"/>
+<text x="425.2" y="126" font-size="11" font-weight="600" fill="#e2e8f0">0.38</text>
+<text x="238" y="157" font-size="12" fill="#e2e8f0" text-anchor="end">RSEA lateral</text>
+<rect x="250" y="142" width="440" height="20" rx="4" fill="#1e293b"/>
+<rect x="250" y="142" width="246.4" height="20" rx="4" fill="#f472b6"/>
+<text x="504.4" y="156" font-size="11" font-weight="600" fill="#e2e8f0">0.56</text>
+<text x="238" y="187" font-size="12" fill="#e2e8f0" text-anchor="end">Ladder (paper, 1σ)</text>
+<rect x="250" y="172" width="440" height="20" rx="4" fill="#1e293b"/>
+<rect x="250" y="172" width="88.0" height="20" rx="4" fill="#fbbf24"/>
+<text x="346.0" y="186" font-size="11" font-weight="600" fill="#e2e8f0">0.20</text>
+<text x="238" y="217" font-size="12" fill="#e2e8f0" text-anchor="end">gate-fast (α .10)</text>
+<rect x="250" y="202" width="440" height="20" rx="4" fill="#1e293b"/>
+<rect x="250" y="202" width="44.0" height="20" rx="4" fill="#a78bfa"/>
+<text x="302.0" y="216" font-size="11" font-weight="600" fill="#e2e8f0">0.10</text>
+<text x="238" y="247" font-size="12" fill="#e2e8f0" text-anchor="end">gate-default rule 7 (α .05)</text>
+<rect x="250" y="232" width="440" height="20" rx="4" fill="#1e293b"/>
+<rect x="250" y="232" width="26.4" height="20" rx="4" fill="#a78bfa"/>
+<text x="284.4" y="246" font-size="11" font-weight="600" fill="#e2e8f0">0.06</text>
+<text x="238" y="277" font-size="12" fill="#e2e8f0" text-anchor="end">Miller (α .025)</text>
+<rect x="250" y="262" width="440" height="20" rx="4" fill="#1e293b"/>
+<rect x="250" y="262" width="17.6" height="20" rx="4" fill="#a78bfa"/>
+<text x="275.6" y="276" font-size="11" font-weight="600" fill="#e2e8f0">0.04</text>
+<path d="M272.0 44 V286" stroke="#e2e8f0" stroke-width="1.2" stroke-dasharray="4 3"/>
+<text x="276.0" y="302" font-size="10" fill="#94a3b8">declared α = 0.05</text>
+<text x="690" y="302" font-size="10" fill="#94a3b8" text-anchor="end">1.0</text>
+<text x="250" y="314" font-size="10" fill="#94a3b8">every acceptance here is a false one · rates are bootstrap acceptance rates on one pack, not population error rates</text>
+</svg>

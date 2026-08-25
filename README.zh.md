@@ -1,175 +1,230 @@
-# samsara
+<h1 align="center">samsara</h1>
 
-[English](README.md) | 中文
+<p align="center"><strong>让 harness 自己改进自己——在它伪造不了的证据下。</strong></p>
 
-建立在 [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/deepseek-harness) 上的通用递归自改进（RSI）框架。
+<p align="center">
+  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-6d28d9"></a>
+  <img alt="344 个测试，离线" src="https://img.shields.io/badge/tests-344%20offline-6d28d9">
+  <a href="https://github.com/deepseek-ai/deepseek-harness"><img alt="构建在 DeepSeek Harness 上" src="https://img.shields.io/badge/built%20on-DeepSeek%20Harness-0e7490"></a>
+  <img alt="未发布" src="https://img.shields.io/badge/status-pre--release-b45309">
+</p>
 
-## 愿景
+<p align="center"><a href="README.md">English</a> · 中文 · <a href="https://oldbulb.github.io/samsara/">站点</a></p>
 
-**samsara 是 agent harness 的自改进基座：让一个运行中的 harness 在来自现实的、未被优化器污染的、可追溯推翻的证据下持续迭代自己。**
+agent harness 的递归自改进（RSI）框架，跑在 [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/deepseek-harness) 上——dsh 提供内核：可处置的 scope、service、storage、jobs、子进程。但凡跨进程边界的东西（pack 契约、ledger 行、gate policy、proposer 契约、训练导出）都不含 dsh 类型、也不要求 dsh：loop 是一个 seam，dsh 自带的 agent 只是四个预期 provider 之一。
 
-- **来自现实**——真值在回路之外，即时或延迟到达，settlement 是事件
-- **未被优化器污染**——holdout 是消耗品，裁判被机器隔离，judge 分数进不了 verdict
-- **可追溯推翻**——每次采纳带完整坐标，世界变了就重审，champion 是活的
+**每个对 harness 的改动都是一个 challenger。** 它在可处置的子 scope 里求值，只凭回路之外的真值被裁决，只经统计门晋升为 champion，只在人经回路够不到的通道签字之后被采纳。
 
-改的是 harness 不是权重：v1 开放 skill / prompt 段 / memory / tool 配置四个 surface；runtime control 与 route 先作坐标；optimizer 配置先记账、later 作慢时标 challenger。评测工件和三个不动点（book / gate / sign-off）永远不是 surface。机制固定、策略可换：统计方法、优化算法、评测逻辑、签字通道都是插件，默认严格，ledger 记着用的是哪个。
+改的是 harness 不是权重：v1 开放四个 surface——skill、prompt 段、memory、tool 配置。评测工件与三个不动点永远不是 surface。
 
-要领先的三件事：**holdout 记账**（Thresholdout/Ladder 在 agent 优化回路的首次工程化）、**延迟真值上的自动回路**、**活的 champion**（真值/scorer/模型/任务集变更 = 事件，沿祖先重打分并可降级）。在已有先例上闭环的三件事：surface 归因回馈 proposer、固定门下可撤销的跨 harness skill 认证、带采纳与结算标签的训练出口。完整论证见 `docs/design/philosophy.md`。
+## 为什么做这个
 
-> 状态（2026-08-24）：M0–M5、P5、P6 与其后的采纳（`--parallel`、`run --resume`、sandbox 策略、`env_sha`、OTel 导出）已实现并提交——两条 loop（dsh、Claude Code）在 Aider Polyglot 上跑通，gate-default / ledger(sqlite) / scope / signoff / champion / proposer 全链路端到端验证，真实一轮 `claude -p` 提案已跑通。设计见 `docs/design/`，运行方式见下文"怎么跑"与 `ops/README.md`。
+2026 年年中，held-out 划分已经从主张变成默认，而这个领域公开承认自己分不清信号与选择效应：harness 进化在搜索集上涨 7–10 点，在 held-out 上约等于 0（[2607.12227](https://arxiv.org/abs/2607.12227)）；有系统自曝 proxy 与 held-out 相差 31.7 点（[DarwinX](https://arxiv.org/abs/2608.07545)）；贪心的"变好就留"是不受控的自适应多重检验，会提交根本不存在的改进（[PACE](https://arxiv.org/abs/2606.08106)）；越过峰值继续迭代，78% 的运行最终**比自己的最好成绩更差**（[RSIBench](https://arxiv.org/abs/2607.25886)）。
 
-## 先读什么
+与此同时，五个系统用五种互不相容的口径报告一次自改进运行，两次运行无法比较——这正是为什么在 192 篇引用里，没有任何人审计过这个领域被引最多的那条改进曲线：**没有可审计的产物。**
 
-| 文件 | 内容 |
-|---|---|
-| `CLAUDE.md` | 纪律：边界、硬约束索引、词汇、已定决策 |
-| `docs/design/philosophy.md` | 理念与边界：三个不动点（book / gate / sign-off）在回路之外，其余一切可变 |
-| `docs/design/architecture.md` | 仓库布局、插件与服务、**surface 分类（13 项）**、pack 契约、ledger 数据模型、生命周期、硬约束 E1–E8 / S1–S8、启动序 |
-| `docs/design/packs.md` | pack 契约与消费者：`coding-tasks`（公开、即时真值）；第二个 pack 需要什么 |
-| `docs/dsh-plugin-notes.md` | 在 dsh 上写插件的实战记录：心智模型、踩过的坑、验证过的模式 |
+samsara 就是为这个缺口造的。不是又一个优化器，而是**记录、竞技场、不动点**三件事：
 
-## 仓库布局（目标态）
+- **记录**——challenger 的谱系、它碰的那一个 surface、每个 tier 的成对逐任务分数、实测噪声底、gate policy 及其参数、holdout 消耗、成本、settlement、只追加的重打分。它的脊梁是一个**坐标元组**：任何能动分数的量都是一个具名坐标，challenger 的 id 是元组的哈希，"可比"是 gate 检查的规则，不是 runner 记得的约定。
+- **竞技场**——机制固定、策略可换，于是每一条已发表的接受准则都是插件而不是对手。`gate-catalog` 带了十三条：keep-better、DGM 的 `keep_better`、Self-Harness、RSEA、Ladder、Miller、McNemar、PACE 的 e-process、HCL 的 commit 规则、AutoScientists 的噪声底、`gate-default`……`gate bench` 能把其中任何一条、或者你用任何语言写的一条，跑在"同一配置的重跑"上——那里每一次接受按构造都是假阳性。论文做不出这张表，只有带 ledger 的框架能。
+- **不动点**——靠机器而不是靠约定：DGM 的 agent 删掉隐藏标记拿了满分，这是记录在案的。
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/gate-bench-dark.svg">
+    <img src="docs/assets/gate-bench-light.svg" alt="null 下各 gate 的假晋升率：keep-better 0.51、DGM 0.72、Self-Harness 0.38、RSEA 0.56、Ladder 0.20、gate-fast 0.10、gate-default 0.06、Miller 0.04；声明 α 0.05" width="720">
+  </picture>
+</p>
+
+仍然空着、也是 champion 必须能死的理由：这个领域的每一个 benchmark 都是即时验证的。samsara 是为"真值下个月才到、而且以后还会被修订"造的——这部分机器已实现，但目前诚实地说没有消费者（见"状态"）。
+
+## 三个不动点
+
+samsara 里一切可换，除了三样东西——它们按构造在回路之外：
+
+| | | |
+|:---|:---|:---|
+| 📖 **book** | 真值 | 任务集、settlement、holdout 的可见性与预算 |
+| ⚖️ **gate** | 裁决 | 统计决定晋升；回路写不到它 |
+| ✍️ **sign-off** | 同意 | `0600` unix socket 上对 nonce 的 Ed25519 签名——HTTP 请求永远不算证明 |
+
+optimizer 自己可以被优化。裁判和签字权不行。
+
+机制固定、策略可换：统计检验、优化算法、评测逻辑、签字通道都是插件，默认严格，ledger 记着每个裁决是谁做的。
+
+## 一轮怎么跑
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/loop-dark.svg">
+    <img src="docs/assets/loop-light.svg" alt="回路：propose、run、judge、keep/drop、settle；book、gate、sign-off 在回路之外，只进不出" width="720">
+  </picture>
+</p>
+
+**pack** 提供现实：任务、真值、评分。框架不认识任何领域——它只经 `pack.yaml` 和 pack 命令的 stdout 与之通信，命令永远是子进程、从不 import。树内那一个是 `packs/coding-tasks`（Aider Polyglot 的 148 道 Exercism 题：Python、JavaScript、Rust、Go；closed-book，测试对 agent 隐藏）。
+
+**loop** 是一个配置在一道题上的一次 attempt。带两条：dsh 自己的进程内 agent，和作为子进程的 Claude Code。加第三条 = 一个包 + patch 文件里一行。
+
+Claude Code loop **默认关**：它需要专有的 `@anthropic-ai/claude-agent-sdk`，所以是 optional peer，那一行 `disabled: true`。装进 profile 再翻开那一行即可；框架其余部分不碰它。
+
+## 接入你的 gate、你的 optimizer
+
+研究者会带来东西的两条缝，都是任意语言的程序。
+
+**gate** 从 stdin 读一份比较请求——按 (taskId, sample) 配对的逐题值与 entity、实测噪声底、policy、本轮的 `k`/`index`、seed——向 stdout 写 verdict 和完整的 `Compare`：
+
+```python
+#!/usr/bin/env python3          # examples/gates/keep_better.py，节选
+import json, sys
+req = json.load(sys.stdin)
+pairs = pair(req["champion"], req["challenger"])
+mean = sum(c - a for a, c in pairs) / len(pairs)
+print(json.dumps({"verdict": "promote" if mean > 0 else "hold", "compare": compare_of(pairs, mean)}))
 ```
-profiles/host/       dsh --profile host 启动的东西；cordis.patch.yml == champion 保留的 rows
-packages/            框架：TS 写的 dsh 插件，一个概念一个包
-  kernel book pack ledger scope champion gate signoff loops loops-dsh loops-claude-code workdir submit proposers ui
-packs/
-  coding-tasks/      公开、即时真值；CI 跑它；也是开源 demo（唯一在树内的 pack）
-examples/  ops/  tests/  docs/
-data/                $SAMSARA_HOME（gitignored）：ledger sqlite + attempt 产物
+
+```sh
+# 它会把"同一配置的重跑"当成改进的概率是多少？（在录好的重跑上做 bootstrap）
+dsh --profile host gate bench --attempts data/runs/noise/attempts.jsonl \
+    --tasks packs/coding-tasks/tasks/holdin.jsonl --metric pass_rate \
+    --gates default,keep-better,pace,miller --gate-command ./my_gate.py --out bench.json
+# 挂上去：一行 —— { id: gate-mine, name: '@oldbulb/samsara-gate/plugin-command', config: { command: ./my_gate.py, name: mine, version: 0.1.0 } }
 ```
 
-## 外部依赖
+**proposer** 读一个 view 目录（champion 的 skill、held-in 任务、champion 的逐题结果、held-out 的聚合、`environment.md`），写出 `proposal.json` 和 patch：
 
-| 依赖 | 版本 / 位置 | 作用 |
-|---|---|---|
-| dsh | 钉 `b150a551` = npm `@deepseek-ai/dsh@0.1.1-rc.2`（同一 tag）；源码检出在 `../deepseek-harness` | 内核：scope / loader / storage / llm seam / subprocess |
-| Node + pnpm | Node ≥ 22.19，pnpm 11.7.0 | 工具链与 dsh 一致 |
-| LLM 网关 | 任何 OpenAI/Anthropic 兼容网关（网关不可达时只有 null loop 与回放测试可用） | dsh 经 `llm-pi-ai` 的手工路由（`api: anthropic-messages`，baseURL = 网关根）接入；Claude Code loop 经 `ANTHROPIC_BASE_URL`。两条 wire、tool call、流式、并发均已实测 |
-| Aider Polyglot | `Aider-AI/polyglot-benchmark`（Exercism 内容，MIT） | `packs/coding-tasks` 的 P1 任务源，取 Python 34 + JS 48 = 82 题 |
-| Python + Node | pack 命令可用任意语言 | `packs/coding-tasks` 自带 `runtime/py/.venv`（3.12 + pytest）与 `runtime/js/node_modules` |
+```python
+from samsara_proposer import load_view, Proposal, write_proposal, parse_args   # sdk/py
+args = parse_args()
+view = load_view(args.view)
+skill = improve(view.champion_skill_dir, view.champion_scores)               # 你的优化器
+write_proposal(args.out, Proposal(parent=view.champion_id, surface="skill",
+    intent="…", prediction={"metric": view.metric, "direction": "up"}), skill_dir=skill)
+```
 
-凭据（网关 API key）一律不进仓库：dsh 侧走 `$DSH_HOME/.credentials.yaml` 的 `apiKeyEnv` 引用，Claude Code 侧按 E5 显式注入。网关地址等部署事实写在 `profiles/host/cordis.patch.yml`（gitignored，样板见同目录 `.example.yml`）。
+```sh
+# 渲染 view、跑它、校验并 diff-scan 提案——不开 scope、不跑 attempt、不花钱
+dsh --profile host propose --pack packs/coding-tasks --proposer ./my_optimizer.py \
+    --set holdin --limit 8 --metric pass_rate --dry-run
+```
 
-## 已定决策（勿重开）
+SDK 有 TypeScript（`@oldbulb/samsara-proposer-sdk`）和 Python（`sdk/py`）两份；契约写在 [`examples/gates/`](examples/gates/README.md) 与 [`examples/proposers/`](examples/proposers/README.md)。loop——一个 harness 怎么跑一次 attempt——由我们来写，因为它要求懂那个 harness。
 
-- TS host；唯一 ledger 在 dsh `storageDomain`（sqlite）；v1 先做 `loops-dsh`，Claude Code 第二；v1 proposer 是外部 CLI；UI 独立路由；结构化输出由 host 用 pack 契约校验；v1 不发 npm
-- 业务领域与开发记录不进本仓库：私有 pack 已移出；`docs/research/`、`docs/design/notes/`、`docs/handover/`、`ops/bootstrap.md` 本地保留但不入库
-- 本地开发、本地验证，LLM 指向兼容网关；之后再迁服务器
-- gate 初值：α = 0.05、β = 0.20、bootstrap B = 2000、n_eff 下限 20；SE 来自 ≥3 次同配置 rerun 的实测噪声底，不用假设 sd
-- coding-tasks 从 Aider Polyglot 起步；后续用 SWE-smith 式合成 bug 补"真实 repo 结构"
+## 安装
 
-## 开工前清单
+samsara 是一个 dsh bundle 加一个 profile。需要 dsh CLI、Node ≥ 22.19、pnpm 11.7。
 
-| # | 项 | 状态 |
-|---|---|---|
-| 1 | 设计文档（philosophy / architecture / packs） | ✅ |
-| 2 | dsh 源码检出 `b150a551`，已构建（`apps/cli/lib/bin.js`） | ✅ |
-| 3 | pnpm 11.7.0、Node 22 | ✅ |
-| 4 | 网关可用性实测（messages + responses 两条 wire） | ✅ |
-| 5 | dsh → 网关接法确认（`llm-pi-ai` 手工路由；`llm-deepseek` 的 chat-completions wire 该网关不收） | ✅ |
-| 6 | coding-tasks 任务源选定并看过题目结构 | ✅ |
-| 7 | 对抗评审的门蒙特卡洛脚本保留在开发记录里（不入库，已移植为 `packages/gate/tests/sim.test.ts`） | ✅ |
-| 8 | `dsh` CLI 进 PATH（`pnpm link` 或 alias 到源码 bin） | ✅ |
-| 9 | 根 `package.json` + `pnpm-workspace.yaml`，dsh 包 exact pin `0.1.1-rc.2` | ✅ |
-| 10 | `profiles/host/{package.json, cordis.patch.yml}`：网关路由 + `agent-default-model` | ✅ |
-| 11 | `$DSH_HOME/.credentials.yaml` 放网关 key | ✅ |
-| 12 | `dsh --profile host --dump-config` 含网关路由；headless 说一句话成功 | ✅ P0 门 |
-| 13 | 三份 schema 文件：`pack.yaml`（含 `holdout` 与 `surfaces` 段）、`truth`/`score` stdout（含 cost 指标）、contract 校验方式 | ✅ |
-| 14 | `LICENSE`；tests 运行方式 | ✅ |
-| 15 | **holdout 可行性计算**：用 83 题的实际 n 代入 Thresholdout/Ladder 界，结果写进 S7 | ✅ |
-| 16 | **dsh 暴露配置键清单**（compaction / hooks / sub-agent / runtime control）= v1 surface 在 dsh 上的分母 | ✅ |
-| 17 | 一轮成本模型（重复次数 × 任务数 × K） | ✅ |
+```sh
+npm i -g @deepseek-ai/dsh@0.1.1-rc.2
+# ledger 用 sqlite，CLI 不自带——装进 CLI 目录，不要装进 profile（profile 里的第二份 dsh-storage 会遮住 CLI 自己的）
+cd "$(npm root -g)/@deepseek-ai/dsh" && npm i @deepseek-ai/dsh-storage-sqlite@0.1.1-rc.2
 
-P0（= M0）已全部完成；`dsh` 经 `npm i -g @deepseek-ai/dsh@0.1.1-rc.2` 安装（pnpm -g 的隔离布局会让 loader 解析不到兄弟包）。
+dsh plugin --profile host add @oldbulb/samsara
+dsh --profile host --dump-config | grep samsara     # 合成树里应列出它的行
+```
+
+然后把部署事实——网关 URL 和凭据的*引用*（永远不是秘密）——从 [`profiles/host/cordis.patch.example.yml`](profiles/host/cordis.patch.example.yml) 抄到你 profile 目录的 `cordis.patch.yml`。
+
+### 从检出开始
+
+```sh
+git clone https://github.com/oldbulb/samsara.git && cd samsara
+pnpm install && pnpm build && pnpm test    # 344 个测试，全部离线：不调模型、不连网关
+ops/leak-scan.sh                           # 框架不得认识任何领域
+dsh plugin --profile host install          # 把这份检出链接进 host profile
+```
 
 ## 怎么跑
 
-```sh
-pnpm install && pnpm build && pnpm test                 # 39 files / 270 tests，全部离线
-ops/leak-scan.sh                                        # 边界纪律 1：packages/ 里不许有领域词（CI 同款）
-dsh plugin --profile host install                       # 首次：把 packages/bundle 链接进 host profile
-dsh --profile host --dump-config | grep samsara         # 合成配置里应有 samsara 的行
+<details open>
+<summary><strong>从 null loop 到签字晋升的每一条命令</strong></summary>
 
-# 跑 attempts（null 不调模型；dsh / claude-code 经网关调模型）
+```sh
+# attempts——null loop 完全不调模型
 dsh --profile host run --pack packs/coding-tasks --loop null --set smoke --limit 2 --out data/runs/x
+
 # 一个 challenger 走完整链路：diff scan → scope → attempts → gate → ledger
 dsh --profile host challenge --pack packs/coding-tasks --loop null --set holdin --limit 2 \
     --surface skill --skill-dir <dir> --intent "..." --metric pass_rate --with-champion
-# 一轮：proposer 出提案 → 同上
-dsh --profile host round --pack packs/coding-tasks --loop dsh --proposer claude-p --set smoke --limit 2 --metric pass_rate --with-champion
-# 晋升需要签字（unix socket + Ed25519，HTTP 不算证明）
+
+# 一轮：proposer 写 challenger，然后同一条管线
+dsh --profile host round --pack packs/coding-tasks --loop dsh --proposer claude-p \
+    --set smoke --limit 2 --metric pass_rate --with-champion
+
+# 只跑 proposer、不花钱：渲染 view、跑它、校验并 diff-scan 提案
+dsh --profile host propose --pack packs/coding-tasks --proposer ./examples/proposers/noop.py \
+    --set smoke --limit 2 --metric pass_rate --dry-run
+
+# 每条 gate 把"同一 champion 的重跑"判成晋升的频率（在录好的重跑上 bootstrap）
+dsh --profile host gate bench --attempts data/runs/noise/attempts.jsonl --tasks packs/coding-tasks/tasks/holdin.jsonl \
+    --metric pass_rate --gates default,keep-better,miller --out bench.json
+
+# 晋升需要签字，走 unix socket
 node packages/signoff/lib/cli.js keygen --out data/signoff
 dsh --profile host promote <challengerId> --wait 60 &
-node packages/signoff/lib/cli.js confirm --socket data/signoff.sock --key data/signoff/signoff.key --row <challengerId> --action promote --who <name>
-dsh --profile host demote <challengerId> --reason "..."
-# UI：`serve` 会打印实际端口（默认 OS 分配；要固定端口在 profile patch 里给 webserver 行设 port）
-dsh --profile host serve        # → samsara host serving; ui http://127.0.0.1:<port>/samsara
-# 跨 harness 认证表
-dsh --profile host certify --pack packs/coding-tasks --skill-dir <dir> --loops dsh,claude-code --set smoke --limit 2 --metric pass_rate
-# 并发与断点续跑：--parallel N 走流水线；SIGINT 后 --resume <dir> 只补没写 marker 的 attempt
+node packages/signoff/lib/cli.js confirm --socket data/signoff.sock \
+    --key data/signoff/signoff.key --row <challengerId> --action promote --who <name>
+
+dsh --profile host serve      # 只读的 /samsara 页：champion、settlement、challenger、签字
+dsh --profile host certify --pack packs/coding-tasks --skill-dir <dir> --loops dsh,claude-code \
+    --set smoke --limit 2 --metric pass_rate      # 这个 skill 跨 harness 还成立吗？
+
 dsh --profile host run --pack packs/coding-tasks --loop dsh --set holdin --limit 32 --parallel 16 --out data/runs/x
-dsh --profile host run --resume data/runs/x
-# 导出：attempt 的 loop 事件 → OTel GenAI span
+dsh --profile host run --resume data/runs/x       # durable step：只重跑没有 marker 的 attempt
 dsh --profile host export --run data/runs/x --format otlp-json --out data/runs/x.otlp.json
 ```
 
-> ledger 是 cwd 相对的（`<cwd>/data/ledger/samsara_ledger.sqlite`），所以在仓库根跑的任何一次 `run` 都会写进那一个真实 ledger。只是想验证环境的话换个 cwd 跑。
+</details>
 
-## 里程碑（实际执行顺序）
+> ledger 路径相对于工作目录（`<cwd>/data/ledger/samsara_ledger.sqlite`），所以在仓库根跑的每一次 `run` 都写进那一个真实 ledger。试东西请换个目录跑。
 
-| 里程碑 | 内容 | 状态 |
-|---|---|---|
-| M0 | workspace、kernel、schema、host profile ↔ 网关、可行性/配置键/成本三份 note | ✅ |
-| M1 | `packs/coding-tasks`（Polyglot py+js 82 题）、`@oldbulb/samsara-pack`、`@oldbulb/samsara-book` | ✅ |
-| M2 | loops seam + null、workdir、submit、loops-dsh、loops-claude-code、runner；两条 loop smoke 8/8；replay 离线测试 | ✅ |
-| M3 | gate-default（BCa/Holm/MDE/Ladder + 策略定义模拟）、ledger on sqlite、runner 写 ledger | ✅ |
-| M4 | scope（E1/E8 diff scan）、signoff（E2）、champion（E7）、`challenge/promote/demote/serve` | ✅ |
-| M5 | proposers（claude-p / human）、proposer 视图、`round`、champion skill 默认 | ✅ 真实 `claude -p` 一轮已跑通 |
-| P6 | `/samsara` 页面（host 路由插件，内联 HTML + JSON API，只读；Internal 设计体系）、`certify` 跨 harness 认证表、gate `facts:mismatch`、skill utilization | ✅ |
-| P5 | 延迟真值那条线（`status: pending` → settlement 重打分、带 token 的 `data` 命令、按 `stratum` 分层打分）由一个私有 pack 验证过：两条 loop 各跑通 1 次真实 attempt。该 pack 已于 2026-08-24 移出本仓库，框架侧的能力留下了 | ✅（能力在；树内没有 pack 驱动它） |
-| 采纳 | `--parallel N` 流水线（32/32 实测）、durable step marker + `run --resume`、`@oldbulb/samsara-sandbox` landlock 策略、`env_sha` 取自 lock 文件、OTel GenAI span 映射 + `export --format otlp-json` | ✅ |
+## 包
 
-已知局限：主力模型在 Python/JS Exercism 上 pass_rate 恒为 1.0（3 次同配置 rerun 实测噪声底 sd=0），阳性对照晋升需要更难任务（更多 Polyglot 语言 / SWE-smith），统计门因此还没被真正证伪过；live tier（mSPRT）未实现；proposer 进程在 macOS 上没有文件系统沙箱（E9，v1 开放）；SIGINT 会丢少量 ledger 写（`attempts.jsonl` 完整，`run --resume` 可重建）。
+以 `@oldbulb` scope 发布；bundle 是 `@oldbulb/samsara`，一个概念一个包。
 
-## 启动序（设计文档中的 P 序，供对照）
+| | |
+|---|---|
+| `kernel` | 唯一按路径 import dsh 的包——重新 pin dsh 是一个文件的事 |
+| `pack` · `book` | pack 契约，以及真值：任务集、settlement、holdout 预算 |
+| `loops` · `loops-dsh` · `loops-claude-code` | loop 这条缝和它的两个 provider |
+| `workdir` · `submit` · `sandbox` · `scope` | 密封的 attempt 目录、submit 工具、文件系统策略、带 diff scan 的可处置 scope |
+| `gate` · `gate-catalog` · `ledger` | 裁决这条缝（`gate-default` 与子进程 gate）、十三条已发表接受准则加 bench、只追加的记录 |
+| `champion` · `signoff` | 作为内容寻址别名的被服务配置，以及同意的证明 |
+| `proposers` · `proposer-sdk` · `runner` · `ui` | 提案适配器（claude-p、human、任意命令）、proposer SDK（TypeScript；Python 在 `sdk/py`）、命令、只读页面 |
+| `examples/` | 一个 gate、两个 proposer，纯标准库 Python，附完整契约 |
 
-| 步 | 做什么 | 可观测门 |
-|---|---|---|
-| P0 | workspace、host profile、dsh↔网关打通、schema、LICENSE、holdout 可行性计算、dsh 配置键清单、成本模型 | 清单 8–17 |
-| P1 | `pack` + `book` + `gate-default`（纯 TS，无 dsh 运行时）；`packs/coding-tasks` 从 Polyglot 转格式；score 契约含 cost；`gate_sim.py` 改成 TS 测试 | truth/score stdout 过校验；3 次 rerun 得噪声底；MDE 正确；holdout 按 `entity_key` 不相交；null siblings false-keep < α·K；纯噪声任务集零晋升；"更大预算优化器"臂不假晋升；阳性对照能晋升 |
-| P2 | `kernel` + `scope` + `workdir` + `submit` + `loops-dsh`（null skill）；surface 边界与 diff 扫描（E8）；单 surface 约束 | 20/20 valid submits；dispose 后零进程、registry 复原、profile sha 不变（E1）；token guard 拒 deny_patterns；触碰 `bin/truth` 或越过 surface glob 的 patch 在运行前被拒 |
-| P3 | `ledger` + `champion` + `signoff`；重打分 append 语义；champion 为内容寻址 alias；模型升级事件 | 重启后 ledger 一致；无 consent 的 promote 被拒；consent 只认 socket；热应用 sha 验证（E7）；model pool 变更触发祖先重打分 |
-| P4 | coding-tasks 端到端 + `claude -p` proposer + tiers + holdout 预算 + CI | 真实 skill diff 跑完 smoke→holdin→holdout；`|Δ|<MDE` 被拒；过夜 K=4 无签字零晋升；预算耗尽轮换 holdout；真值修订重打分并降级 |
-| P5 | 延迟真值：pending 真值、带 token 的 `data` 命令、分层打分 | settlement 事件重打分 held rows；时间参数被拒；sandbox 内 gated query 403 |
-| P6 | `loops-claude-code` + `ui`；跨 harness 认证输出 | 两条 loop 两行；facts 不同拒 A/B；`skill_utilization` 与 pass rate 分列；adapter 版本入账；UI 首屏 = champion · settlement · challengers · sign-offs |
+## 文档
 
-之后：历史回放 tier、codex / pi loop、optimizer 作为 surface、训练导出。
+| | |
+|---|---|
+| [`docs/design/philosophy.md`](docs/design/philosophy.md) | 为什么三个不动点在回路之外、由此推出什么、以及哪些话刻意不说 |
+| [`docs/design/architecture.md`](docs/design/architecture.md) | 布局、seam、13 个 surface、pack 契约、坐标与可比性、ledger 数据模型、生命周期、硬约束 E1–E8 / S1–S8 |
+| [`docs/design/packs.md`](docs/design/packs.md) | pack 契约，以及第二个 pack 需要什么 |
+| [`docs/design/gate.md`](docs/design/gate.md) · [`loops.md`](docs/design/loops.md) · [`proposers.md`](docs/design/proposers.md) | 三条缝的细节 |
+| [`packages/gate-catalog/README.md`](packages/gate-catalog/README.md) | 十三条接受准则、出处、各自的第一类错误声明 |
+| [`docs/dsh-plugin-notes.md`](docs/dsh-plugin-notes.md) | 在 dsh 上写插件：心智模型、踩过的坑、验证过的模式 |
 
-## 词汇
+## 状态
 
-book · task · settlement · champion · challenger · surface · scope · attempt · loop · tier(smoke/holdin/holdout/live) · gate · sign-off · ledger · pack。不用 experiment / case / cutoff / consent 等前身系统时代的词汇。
+1.0 之前，且如实说。两条 loop 在 Aider Polyglot 上跑通；gate、ledger、scope、sign-off、champion、proposer 端到端验证；真实的 `claude -p` 提案一轮已跑通。
 
-## Claude Code loop 默认关
+gate 的校准，连同它的边界：在 closed-book pack 上（83 题、43 个 entity、3 次同配置重跑；配对 sd 0.36，40% 的题在重跑间翻转），`gate-default` 的检验把"同一配置的重跑"判成晋升的概率是 6%（声明 5%），6 对真实重跑上 0/6；keep-better 是 51%，DGM 的规则 72–100%。在 held-out tier 的 29 个 entity 上，bootstrap 约为标称 α 的 1.5 倍。数字与方法见 `packages/gate-catalog/README.md`。
 
-`loops-claude-code` 依赖 `@anthropic-ai/claude-agent-sdk`——它不是开源许可（"© Anthropic PBC. All rights reserved."）。因此它是 optional peer，bundle 里那一行默认 `disabled: true`，装 samsara 不会把它装上。要用这条 loop：
+已知局限，按重要性：
 
-```sh
-dsh plugin --profile <name> add @anthropic-ai/claude-agent-sdk
-# 然后在 profile 的 patch 层：- { id: loops-claude-code, disabled: false, config: {...} }
-```
+- **gate 从未晋升过任何东西。** 这个 pack 能检出的效应（3 次重跑下约 0.14 pass rate）高于它声明的 SESOI（0.05），所以每次真实比较都以 `hold:underpowered` 结束——在性质上是正确答案，在事实上是一个未被证伪的门。在一个 n × R 够到 SESOI 的题集上做一次正面对照，是接下来最要紧的事。
+- **pack 的真值部分自评**（未修）：测试运行器把 agent 自己写的测试和恢复的隐藏测试一起计数，`pass_rate` 可以在没有任何隐藏测试通过的情况下变动；`solved`（全部隐藏测试）不受影响。
+- **延迟真值没有消费者。** pending 真值、settlement、祖先重打分已实现并有测试；树内没有 pack 驱动它们。
+- `live` tier（生产流量上的 mSPRT）未实现。
+- Landlock 只在 Linux 上生效：macOS 上文件系统策略只记录不执行，proposer 进程未受限。
+- SIGINT 可能丢少量 ledger 写入；`attempts.jsonl` 完整，`run --resume` 可从它重建。
 
-没装就启用会报人话：`loops-claude-code: @anthropic-ai/claude-agent-sdk is not installed…`。框架其余部分不碰它。
+## 走向
+
+底座的下一个消费者是一个地方，不是一个 pack：**把 dsh 变成跑 RSI 实验的台子**——你跟 dsh 说话，agent 经工具驱动 samsara，对话就是实验笔记本，`/samsara …` 命令是签字唯一发生的地方，ledger 是记录。设计简报已有；工具会包住上面这些命令调用的同一套生命周期。见 `docs/design/philosophy.md` § Where this goes。
 
 ## 参与与许可
 
-| 文件 | 内容 |
-|---|---|
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | 什么样的贡献最合适（pack / loop provider / gate policy）、开发环境、房规、DCO |
-| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | 对事不对人 |
-| [`SECURITY.md`](SECURITY.md) | 漏洞私下报告的通道、在乎哪几类失败、已知的平台限制 |
-| [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) | 依赖与任务夹具的来源和许可，含唯一一个非开源依赖（Claude Agent SDK） |
-| [`LICENSE`](LICENSE) | MIT |
+[`CONTRIBUTING.md`](CONTRIBUTING.md)——什么合适、怎么搭环境、房规、以及作为全部协议的 DCO 签字。
+[`SECURITY.md`](SECURITY.md) · [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) · [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 
-npm 上以 `@oldbulb` scope 发布：bundle 是 `@oldbulb/samsara`，其余是 `@oldbulb/samsara-<包名>`。
+MIT——见 [`LICENSE`](LICENSE)。

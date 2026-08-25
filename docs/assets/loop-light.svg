@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300">
+        
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="#64748b"/>
+          </marker>
+          <marker id="arA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="#6d28d9"/>
+          </marker>
+        </defs>
+
+        <rect x="24" y="20" width="672" height="124" rx="12"
+              fill="none" stroke="#94a3b8" stroke-dasharray="5 4"/>
+        <text x="44" y="46" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600"
+              letter-spacing="1" fill="#64748b">THE LOOP</text>
+
+        <path d="M563 84 V64 H158 V82" stroke="#64748b" stroke-width="1.5"
+              fill="none" marker-end="url(#ar)"/>
+
+        <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="600" text-anchor="middle">
+          <g fill="#f1f5f9" stroke="#cbd5e1">
+            <rect x="116" y="86" width="84" height="34" rx="8"/>
+            <rect x="226" y="86" width="60" height="34" rx="8"/>
+            <rect x="312" y="86" width="66" height="34" rx="8"/>
+            <rect x="404" y="86" width="100" height="34" rx="8"/>
+            <rect x="530" y="86" width="66" height="34" rx="8"/>
+          </g>
+          <g fill="#1e293b">
+            <text x="158" y="108">propose</text>
+            <text x="256" y="108">run</text>
+            <text x="345" y="108">judge</text>
+            <text x="454" y="108">keep / drop</text>
+            <text x="563" y="108">settle</text>
+          </g>
+        </g>
+        <g stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)" fill="none">
+          <path d="M202 103 H216"/><path d="M288 103 H302"/><path d="M380 103 H394"/><path d="M506 103 H520"/>
+        </g>
+
+        <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="600" text-anchor="middle">
+          <g fill="#f5f3ff" stroke="#c4b5fd">
+            <rect x="140" y="198" width="120" height="42" rx="8"/>
+            <rect x="340" y="198" width="120" height="42" rx="8"/>
+            <rect x="530" y="198" width="120" height="42" rx="8"/>
+          </g>
+          <g fill="#6d28d9">
+            <text x="200" y="224">book</text>
+            <text x="400" y="224">gate</text>
+            <text x="590" y="224">sign-off</text>
+          </g>
+        </g>
+        <g stroke="#6d28d9" stroke-width="1.5" fill="none" marker-end="url(#arA)">
+          <path d="M200 196 C200 168 300 156 334 130"/>
+          <path d="M400 196 C400 170 420 148 434 130"/>
+          <path d="M590 196 C590 170 520 148 492 130"/>
+        </g>
+        <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10" fill="#64748b" text-anchor="middle">
+          <text x="200" y="258">tasks and truth</text>
+          <text x="400" y="258">the verdict</text>
+          <text x="590" y="258">a human</text>
+          <text x="360" y="286">OUTSIDE THE LOOP — NOT WRITABLE FROM INSIDE</text>
+        </g>
+      </svg>
