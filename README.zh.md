@@ -31,8 +31,8 @@ samsara 就是为这个缺口造的。不是又一个优化器，而是**记录�
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/gate-bench-dark.svg">
-    <img src="docs/assets/gate-bench-light.svg" alt="null 下各 gate 的假晋升率：keep-better 0.51、DGM 0.72、Self-Harness 0.38、RSEA 0.56、Ladder 0.20、gate-fast 0.10、gate-default 0.06、Miller 0.04；声明 α 0.05" width="720">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/gate-bench-null-dark.svg">
+    <img src="docs/assets/gate-bench-null-light.svg" alt="null 下各 gate 的假晋升率：keep-better 0.51、DGM 0.72、Self-Harness 0.38、RSEA 0.56、Ladder 0.20、gate-fast 0.10、gate-default 0.06、Miller 0.04；声明 α 0.05" width="720">
   </picture>
 </p>
 

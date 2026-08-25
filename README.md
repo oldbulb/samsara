@@ -63,8 +63,8 @@ and the fixed points.**
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/gate-bench-dark.svg">
-    <img src="docs/assets/gate-bench-light.svg" alt="False-promote rate under the null per gate: keep-better 0.51, DGM 0.72, Self-Harness 0.38, RSEA 0.56, Ladder 0.20, gate-fast 0.10, gate-default 0.06, Miller 0.04; declared alpha 0.05" width="720">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/gate-bench-null-dark.svg">
+    <img src="docs/assets/gate-bench-null-light.svg" alt="False-promote rate under the null per gate: keep-better 0.51, DGM 0.72, Self-Harness 0.38, RSEA 0.56, Ladder 0.20, gate-fast 0.10, gate-default 0.06, Miller 0.04; declared alpha 0.05" width="720">
   </picture>
 </p>
 
