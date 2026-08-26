@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-6d28d9"></a>
-  <img alt="344 tests, offline" src="https://img.shields.io/badge/tests-344%20offline-6d28d9">
+  <img alt="tests offline" src="https://img.shields.io/badge/tests-offline-6d28d9">
   <a href="https://github.com/deepseek-ai/deepseek-harness"><img alt="built on DeepSeek Harness" src="https://img.shields.io/badge/built%20on-DeepSeek%20Harness-0e7490"></a>
   <img alt="pre-release" src="https://img.shields.io/badge/status-pre--release-b45309">
 </p>
@@ -134,8 +134,9 @@ print(json.dumps({"verdict": "promote" if mean > 0 else "hold", "compare": compa
 ```
 
 ```sh
-# how often does it promote a rerun of the same configuration? (bootstrap on recorded reruns)
-dsh --profile host gate bench --attempts data/runs/noise/attempts.jsonl \
+# how often does it promote a rerun of the same configuration? (bootstrap on the reruns `calibrate` recorded —
+# one attempts.jsonl per rerun directory: cat data/runs/noise/calibrate-*/attempts.jsonl > data/runs/noise.jsonl)
+dsh --profile host gate bench --attempts data/runs/noise.jsonl \
     --tasks packs/coding-tasks/tasks/holdin.jsonl --metric pass_rate \
     --gates default,keep-better,pace,miller --gate-command ./my_gate.py --out bench.json
 # mount it: one row — { id: gate-mine, name: '@oldbulb/samsara-gate/plugin-command', config: { command: ./my_gate.py, name: mine, version: 0.1.0 } }
@@ -169,7 +170,10 @@ the harness.
 ## Install
 
 samsara is a dsh bundle plus a profile. You need the dsh CLI, Node ≥ 22.19 and
-pnpm 11.7.
+pnpm 11.7. The packages are not on npm yet (`dsh plugin --profile host add
+@oldbulb/samsara` is the install path once they are), so the install is from a
+checkout: the repository's `profiles/host` *is* the host profile, linked into
+dsh's profile directory.
 
 ```sh
 npm i -g @deepseek-ai/dsh@0.1.1-rc.2
@@ -177,27 +181,73 @@ npm i -g @deepseek-ai/dsh@0.1.1-rc.2
 # not into your profile (a second copy of dsh-storage there shadows the CLI's own)
 cd "$(npm root -g)/@deepseek-ai/dsh" && npm i @deepseek-ai/dsh-storage-sqlite@0.1.1-rc.2
 
-dsh plugin --profile host add @oldbulb/samsara
+git clone https://github.com/oldbulb/samsara.git && cd samsara
+pnpm install && pnpm build
+ops/leak-scan.sh                           # the framework must not know any domain
+
+# the profile: dsh reads $DSH_HOME/profiles/<name> (default ~/.dsh). Without the link,
+# `install` silently initializes an empty dsh-base-only profile there instead.
+mkdir -p ~/.dsh/profiles && ln -s "$PWD/profiles/host" ~/.dsh/profiles/host
+dsh plugin --profile host install          # links the checkout's packages into the profile
 dsh --profile host --dump-config | grep samsara     # the composed tree should list its rows
 ```
 
 Then give the profile its deployment facts — the gateway URL and the credential
 *reference* (never a secret) — by copying
 [`profiles/host/cordis.patch.example.yml`](profiles/host/cordis.patch.example.yml)
-to `cordis.patch.yml` in your profile directory.
+to `profiles/host/cordis.patch.yml` (gitignored: it is this deployment's state,
+and the champion rewrites it on promote).
 
-### From a checkout
+The tests run entirely offline — no model, no gateway — but two of them drive
+the coding-tasks pack for real and need its runtimes (pytest, jest, go, cargo):
 
 ```sh
-git clone https://github.com/oldbulb/samsara.git && cd samsara
-pnpm install && pnpm build && pnpm test    # 344 tests, entirely offline: no model, no gateway
-ops/leak-scan.sh                           # the framework must not know any domain
-dsh plugin --profile host install          # links this checkout into the host profile
+packs/coding-tasks/runtime/provision.sh    # once; the only step that touches the network (Go and Rust land under runtime/)
+pnpm test
 ```
 
 ## Run
 
 <details open>
+<summary><strong>The zero-cost first run: the loop closed on the synthetic pack</strong></summary>
+
+`packs/synthetic` is a biased coin with a known answer, so the whole
+lifecycle — noise floor, pre-registered experiment, rounds through smoke,
+held-in and held-out, the gate, the sign-off, the promotion — runs on the null
+loop without a model. Give `loops-null` a canned submission and mount the
+pack's proposer under two effects (the profile rows are in
+[`packs/synthetic/README.md`](packs/synthetic/README.md)), then:
+
+```sh
+# the signer's key, before the host boots: only signoff.pub goes to data/signoff/ (a private key beside it makes the host refuse every proof, E2)
+node packages/signoff/lib/cli.js keygen --out ~/.samsara/signoff && mkdir -p data/signoff && cp ~/.samsara/signoff/signoff.pub data/signoff/
+# the noise floor: five same-config reruns of the champion on the held-in set  → sd_paired ≈ 0.18
+dsh --profile host calibrate --pack packs/synthetic --loop null --set holdin --reruns 5 --metric pass_rate --parallel 8 --out data/runs/syn-cal
+# the A/A control first: the null diff (proposer effect-0) under its own pre-registered claim — never a promotion, round after round
+# (a powered held-out test drops it as indistinguishable, S8); a promotion here is a false positive
+dsh --profile host experiment new --pack packs/synthetic --hypothesis "the null diff does not promote" --metric pass_rate --budget-rounds 3
+dsh --profile host campaign --pack packs/synthetic --loop null --experiment <id> --proposer effect-0 --metric pass_rate \
+    --set holdin --parallel 8 --rounds 3 --holdout-repeat 6 --auto-holdout --out data/runs/syn-aa   # → hold, three times
+# the claim, its budget, and the gate it will be judged under, before any spend → prints the experiment id
+dsh --profile host experiment new --pack packs/synthetic --hypothesis "effect 0.15 promotes" --metric pass_rate --magnitude 0.15 --budget-rounds 3
+# rounds under it: proposer → smoke → held-in screen → held-out test at six replicates → decide; the promotion waits for the signature
+dsh --profile host campaign --pack packs/synthetic --loop null --experiment <id> --proposer effect-15 --metric pass_rate \
+    --set holdin --parallel 8 --rounds 3 --holdout-repeat 6 --auto-holdout --stop-on-promote --wait 600 --out data/runs/syn-inject   # → promote
+#   … and from another shell, with the private key that stayed on the signer's side:
+#   node packages/signoff/lib/cli.js confirm --socket data/signoff.sock --key ~/.samsara/signoff/signoff.key --row <challengerId> --action promote --who <name>
+dsh --profile host status
+```
+
+A noise floor belongs to one champion row: after the promotion, `calibrate`
+again before any further round (a campaign on the old floor stops with
+`no_noise_floor`), and `effect-0` is then a −0.15 challenger against the new
+champion, not the null diff.
+
+`tests/synthetic.e2e.test.ts` runs this sequence in-process on every `pnpm test`.
+
+</details>
+
+<details>
 <summary><strong>Every command, from a null loop to a signed promotion</strong></summary>
 
 ```sh
@@ -216,17 +266,20 @@ dsh --profile host round --pack packs/coding-tasks --loop dsh --proposer claude-
 dsh --profile host propose --pack packs/coding-tasks --proposer ./examples/proposers/noop.py \
     --set smoke --limit 2 --metric pass_rate --dry-run
 
-# how often would each gate promote a rerun of the same champion? (bootstrap on recorded reruns)
-dsh --profile host gate bench --attempts data/runs/noise/attempts.jsonl --tasks packs/coding-tasks/tasks/holdin.jsonl \
+# how often would each gate promote a rerun of the same champion? (bootstrap on recorded reruns:
+# `calibrate` writes one attempts.jsonl per rerun directory, and the bench wants them all in one file)
+cat data/runs/noise/calibrate-*/attempts.jsonl > data/runs/noise.jsonl
+dsh --profile host gate bench --attempts data/runs/noise.jsonl --tasks packs/coding-tasks/tasks/holdin.jsonl \
     --metric pass_rate --gates default,keep-better,miller --out bench.json
 
-# promotion needs a signature, delivered on a unix socket
-node packages/signoff/lib/cli.js keygen --out data/signoff
+# promotion needs a signature, delivered on a unix socket; the private key stays on the signer's side
+node packages/signoff/lib/cli.js keygen --out ~/.samsara/signoff && mkdir -p data/signoff && cp ~/.samsara/signoff/signoff.pub data/signoff/
 dsh --profile host promote <challengerId> --wait 60 &
 node packages/signoff/lib/cli.js confirm --socket data/signoff.sock \
-    --key data/signoff/signoff.key --row <challengerId> --action promote --who <name>
+    --key ~/.samsara/signoff/signoff.key --row <challengerId> --action promote --who <name>
+dsh --profile host ledger backup --out backups/ledger.sqlite   # a consistent copy while the host runs (E6)
 
-dsh --profile host serve      # read-only /samsara page: champion, settlements, challengers, sign-offs
+dsh --profile host serve      # read-only /samsara pages: experiments, rounds, challengers, servings, bench
 dsh --profile host certify --pack packs/coding-tasks --skill-dir <dir> --loops dsh,claude-code \
     --set smoke --limit 2 --metric pass_rate      # does the skill hold across harnesses?
 
@@ -240,6 +293,24 @@ dsh --profile host export --run data/runs/x --format otlp-json --out data/runs/x
 > The ledger path is relative to the working directory
 > (`<cwd>/data/ledger/samsara_ledger.sqlite`), so every `run` from the repository
 > root writes to that one real ledger. Run from elsewhere to try things out.
+
+## Experiments view
+
+`dsh --profile host serve` puts the ledger on the loopback URL it prints
+(`http://127.0.0.1:<port>/samsara`; the port is OS-assigned unless the
+profile's `cordis.patch.yml` pins one on the `samsara-webserver` row,
+`config: { host: 127.0.0.1, port: 3099 }`):
+read-only pages for the experiments, their rounds, every challenger's
+evidence, the champion history and the gate bench, each with a `.json` twin
+that names the rows its numbers came from, and a live stream while a round
+is open. Consent never goes through the page — it shows the command to run.
+
+<p align="center">
+  <img src="docs/img/experiment-dark.png" alt="The experiment page: hypothesis and prediction, the budget, the rounds table with the promotion verdict and one column per shadow gate, and the lineage curve" width="720">
+</p>
+
+The pages are plain HTML in dsh's own design language, rendered from the
+ledger by [`packages/ui`](packages/ui/README.md).
 
 ## Packages
 
@@ -255,6 +326,7 @@ concept is one package.
 | `gate` · `gate-catalog` · `ledger` | the verdict seam with `gate-default` and the subprocess gate, thirteen published accept rules plus the bench, and the append-only record |
 | `champion` · `signoff` | the served configuration as a content-addressed alias, and consent proofs |
 | `proposers` · `proposer-sdk` · `runner` · `ui` | proposal adapters (claude-p, human, any command), the proposer SDK (TypeScript; Python under `sdk/py`), the commands, the read-only page |
+| `workbench` | the operator preset, the `samsara_*` tools, the `/samsara …` commands, the notebook: dsh as the place experiments are run |
 | `examples/` | a gate and two proposers in stdlib Python, with the contracts written out |
 
 ## Documentation
@@ -265,6 +337,7 @@ concept is one package.
 | [`docs/design/architecture.md`](docs/design/architecture.md) | layout, seams, the 13 surfaces, the pack contract, the ledger model, hard constraints E1–E8 / S1–S8 |
 | [`docs/design/packs.md`](docs/design/packs.md) | the pack contract, and what a second pack needs |
 | [`docs/design/gate.md`](docs/design/gate.md) · [`loops.md`](docs/design/loops.md) · [`proposers.md`](docs/design/proposers.md) | the seams in detail |
+| [`docs/design/workbench.md`](docs/design/workbench.md) | the workbench: two profiles, the operator agent, tools, commands, and the consent/approval split |
 | [`packages/gate-catalog/README.md`](packages/gate-catalog/README.md) | the thirteen accept rules, their sources, and what each one's type-I statement is |
 | [`docs/dsh-plugin-notes.md`](docs/dsh-plugin-notes.md) | writing dsh plugins: the mental model, the pitfalls we hit, the patterns that worked (in Chinese) |
 
@@ -283,11 +356,13 @@ bootstrap runs ≈1.5× nominal. Numbers and method: `packages/gate-catalog/READ
 
 Known limitations, most important first:
 
-- **The gate has never promoted anything.** The effect this pack can detect
-  (≈0.14 pass rate at 3 reruns) is above the SESOI it declares (0.05), so every
-  real comparison ends `hold:underpowered` — the right answer in kind, and an
-  unfalsified gate in fact. A positive control on a set where n × R reaches the
-  SESOI is the next thing that matters.
+- **The gate has never promoted anything on a real pack.** The effect
+  coding-tasks can detect (≈0.14 pass rate at 3 reruns) is above the SESOI it
+  declares (0.05), so every real comparison ends `hold:underpowered` — the
+  right answer in kind. The controls exist only on the synthetic coin: the
+  injected effect promotes and the null diff holds, through the same lifecycle.
+  A positive control on a real set where n × R reaches the SESOI is the next
+  thing that matters.
 - **The pack's truth is partly self-graded** (open): the test runners count
   tests the agent wrote alongside the hidden ones, so `pass_rate` can move
   without any hidden test passing; `solved` (all hidden tests) is unaffected.
@@ -299,14 +374,33 @@ Known limitations, most important first:
 - A SIGINT can lose a few ledger writes; `attempts.jsonl` stays complete and
   `run --resume` rebuilds from it.
 
-## Where this goes
+## Workbench
 
-The next consumer of the substrate is a place, not a pack: **dsh as the
-workbench on which RSI experiments are run** — you talk to dsh, the agent drives
-samsara through tools, the conversation is the lab notebook, `/samsara …`
-commands are the only place consent happens, the ledger is the record. The
-design brief exists; the tools will wrap the same lifecycle the commands above
-call. See `docs/design/philosophy.md` § Where this goes.
+The second consumer of the substrate is a place, not a pack: **dsh as the
+workbench on which RSI experiments are run**. You talk to dsh; an operator
+agent drives samsara through the `samsara_*` tools; the conversation is the lab
+notebook, mirrored into the ledger; `/samsara …` commands are the only place
+pre-registration and consent happen; the ledger is the record. It is a second
+profile, `workbench` (`dsh-base` + `dsh-web-app` + `@oldbulb/samsara` +
+`@oldbulb/samsara-workbench`), beside the `host` profile that keeps the CLI for
+scripts and CI; both call the same `lifecycle` service and write the same
+ledger. The agent reads every view the ledger renders to an operator and can
+start a calibration, a round, a campaign or a control — each quotes its cost
+and waits for an Allow, then runs as a job the agent owns; it cannot sign,
+change the gate, the budget or the prediction, reveal the held-out set, see
+held-out per-task rows, or be the proposer of a round it operates.
+
+```sh
+# from the checkout, as for `host`: profiles/workbench is the profile — link it, then install
+ln -s "$PWD/profiles/workbench" ~/.dsh/profiles/workbench && dsh plugin --profile workbench install
+dsh --profile workbench --dump-config | grep workbench-
+```
+
+[`docs/design/workbench.md`](docs/design/workbench.md) — the two profiles, the
+viewers, the tools and commands, the consent/approval split, what the agent
+cannot do.
+[`packages/workbench/README.md`](packages/workbench/README.md) — install and an
+example conversation.
 
 ## Contributing and license
 

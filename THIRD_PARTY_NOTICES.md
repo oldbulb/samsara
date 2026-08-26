@@ -46,13 +46,19 @@ is free of it.
 
 `packs/coding-tasks/fixtures/**` are exercise directories taken verbatim from the
 [Aider polyglot benchmark](https://github.com/Aider-AI/polyglot-benchmark), whose
-content comes from [Exercism](https://exercism.org)'s Python and JavaScript
-tracks — MIT. Each exercise keeps the upstream `LICENSE` file it shipped with.
+content comes from [Exercism](https://exercism.org)'s Python, JavaScript, Rust
+and Go tracks — MIT. Each exercise keeps the upstream `LICENSE` file it shipped with.
 Nothing in `fixtures/` is our work; `tools/import_polyglot.py` regenerates the
 directory from an upstream checkout.
 
 The JavaScript runtime install (`packs/coding-tasks/runtime/js`) pulls jest, babel
 and `@exercism/babel-preset-javascript`, all MIT.
+
+The Go and Rust runtimes (`packs/coding-tasks/runtime/go`, `runtime/rust`) are a
+stock Go distribution (BSD-3-Clause) and a rustup-installed stable toolchain
+(MIT / Apache-2.0), installed locally by `runtime/provision.sh`; the crates listed
+in `runtime/rust/deps/Cargo.toml` are fetched into a local registry cache under
+their own licenses (MIT / Apache-2.0).
 
 ## The visual system
 

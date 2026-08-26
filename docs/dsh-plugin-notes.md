@@ -185,8 +185,9 @@ function need<K extends ...>(ctx: Context, key: K): Context[K] {
 ```yaml
     # Web carrier: the bundle inserts the webserver row itself (never
     # dsh-web-app, whose web-startup row would reject the runner's argv; see
-    # B4 below). Loopback only.
-    - id: webserver
+    # B4 below), under its own id so a profile that loads dsh-web-app's
+    # `webserver` row can disable this one. Loopback only.
+    - id: samsara-webserver
       name: '@deepseek-ai/dsh-host-webserver'
       config:
         host: 127.0.0.1
@@ -614,7 +615,7 @@ protected async [Service.init](): Promise<void> {
 后端在 patch 里选：
 
 ```yaml
-- id: storage-domain
+- id: samsara-storage-domain   # the bundle's own id (with `samsara-storage`); a profile loading dsh-web-app disables both
   name: '@deepseek-ai/dsh-storage-domain'
   inject: [storage]
   config:
@@ -721,6 +722,111 @@ export const inject = [SAMSARA_RUN_SERVICE, 'loops', 'agentDefaultModel', 'ledge
 
 好处很实在：`--help` 或者用法错误时 action 根本不跑，服务不发布，干活的那行永远 PENDING，什么都不会发生。`parseCmdline` 会把 help / version / 解析错误 / action 里的 `program.error()` 统一变成 CommanderError 并调 `appExit`（`packages/boot/cmdline/src/index.ts:98-119`）。
 
+### C12. 人类命令 `/samsara …`：consent 只从这里发生
+
+模板是 dsh 的 `command-goal`（`packages/goal/command-goal/src/index.ts`）。`ctx.commands.register({ name, description, input?: { hint }, handler })`（`packages/interaction/commands/src/index.ts:270`）注册一条**全局**命令；web UI 把 `/samsara approve …` 这行文本派给 handler，返回值渲染成一张卡片，**不进模型历史**；`command/run` / `command/done` 是持久化的 session event。
+
+我们的实现（`packages/workbench/src/commands.ts:397-403`）：
+
+```ts
+ctx.commands.register({
+  name: 'samsara',
+  description: 'the samsara workbench: status, predict, approve, demote, gate, reveal, budget, stop, reconcile',
+  input: { hint: 'status | predict … | approve <id> | …' },
+  handler: (invocation) => execute(ctx, invocation),
+})
+```
+
+要知道的 API 事实：
+
+- `CommandInvocation = { commandId, agent, rawInput, attachments, signal }`（`commands/src/index.ts:34-45`）——**没有 ctx、没有 session**。handler 闭包住注册插件的 ctx，所以 `export const inject = ['commands', 'lifecycle', 'ledger', 'signoff', 'champion', 'jobs']` 才是它能用哪些服务的声明。
+- `rawInput` 是原始文本，**自己解析**。我们的 `tokenize` 把双引号里的一段当一个词（hypothesis、reason），`split` 只认白名单里的 `--key value`，其他一律 `UsageError` 变成 error 卡片——handler **从不 throw**（`commands.ts:369-394`）。
+- 命令只有两个作用域：全局，或挂在某个 `agent.ctx` 之下的每 agent 变体（同名冲突的报错文本直接说了这一点，`commands/src/index.ts:94-95`）。没有 workspace / session 作用域。
+- handler 想让模型知道刚发生了什么，得**自己**说：`invocation.agent.followup(createUserMessage(…))`（`commands.ts:233-235`）。registry 不会替你转告。
+
+**为什么 consent 放在命令而不是工具**：一条命令是 UI 认证的人类动作，不是 key 签过的。所以 `/samsara approve <id>` 仍然走 `ctx.signoff.request(subject, action)` + `onConfirm` 等 socket 上的签名（`commands.ts:214-230`），web session 不被当成证明；handler 里**没有签名材料**（E2）。agent 这边则根本没有任何工具能打开一个 sign-off——这是 approval（"可以花这 $x 吗"，工具在 `execute` 里问）与 consent（"这个 challenger 是 champion 吗"，人敲命令并签字）的分野，`docs/design/workbench.md` § The consent / approval split。
+
+### C13. 工具挂在 preset 里 + 执行器留在 host 行
+
+`ctx.tools.register` 默认是**全局**的。要让 `samsara_*` 只对 operator agent 可见，不是在注册时过滤，而是**把注册它们的插件挂进 preset 的 `agent.cordis.yml`**（`dsh-agent-presets` 的 `COMPOSITION_FILE`，`packages/preset/agent-presets/src/discovery.ts:26`）：preset 的组合按 agent 挂载，里面注册的工具只属于那个 session。
+
+`packages/workbench/presets/samsara-operator/agent.cordis.yml`：
+
+```yaml
+- id: workbench
+  name: cordis:group
+  group: true
+  isolate:
+    samsaraWorkbench: true
+  config:
+    - id: workbench-tools
+      name: '@oldbulb/samsara-workbench/tools'
+      inject: [lifecycle, ledger, jobs, approval]
+```
+
+两条硬规则，都是撞出来的形状：
+
+1. **preset 里的 service 行必须放进带 `isolate` realm 的 group**，否则它发布进 root realm，第二个 session 挂同一个 preset 时撞车，`dsh-agent-presets` 在 mount 时拒绝（`agent-presets/src/index.ts:421-432` 解释了 realm 的可见性）。
+2. **preset 行不能拥有 host 要读的服务。** `ctx.lifecycle` 要一个 `ctx.executor`（跑 attempt 的 `runSet`）；CLI profile 里它由 `samsara-runner` 行提供，workbench profile 把那行 `disabled` 了（B4）。如果让 preset 里的 tools 行来 `ctx.provide('executor', …)`，它会随**第一个**挂它的 session 一起 dispose，后面的 session 全部拿不到。所以执行器是 host 平面的一行（`packages/workbench/src/executor.ts`，16 行，只做 `ctx.provide('executor', { runSet })`），`cordis.patch.yml` 里 `workbench-executor` 先于一切 session 存在。判据：**一个 host 行 `inject` 的服务，必须由 host 行提供**——injection 在任何 session 存在之前就解析完了，没有 agent 可以按 key 取（dsh 自己的注释，`agent-presets/src/index.ts:427-429`）。
+
+工具本身：`defineTool` 的 `output: { schema, render, presentationMeta }` 必填；我们所有工具共用一个 `OUTPUT`，把结果里的 `link` 放到文本第一行和 `presentationMeta`（`tools.ts:186-199`）——因为 markdown sanitizer 会剥掉相对 URL，链接必须是 `http://<host>:<port>/samsara/…` 的绝对形式，从 `ctx.webServer.host/port` 拼。每个工具的注册包在 `ctx.effect` 里（`tools.ts:873`）。
+
+**花钱的工具在 `execute` 里问人**（`tools.ts:395-404`）：先在 ledger 上查 experiment 预算、超了直接 `BUDGET_EXCEEDED` 不问任何人；再 `await deps.approval.request({ agent, toolName, callId: exec.callId, reason, signal: exec.signal })`，四种结果里只有 `'allowed-once'` 是放行（`packages/interaction/user-approval/src/index.ts:82, 253-257`）；`reason` 是纯文本，所以报价就写在里面：`<what> ≈ $<usd> (<n> attempts)`。dsh 会在 session log 里写 `approval/asked` / `approval/decided` 一对审计事件（`user-approval/src/index.ts:44-55`），notebook 把它们镜像成两行。注意 approval 只能从**活着的 root agent 的一个开着的 turn** 里发起——subagent 拿不到。
+
+### C14. 长任务作为 operator agent 拥有的 job
+
+一次 campaign 会跑几十分钟，超出一个 turn。dsh 的 `ctx.jobs.start({ kind, label, owner, run })`（`packages/jobs/jobs/src/index.ts:82`）是为此设计的：`run()` 同步返回 `{ cancel, done, readOutput }`，模型端有 `job_list / job_output / job_kill`（preset 里挂 `dsh-tool-jobs`），完成时唤醒 owner。
+
+我们的 `startJob`（`tools.ts:436-468`）：
+
+```ts
+id = deps.jobs.start({
+  kind, label, owner: agent,
+  run: () => {
+    const ac = new AbortController()
+    const done = run(ac.signal, log, onRound).then(
+      (detail) => ({ status: 'completed', detail }),
+      (e) => ({ status: ac.signal.aborted ? 'killed' : 'failed', detail: messageOf(e) }),
+    ).then(settle)
+    return { cancel: (reason) => { ac.abort(reason ?? 'killed') }, done, readOutput: () => { … } }
+  },
+})
+jobTags.set(id, tag)
+```
+
+要点：
+
+- **owner 是精确的那个 `Agent` 对象**；每一次 `get/read/wait/kill` 都要带 owner，session fence 不匹配就抛（`jobs/src/index.ts:47-57, 96-120`）。所以 `samsara_campaign_stop` 用 `deps.jobs.kill(id, agent, reason)`，别人 session 的 job 抓不到（`NOT_OWNER`）。
+- **job 不给你 abort signal，自己建 `AbortController`**，并且**不要把 `exec.signal` 传下去**——那是工具调用这一 turn 的信号，turn 结束它就 abort，job 会被误杀。`ac.signal` 要接进 job 里 spawn 的每一个子进程（B13/E4：子进程树归 subprocess 服务，不归 job）。
+- **进度是拉的**：`readOutput` 返回自上次读取以来的行并清空；我们把 campaign 的事件行（`formatEvent`）塞进去。UI 只显示 label + 状态。
+- **完成通知走 jobs 服务，不走工具结果**：唤醒是 `followup`（idle）或 `inject`（busy），有 `maxConsecutiveWakes` 预算。它不是 `samsara_*` 的返回值，所以 notebook 要**自己**补一行 `job/done`（`tools.ts:413-434`）把完成通知和 ledger 绑起来——否则"campaign 报了 promote"这句话在记录里没有出处。
+- **nothing survives restart**。job 在内存里；durable 的是 ledger 上的 round 行。所以有 `jobTags`（`packages/workbench/src/jobs.ts`）：job 跑着的时候记它挂在哪个 experiment、开了哪些 round，`/samsara stop <round-id>` 靠它找 job，`/samsara reconcile <round-id>` 靠它拒绝关掉一个本进程正在驱动的 round。重启后 tag 没了，round 行有没有人在驱动 ledger 说不出来——这就是 reconcile 是人敲的命令、不是启动副作用的原因（`packages/workbench/src/startup.ts`）。
+- campaign **在 job 里永远不自己取 consent**：碰到 `pending consent` 就暂停返回，完成通知里写明该请人敲 `/samsara approve <id>` 还是 `/samsara reveal <id>`（`tools.ts:325-331`）；`autoHoldout: false` 写死（`tools.ts:523`）。
+
+### C15. SSE 走 `ctx.webServer` 的 prefix 路由，不碰 host frame
+
+dsh 的 `MuxFrame` / `HostFrame` 联合是**闭合**的，插件加不了新的帧类型；`host/remote-event` 的白名单是一个 const 数组。想把一轮的实时进度推到页面，只有两条路：`ctx.jobs` 的 `session/jobs` 帧（只有 label + 状态），或者**自己的路由**。我们选后者，而且不用 `registerUpgrade`（WebSocket），用最朴素的 `text/event-stream`——C5 的 prefix 路由已经覆盖了 `/samsara/rounds/<id>/events`，handler 是 node:http 签名，SSE 就是 `res.write` 几行文本。
+
+`packages/ui/src/sse.ts:43-65`：
+
+```ts
+res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache', connection: 'keep-alive' })
+res.write(`retry: ${String(opts.refreshMs)}\n\n`)
+const off = lifecycle?.on('lifecycle/event', (event) => {
+  if (roundOf(event) === opts.roundId) res.write(formatEvent(event))
+})
+const timer = setInterval(() => { res.write(`: ${new Date().toISOString()}\n\n`) }, opts.refreshMs)
+const close = () => { clearInterval(timer); off?.(); if (!res.writableEnded) res.end() }
+req.on('close', close)
+res.on('close', close)
+```
+
+三条经验：
+
+- **事件源是我们自己的 service**（`ctx.lifecycle` 的 `on('lifecycle/event', …)`，`packages/lifecycle/src/index.ts:179-195`），不是 session log——一轮的进度发生在 host 平面（runner / campaign），没有 session 事件对应。UI 用 `ctx.get('lifecycle')` 按请求取（软依赖，B3），没挂时只发心跳。
+- **上线前先过滤**：`wireEvent` 把 judged compare 的 `per_task` 剥掉再 `JSON.stringify`（`sse.ts:30-36`）——loopback 无 auth，同机的 proposer 能连上（S7），所以 SSE 和页面用**同一个** viewer 纪律。
+- **心跳 + 双向 close**：`retry:` 让浏览器自己重连；每 `refreshMs` 一条注释行让代理不掐连接；`req` 和 `res` 的 `close` 都要挂，否则客户端走了 listener 还留在 lifecycle 上。页面没有 SSE 也是完整的——JS 只在两次刷新之间挪一下状态和计数，这样 `curl` 和测试拿到的 HTML 就是全部。
+
 ---
 
 ## D. 工程节奏
@@ -821,6 +927,22 @@ export const inject = [SAMSARA_RUN_SERVICE, 'loops', 'agentDefaultModel', 'ledge
 - **profile 目录该自带 `pnpm-workspace.yaml`**：`initProfile` 生成 profile 时顺手写一个最小的（`packages: [.]`），能直接消掉 B7。dsh 已经在 git 依赖的 `allowBuilds` 提示里提到这个文件（`plugin.ts:150-153`），说明它本来就该存在。
 - **subagent 适配器只留最终文本**：`subagent-claude-code` / `subagent-codex` 丢掉 usage、tool 轨迹、transcript（README 自己列在 Known Limitations 里）。想拿它们做可训练的执行器就得自己写 provider。这是"已知局限"而非 bug，但如果 dsh 想让外部 harness 成为一等执行器，这个 seam 需要能透出消息流。
 
+### E7. session event 应该有一个 out-of-repo kind 的注册面
+
+- **现状**：`KNOWN_SESSION_EVENT_TYPES` 是仓库生成的闭集（`packages/core/session/src/known-event-types.ts:19`）；持久化读路径拒绝解释含有集外类型的 log（除非事件带 `ignorable`），resume 直接 `SessionFormatUnsupportedError`。源码注释自己写着："Downstream (out-of-repo) plugin events are outside this list by construction; a registration surface for them is deferred until such a consumer exists"（`:14-17`）。
+- **为什么疼**：我们就是那个 consumer。预注册（`/samsara predict`）和 consent 本质上是**对话里发生的事**，最自然的记录位置是 session log；现在只能落成 ledger 行、用 `session_id` + `command_id` 反向关联（`docs/design/workbench.md` § The notebook）。`append()` 也不能设 `ignorable`，所以连"写进去但允许旧 harness 跳过"这条路也没有。
+- **提议**：`ctx.sessions.registerEventType(name, { ignorable?: boolean })` 之类的注册面，或者至少让插件能在 `append()` 时标 `ignorable`。前者要动持久化读路径的校验，后者是一个字段。
+- **价值**：中高。任何想把领域事件（不只是我们）放进对话记录的插件都会撞上。
+- **代价**：低（`ignorable`）到中（注册面 + 生成脚本的例外）。
+
+### E8. jobs 需要一个用户侧的 kill 入口
+
+- **现状**：`ctx.jobs.kill(id, caller, reason)` 有 owner fence（`packages/jobs/jobs/src/index.ts:112-120`）；模型侧有 `job_kill`（`dsh-tool-jobs`）；UI 侧 `client/ui-jobs` 只渲染列表和状态点（`packages/client/ui-jobs/src/client/JobListAction.tsx:88-120`），没有任何按钮能发 kill。
+- **为什么疼**：花钱的长任务是 agent 起的，但**想停下来的是人**。现在人只能让 agent 去调 `job_kill`（要一个模型 turn，agent 还可能不听），或者像我们一样自己写一条 `/samsara stop <job-id|round-id>` 命令绕过去（`packages/workbench/src/commands.ts`）。一个"我的 job 我能停"的 UI 入口，是任何会花钱的 job 的基本安全件。
+- **提议**：`client-ui-jobs` 的每一行加一个 stop 按钮，走一条 `jobs.kill(sessionId, jobId)` 的 typert remote（owner 就是这个 session 的 agent，fence 天然满足）。
+- **价值**：中高。对所有"job 会花钱或占资源"的插件通用。
+- **代价**：低。host 侧 API 已经在，缺的是一条 remote 和一个按钮。
+
 ---
 
 ## 附录：速查表
@@ -895,7 +1017,12 @@ export const inject = [SAMSARA_RUN_SERVICE, 'loops', 'agentDefaultModel', 'ledge
 | 内存 scope（`cordis:group`） | `packages/scope/src/index.ts:96-190` |
 | storage domain 开/关 | `packages/ledger/src/index.ts:101-107` |
 | 命令行拆行 | `packages/runner/src/{startup,index}.ts` |
+| 人类命令 + consent | `packages/workbench/src/commands.ts` |
+| preset 内工具 + host 执行器行 | `packages/workbench/src/{tools,executor}.ts`、`packages/workbench/presets/samsara-operator/agent.cordis.yml` |
+| operator 拥有的 job | `packages/workbench/src/{tools,jobs,startup}.ts` |
+| SSE 路由 | `packages/ui/src/sse.ts` |
 | bundle / profile 实际写法 | `packages/bundle/cordis.patch.yml`、`profiles/host/{cordis.patch.yml,pnpm-workspace.yaml}` |
+| 第二个 profile（叠在 dsh-web-app 上） | `packages/workbench/cordis.patch.yml`、`profiles/workbench/package.json` |
 | 回放测试 | `tests/replay/` |
 | 真 Loader 组合测试 | `packages/ui/tests/route.test.ts`、`packages/scope/tests/scopes.test.ts` |
 | 安装与运维坑 | `ops/README.md` |

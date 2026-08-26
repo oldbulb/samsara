@@ -1,0 +1,5 @@
+---
+"@oldbulb/samsara-runner": minor
+---
+
+Every command now goes through `ctx.lifecycle` and performs no transition of its own; the runner assembles the request, mounts `runSet` as `ctx.executor` and prints what came back. New commands: `propose --dry-run` (the view, the proposer and the diff scan, before anything costs), `calibrate` (the noise floor), `experiment new`, `campaign` and `control` (pre-registered rounds), `status` (one screen of the ledger), `gate bench`, and `ledger backup`. `challenge` / `round` / `certify` take `--gate-policy <name>` for the presets (`fast`, `permissive`) or any catalog rule the profile mounted — as a shadow beside the promotion gate, or as the gate itself under a `gate_change` consent — and `--round <id>` joins a round before its first judgement (Holm's k freezes there). `--stratum` and `--skill-dir` filter and swap the run's inputs; a challenger the ledger already holds as decided is printed, not re-run, and no rejected challenger leaves a round open. The rendered view gains `view.json`, `proposal.schema.json` and `environment.md`.
