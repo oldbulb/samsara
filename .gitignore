@@ -21,5 +21,7 @@ profiles/*/cordis.patch.yml
 # Local tool scratch
 .playwright-mcp/
 # pack runtimes are provisioned, never tracked (packs/<pack>/runtime/provision.sh)
-packs/*/runtime/go/
-packs/*/runtime/rust/
+packs/*/runtime/go/go/
+packs/*/runtime/go/cache/
+packs/*/runtime/rust/cargo/
+packs/*/runtime/rust/rustup/

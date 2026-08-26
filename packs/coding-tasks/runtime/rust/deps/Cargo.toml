@@ -1,0 +1,20 @@
+# Every crate a stub Cargo.toml or a reference solution's Cargo-example.toml
+# names, so that `cargo test --offline` in a workdir resolves from the registry
+# cache. `runtime/provision.sh` runs `cargo fetch` over this manifest once.
+[package]
+name = "coding-tasks-rust-deps"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+counter = "0.5.2"
+itertools = "0.5"
+num-bigint = "0.4.4"
+num-traits = "0.2.16"
+permutohedron = "0.2"
+rand = "0.8"
+rand_03 = { package = "rand", version = "0.3.12" }
+regex = "0.2"
+thiserror = "1.0"
+time = "0.3"

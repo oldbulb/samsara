@@ -18,7 +18,7 @@ surfaces:
 # names are the only host variables the commands may read beside the defaults.
 runtime:
   dirs: [runtime/py, runtime/js, runtime/go, runtime/rust]
-  locks: ["runtime/py/requirements.txt", "runtime/js/package.json", "runtime/js/pnpm-lock.yaml"]
+  locks: ["runtime/py/requirements.txt", "runtime/js/package.json", "runtime/js/pnpm-lock.yaml", "runtime/rust/deps/Cargo.toml", "runtime/rust/deps/Cargo.lock"]
   env: [CODING_TASKS_PYTHON, CODING_TASKS_GO, CODING_TASKS_CARGO]
 commands:
   truth: ./bin/truth
