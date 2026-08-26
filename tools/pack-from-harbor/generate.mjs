@@ -118,14 +118,18 @@ export function taskRow(taskDir, packDir, { stratum }) {
   }
 }
 
-/** smoke / holdin / holdout by a stable hash of the entity key: holdout is disjoint by entity, smoke the first `smoke` held-in rows in hash order. */
+/**
+ * smoke / holdin / holdout by a stable hash of the entity key: holdout is
+ * disjoint by entity, smoke takes the first `smoke` of what is left in hash
+ * order and held-in the rest. The three sets are disjoint — the book refuses a
+ * task id that appears in two of them — so a one-task dataset is all smoke.
+ */
 export function splitRows(rows, { holdoutFraction, smoke }) {
   const key = (r) => unit(`tier\0${r.entity_key}`)
   const holdout = rows.filter((r) => key(r) < holdoutFraction)
-  const holdin = rows.filter((r) => key(r) >= holdoutFraction)
-  const smokeRows = [...holdin].sort((a, b) => key(a) - key(b)).slice(0, smoke)
+  const held = [...rows.filter((r) => key(r) >= holdoutFraction)].sort((a, b) => key(a) - key(b))
   const byId = (a, b) => (a.task_id < b.task_id ? -1 : a.task_id > b.task_id ? 1 : 0)
-  return { smoke: smokeRows.sort(byId), holdin: holdin.sort(byId), holdout: holdout.sort(byId) }
+  return { smoke: held.slice(0, smoke).sort(byId), holdin: held.slice(smoke).sort(byId), holdout: holdout.sort(byId) }
 }
 
 const jsonl = (rows) => rows.map((r) => JSON.stringify(r) + '\n').join('')

@@ -129,7 +129,10 @@ describe('readHarborJob', () => {
     expect(() => readHarborJob(mixed)).toThrow(/ran agent other@0.1.0, trial o1__ora0000 ran oracle@1.0.0; one job is one agent/)
     const partial = tmp('partial')
     cpSync(resolve(ORACLE, 'o1__ora0000'), resolve(partial, 'o1__ora0000'), { recursive: true })
-    cpSync(resolve(ORACLE, 'o1__ora0001', 'agent'), resolve(partial, 'o1__unfinished', 'agent'), { recursive: true })
+    // a trial directory the runner never finished: its agent log and nothing else.
+    // Built here rather than copied: git does not track the fixture's empty agent dirs.
+    mkdirSync(resolve(partial, 'o1__unfinished', 'agent'), { recursive: true })
+    writeFileSync(resolve(partial, 'o1__unfinished', 'agent', 'agent.log'), 'starting\n')
     const job = readHarborJob(partial)
     expect(job.trials.map((t) => t.name)).toEqual(['o1__ora0000'])
     expect(job.skipped).toEqual(['o1__unfinished'])

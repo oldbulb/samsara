@@ -80,11 +80,16 @@ describe('generation', () => {
     const b = splitRows([...rows].reverse(), { holdoutFraction: 0.3, smoke: 4 })
     expect(a).toEqual(b)
     expect(a.smoke).toHaveLength(4)
-    expect(a.holdin.length + a.holdout.length).toBe(40)
+    // the three sets partition the rows: the book refuses a task id in two of them
+    expect(a.smoke.length + a.holdin.length + a.holdout.length).toBe(40)
+    expect(new Set([...a.smoke, ...a.holdin, ...a.holdout].map((r) => r.task_id)).size).toBe(40)
     expect(a.holdout.length).toBeGreaterThan(0)
     const held = new Set(a.holdout.map((r) => r.entity_key))
     for (const r of [...a.smoke, ...a.holdin]) expect(held.has(r.entity_key)).toBe(false)
     expect(splitRows(rows, { holdoutFraction: 0, smoke: 4 }).holdout).toEqual([])
+    // a one-task dataset is all smoke, never the same task twice
+    const one = splitRows([{ task_id: 'org/only', entity_key: 'only' }], { holdoutFraction: 0, smoke: 4 })
+    expect(one).toEqual({ smoke: [{ task_id: 'org/only', entity_key: 'only' }], holdin: [], holdout: [] })
   })
 })
 
@@ -174,7 +179,8 @@ describe('the generated pack', () => {
     expect(row?.environment).toEqual({ dockerfile: 'harbor/hello-world/environment', resources: { cpus: 1, memory_mb: 2048 }, network: 'public' })
     expect(row?.['workdir']).toBe('/app')
     expect(existsSync(resolve(def.dir, row!.environment!.dockerfile!, 'Dockerfile'))).toBe(true)
-    expect(def.taskSets.holdin.tasks).toEqual(def.taskSets.smoke.tasks)
+    // the tiers partition the dataset (the book refuses a task id in two of them): one task is all smoke
+    expect(def.taskSets.holdin.tasks).toEqual([])
     expect(def.taskSets.holdout.tasks).toEqual([])
   })
 

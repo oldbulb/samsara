@@ -5,7 +5,7 @@ A pack generated from the Harbor task set `hello-world` by
 
 - **Task**: a Harbor task — `instruction.md` in the working directory, the
   task's own image (`harbor/<task>/environment/Dockerfile`), its tests as the
-  truth. 1 smoke / 1 held-in / 0 held-out
+  truth. 1 smoke / 0 held-in / 0 held-out
   tasks; `entity_key` = the task name, `stratum` = the task's first keyword
   or the pack name.
 - **Skill**: `skill/SKILL.md`, what the installed agent reads — the thing
