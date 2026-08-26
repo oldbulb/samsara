@@ -1,7 +1,7 @@
 packages:
   - packages/*
-# Optional native accelerators pulled in by the modal SDK; it runs without them,
-# and pnpm 11 refuses an install that silently skips a build script.
-ignoredBuiltDependencies:
-  - cbor-extract
-  - protobufjs
+# Reviewed build scripts (pnpm 11 `strictDepBuilds`): the modal SDK pulls in two
+# optional native accelerators it runs without, so their builds stay off.
+allowBuilds:
+  cbor-extract: false
+  protobufjs: false
