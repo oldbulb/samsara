@@ -86,9 +86,9 @@ record: DGM's agent deleted the hidden markers and scored perfectly.
 
 | | |
 |:---|:---|
-| 📖&nbsp;&nbsp;**book** — truth | task sets, settlement, holdout visibility and budget |
-| ⚖️&nbsp;&nbsp;**gate** — the verdict | statistics decide promotion; the loop cannot write it |
-| ✍️&nbsp;&nbsp;**sign-off** — consent | an Ed25519 signature over a nonce on a `0600` unix socket — an HTTP request is never a proof |
+| 📖&nbsp;&nbsp;**book** —&nbsp;truth | task sets, settlement, holdout visibility and budget |
+| ⚖️&nbsp;&nbsp;**gate** —&nbsp;the&nbsp;verdict | statistics decide promotion; the loop cannot write it |
+| ✍️&nbsp;&nbsp;**sign-off** —&nbsp;consent | an Ed25519 signature over a nonce on a `0600` unix socket — an HTTP request is never a proof |
 
 The optimizer may be optimized. The judge and the right to sign may not.
 

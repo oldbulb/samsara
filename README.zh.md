@@ -62,9 +62,9 @@ samsara 就是为这个缺口造的。不是又一个优化器——**记录、�
 
 | | |
 |:---|:---|
-| 📖&nbsp;&nbsp;**book** — 真值 | 任务集、settlement、holdout 的可见性与预算 |
-| ⚖️&nbsp;&nbsp;**gate** — 裁决 | 统计决定晋升；回路写不到它 |
-| ✍️&nbsp;&nbsp;**sign-off** — 同意 | `0600` unix socket 上对 nonce 的 Ed25519 签名——HTTP 请求永远不算证明 |
+| 📖&nbsp;&nbsp;**book** —&nbsp;真值 | 任务集、settlement、holdout 的可见性与预算 |
+| ⚖️&nbsp;&nbsp;**gate** —&nbsp;裁决 | 统计决定晋升；回路写不到它 |
+| ✍️&nbsp;&nbsp;**sign-off** —&nbsp;同意 | `0600` unix socket 上对 nonce 的 Ed25519 签名——HTTP 请求永远不算证明 |
 
 optimizer 可以被优化。裁判和签字权不行。
 
