@@ -75,6 +75,8 @@ export interface Challenger {
   taskIds: string[]
   /** Extra task-specific literals (task file names, entity keys) the scan must not find. */
   literals?: string[]
+  /** Pack-relative paths (globs) a skill patch may never touch, as the pack declares them; defaults to `DEFAULT_FORBIDDEN_PATHS`. */
+  forbiddenPaths?: string[]
   /** Loader isolate labels put on the scope group (`{ serviceName: label | true }`). */
   isolate?: Record<string, string | true>
 }

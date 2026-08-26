@@ -6,7 +6,7 @@ import { bcaBootstrapCI, clusterBy, holmAdjustedAlpha, isEligible, ladderStep, m
 import type { Compare, CompareRequest, GateJudgement, ScoredAttempt, Verdict } from './types.ts'
 
 export const GATE_DEFAULT_NAME = 'gate-default'
-export const GATE_DEFAULT_VERSION = '0.1.0'
+export const GATE_DEFAULT_VERSION = '0.2.0'
 
 function costOf(metric: 'cost_usd' | 'tokens', rows: readonly ScoredAttempt[]): (a: ScoredAttempt) => number {
   // usd only when every row reports it; otherwise tokens, so a ratio never mixes units.
@@ -35,7 +35,10 @@ export function gateDefault(req: CompareRequest): GateJudgement {
   const meanDelta = deltas.length ? mean(deltas) : NaN
   const entityMeans = [...groups.values()].map(mean)
   const sdEntity = sd(entityMeans)
-  const mde = mdeOf(req.noiseFloor.sdPaired, nEff, policy.alpha, policy.power)
+  const distinctTasks = new Set(pairing.deltas.map(d => d.taskId)).size
+  const replicates = distinctTasks > 0 ? pairing.deltas.length / distinctTasks : 0
+  const mde = mdeOf(req.noiseFloor.sdPaired, nEff, policy.alpha, policy.power, replicates)
+  const minEffect = policy.mde ?? 0
   const adjustedAlpha = holmAdjustedAlpha(policy.alpha, req.round.k, req.round.index)
   const rng = mulberry32(req.seed ?? 0)
   const ci = bcaBootstrapCI(deltas, clusters, policy.bootstrap.B, adjustedAlpha, rng)
@@ -53,6 +56,8 @@ export function gateDefault(req: CompareRequest): GateJudgement {
     clusterKey: 'entity',
     nEff,
     mde,
+    replicates,
+    minEffect,
     holm: { adjustedAlpha },
     costRatio,
     ladder: { step, beatBest },
@@ -76,10 +81,10 @@ export function gateDefault(req: CompareRequest): GateJudgement {
   // 9. Live: anytime-valid test not implemented.
   if (tier === 'live') return decide('hold', 'live:unimplemented')
 
-  // 3. Power floor (S2): nEff and the noise-floor MDE against the pack-declared minimum effect.
+  // 3. Power floor (S2): nEff, and the design's MDE against the SESOI the pack declares.
   if (nEff < policy.nEffFloor) return decide('hold:underpowered', 'power:nEff')
   if (policy.mde !== undefined && mde > policy.mde) return decide('hold:underpowered', 'power:mde')
-  // 4. MDE (S1) is `compare.mde`, from the noise floor, and binds in rule 7.
+  // 4. MDE (S1) is `compare.mde`, from the noise floor and this design's replicates; it binds only here, as power.
 
   // 5. Screen (S4): futility-only early stop on the held-in tier.
   if (tier === policy.futility.tier) {
@@ -88,8 +93,8 @@ export function gateDefault(req: CompareRequest): GateJudgement {
     if (z < policy.futility.zStop) return decide('drop', 'futility')
   }
 
-  // 7's quality test, shared with rule 6's Pareto clause.
-  const qualityWin = ci.lo > 0 && meanDelta >= mde
+  // 7's quality test, shared with rule 6's Pareto clause: significant, and at least the SESOI.
+  const qualityWin = ci.lo > 0 && meanDelta >= minEffect
 
   // 6. Cost (S8): over budget and not certified better on quality => drop.
   if (costRatio > policy.costBudget.maxRatio && !qualityWin) return decide('drop', 'cost')
@@ -97,7 +102,14 @@ export function gateDefault(req: CompareRequest): GateJudgement {
   // Held-in never promotes; it screens.
   if (tier === 'holdin') return decide('hold', 'screen')
 
-  // 7. Holdout: one pre-registered one-sided test at the Holm-adjusted level, and mean >= MDE.
+  // 7. Holdout: one pre-registered one-sided test at the Holm-adjusted level, and mean >= SESOI.
   // 8. Ladder exposure is `compare.ladder`; raw means stay judge-side (the ledger redacts).
-  return qualityWin ? decide('promote', 'holdout') : decide('hold', 'holdout')
+  if (qualityWin) return decide('promote', 'holdout')
+  // S8: a design powered for the SESOI (rule 3 passed with one declared) whose interval brackets zero and whose
+  // cost sits inside the budget both ways cannot be told from the champion on quality or on cost => drop, not hold.
+  const powered = policy.mde !== undefined && Number.isFinite(mde)
+  const bracketsZero = ci.lo <= 0 && ci.hi >= 0
+  const sameCost = costRatio <= policy.costBudget.maxRatio && costRatio >= 1 / policy.costBudget.maxRatio
+  if (powered && bracketsZero && sameCost) return decide('drop', 'indistinguishable')
+  return decide('hold', 'holdout')
 }

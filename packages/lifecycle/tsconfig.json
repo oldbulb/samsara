@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": "src", "outDir": "lib", "declarationDir": "lib/types" },
+  "include": ["src"],
+  "references": [
+    { "path": "../kernel" },
+    { "path": "../book" },
+    { "path": "../ledger" },
+    { "path": "../gate" },
+    { "path": "../loops" },
+    { "path": "../pack" },
+    { "path": "../scope" },
+    { "path": "../champion" }
+  ]
+}

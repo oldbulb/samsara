@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """stdin {task_id, workdir} -> stdout {task_id, status, truth, truth_sha}.
 
-Restores pristine tests over the workdir, runs pytest / jest (180 s), counts.
+Restores pristine tests over the workdir, runs pytest / jest / cargo test /
+go test (180 s), counts.
 """
 import json
 import os
@@ -10,9 +11,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _lib import PACK, emit, fixture_of, python_bin, read_lines, restore_tests, run, truth_sha  # noqa: E402
+from _lib import PACK, cargo_bin, cargo_env, emit, fixture_of, go_bin, go_env, python_bin, read_lines, restore_tests, run, truth_sha  # noqa: E402
 
 JEST = PACK / "runtime" / "js" / "node_modules" / "jest" / "bin" / "jest.js"
+CARGO_RESULT = re.compile(r"^test result: \w+\. (\d+) passed; (\d+) failed;", re.M)
 
 
 def run_python(workdir):
@@ -43,11 +45,44 @@ def run_js(workdir):
     return passed, failed, code
 
 
+def run_rust(workdir):
+    # one "test result" line per test binary (lib unit tests, each tests/*.rs, doc tests)
+    code, out, err = run([cargo_bin(), "test", "--offline", "--no-fail-fast"], workdir, cargo_env())
+    passed = failed = 0
+    for p, f in CARGO_RESULT.findall(out):
+        passed += int(p)
+        failed += int(f)
+    if code != 0 and passed + failed == 0:
+        failed = 1  # did not compile
+    return passed, failed, code
+
+
+def run_go(workdir):
+    # leaf tests only: a table-driven parent fails iff one of its subtests does
+    code, out, err = run([go_bin(), "test", "-json", "-count=1", "./..."], workdir, go_env())
+    results = {}
+    for raw in out.splitlines():
+        try:
+            ev = json.loads(raw)
+        except ValueError:
+            continue
+        if ev.get("Test") and ev.get("Action") in ("pass", "fail"):
+            results[(ev.get("Package"), ev["Test"])] = ev["Action"]
+    leaves = [k for k in results if not any(o[0] == k[0] and o[1].startswith(k[1] + "/") for o in results)]
+    passed = sum(1 for k in leaves if results[k] == "pass")
+    failed = len(leaves) - passed
+    if code != 0 and passed + failed == 0:
+        failed = 1  # did not compile (or vet failed)
+    return passed, failed, code
+
+
+RUNNERS = {"python": run_python, "javascript": run_js, "rust": run_rust, "go": run_go}
+
 for line in read_lines():
     task_id, workdir = line["task_id"], Path(line["workdir"])
     lang, fixture = fixture_of(task_id)
     restore_tests(fixture, workdir)
-    passed, failed, code = (run_python if lang == "python" else run_js)(workdir)
+    passed, failed, code = RUNNERS[lang](workdir)
     emit({
         "task_id": task_id,
         "status": "settled",

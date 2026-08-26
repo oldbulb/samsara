@@ -1,0 +1,3 @@
+{"attempt_id":"at-1","task_id":"t1","metric":"pass","value":1}
+{"attempt_id":"at-2","task_id":"t2","metric":"pass","value":0,"side_info":"expected output differs"}
+{"attempt_id":"at-3","task_id":"t3","metric":"pass","value":0}

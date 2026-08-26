@@ -22,16 +22,47 @@
         },
         "entity_key": { "type": "string" },
         "version": { "type": "integer", "minimum": 1 },
-        "stratum_key": { "type": "string" }
+        "stratum_key": { "type": "string" },
+        "protocol": {
+          "type": "object", "additionalProperties": false,
+          "description": "how tasks are presented to the agent (the initial state, the rewrites of what it may see or do)",
+          "properties": {
+            "stage": { "type": "string" },
+            "contracts": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object", "required": ["primary"], "additionalProperties": false,
+      "properties": {
+        "primary": {
+          "type": "object", "required": ["name"], "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" },
+            "unit": { "type": "string" },
+            "direction": { "enum": ["up", "down"] }
+          }
+        },
+        "cost": { "type": "string", "description": "the name of the cost metric `score` emits per task (kind: mechanical)" }
+      }
+    },
+    "runtime": {
+      "type": "object", "additionalProperties": false,
+      "description": "what the pack's commands and the attempts execute from; undeclared, no runtime root is granted and no lock file enters env_sha",
+      "properties": {
+        "dirs": { "type": "array", "items": { "type": "string" }, "description": "pack-relative directories granted read-only to the sandboxed subprocess (interpreters, installed packages)" },
+        "locks": { "type": "array", "items": { "type": "string" }, "description": "pack-relative globs of the files that pin those runtimes; every match is hashed into env_sha (E3)" },
+        "env": { "type": "array", "items": { "type": "string" }, "description": "host environment names the pack's commands may see beside PATH, HOME, the locale, TZ, TERM and TMPDIR; every other name is withheld from truth/score/materialize (E5)" }
       }
     },
     "holdout": {
       "type": "object", "additionalProperties": false,
       "properties": {
         "mde": { "type": "number", "exclusiveMinimum": 0 },
-        "budget": { "type": "integer", "minimum": 1, "description": "deprecated: Thresholdout budget; only read by the thresholdout gate plugin" },
-        "rotate_after_promotions": { "type": "integer", "minimum": 1, "default": 1 },
-        "max_rounds": { "type": "integer", "minimum": 1, "default": 20 }
+        "retention_tolerance": { "type": "number", "minimum": 0, "maximum": 1 },
+        "auto_demote": { "type": "boolean", "description": "a reversal or demote(...) needs a `demote` consent unless true" },
+        "budget": { "type": "integer", "minimum": 1, "description": "held-out reveals the pack allows: lifecycle debits one per challenger run on the holdout set and one per settlement that re-scores a kept row's held-out attempts, replays the ledger's reveals on start, and refuses the next once spent; undeclared, reveals are not counted (holdout rotation is not implemented: architecture.md S7)" }
       }
     },
     "surfaces": {

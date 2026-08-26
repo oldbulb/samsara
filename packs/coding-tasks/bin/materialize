@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""stdin {task_id, workdir} -> stdout {task_id, ok, files[]}. Never copies .meta/."""
+"""stdin {task_id, workdir} -> stdout {task_id, ok, files[]}.
+
+Never copies .meta/ (reference solution) nor the tests (see _lib.hidden_files):
+the agent gets INSTRUCTIONS.md, the stubs and the support files, and truth
+scores it with the tests it never saw."""
 import os
 import shutil
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _lib import PACK, emit, fixture_of, install_test, meta_files, read_lines  # noqa: E402
+from _lib import PACK, emit, fixture_of, hidden_files, meta_files, read_lines  # noqa: E402
 
 JS_RUNTIME = PACK / "runtime" / "js" / "node_modules"
 
@@ -14,6 +18,7 @@ for line in read_lines():
     task_id, workdir = line["task_id"], Path(line["workdir"])
     lang, fixture = fixture_of(task_id)
     files = meta_files(fixture)
+    hidden = set(hidden_files(fixture))
     workdir.mkdir(parents=True, exist_ok=True)
     copied = []
     for name in sorted(files["solution"]):
@@ -21,22 +26,26 @@ for line in read_lines():
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(fixture / name, dst)
         copied.append(name)
-    for name in sorted(files["test"]):
-        install_test(fixture, name, workdir)
-        copied.append(name)
-    # support files the tests read (e.g. a data/ directory): everything else
-    # at the top level except .meta/, .docs/, dotfiles and LICENSE
+    # support files (Go's editor files, a data/ directory): everything else at
+    # the top level except .meta/, .docs/, dotfiles, LICENSE and the hidden tests
     for entry in sorted(fixture.iterdir()):
-        if entry.name.startswith(".") or entry.name in ("LICENSE", "node_modules", "package.json", "babel.config.js") or entry.name in copied:
+        if entry.name.startswith(".") or entry.name in ("LICENSE", "node_modules", "package.json", "babel.config.js") or entry.name in copied or entry.name in hidden:
             continue
         if entry.is_dir():
-            shutil.copytree(entry, workdir / entry.name, dirs_exist_ok=True)
+            shutil.copytree(entry, workdir / entry.name, dirs_exist_ok=True,
+                            ignore=lambda d, names: [n for n in names if (Path(d).relative_to(fixture) / n).as_posix() in hidden])
+            if not any((workdir / entry.name).rglob("*")):
+                shutil.rmtree(workdir / entry.name)  # a tests/ dir with nothing visible in it
+                continue
         else:
             shutil.copy2(entry, workdir / entry.name)
         copied.append(entry.name)
-    doc = fixture / ".docs" / "instructions.md"
-    if doc.exists():
-        shutil.copy2(doc, workdir / "INSTRUCTIONS.md")
+    # INSTRUCTIONS.md = introduction + instructions + instructions.append, the
+    # three files aider's benchmark shows the model (the append often carries
+    # the error-message and API conventions the hidden tests check).
+    parts = [(fixture / ".docs" / n).read_text() for n in ("introduction.md", "instructions.md", "instructions.append.md") if (fixture / ".docs" / n).exists()]
+    if parts:
+        (workdir / "INSTRUCTIONS.md").write_text("\n\n".join(p.rstrip("\n") + "\n" for p in parts))
         copied.append("INSTRUCTIONS.md")
     if lang == "javascript":
         for name in ("package.json", "babel.config.js"):

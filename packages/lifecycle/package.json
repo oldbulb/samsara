@@ -1,0 +1,63 @@
+{
+  "name": "@oldbulb/samsara-lifecycle",
+  "version": "0.1.0",
+  "description": "ctx.lifecycle: every transition of a challenger row and of a round (propose/open/run/judge/decide/demote/settle), the noise-floor calibration, and the read-only status/next-actions helpers",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oldbulb/samsara.git",
+    "directory": "packages/lifecycle"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "samsara",
+    "rsi",
+    "agent-evaluation"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./executor": {
+      "types": "./lib/types/executor.d.ts",
+      "default": "./lib/executor.js"
+    },
+    "./comparable": {
+      "types": "./lib/types/comparable.d.ts",
+      "default": "./lib/comparable.js"
+    },
+    "./actions": {
+      "types": "./lib/types/actions.d.ts",
+      "default": "./lib/actions.js"
+    }
+  },
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run --root ../.. packages/lifecycle/tests"
+  },
+  "dependencies": {
+    "@oldbulb/samsara-book": "workspace:*",
+    "@oldbulb/samsara-champion": "workspace:*",
+    "@oldbulb/samsara-gate": "workspace:*",
+    "@oldbulb/samsara-kernel": "workspace:*",
+    "@oldbulb/samsara-ledger": "workspace:*",
+    "@oldbulb/samsara-loops": "workspace:*",
+    "@oldbulb/samsara-pack": "workspace:*",
+    "@oldbulb/samsara-scope": "workspace:*"
+  }
+}

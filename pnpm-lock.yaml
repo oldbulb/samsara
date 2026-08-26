@@ -71,12 +71,27 @@ importers:
       '@oldbulb/samsara-ledger':
         specifier: workspace:*
         version: link:../ledger
+      '@oldbulb/samsara-signoff':
+        specifier: workspace:*
+        version: link:../signoff
+      '@oldbulb/samsara-workdir':
+        specifier: workspace:*
+        version: link:../workdir
       yaml:
         specifier: 2.9.0
         version: 2.9.0
 
   packages/gate:
     dependencies:
+      '@oldbulb/samsara-kernel':
+        specifier: workspace:*
+        version: link:../kernel
+
+  packages/gate-catalog:
+    dependencies:
+      '@oldbulb/samsara-gate':
+        specifier: workspace:*
+        version: link:../gate
       '@oldbulb/samsara-kernel':
         specifier: workspace:*
         version: link:../kernel
@@ -120,9 +135,15 @@ importers:
       '@deepseek-ai/dsh-cmdline':
         specifier: 0.1.1-rc.2
         version: 0.1.1-rc.2(@deepseek-ai/cordis-plugin-loader@1.0.2)(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))
+      '@deepseek-ai/dsh-commands':
+        specifier: 0.1.1-rc.2
+        version: 0.1.1-rc.2(0ecd3a66a950f0a38490382753aa1d93)
       '@deepseek-ai/dsh-credentials':
         specifier: 0.1.1-rc.2
         version: 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-brand@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))
+      '@deepseek-ai/dsh-home-paths':
+        specifier: 0.1.1-rc.2
+        version: 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))
       '@deepseek-ai/dsh-host-webserver':
         specifier: 0.1.1-rc.2
         version: 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))
@@ -153,6 +174,9 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: 0.1.1-rc.2
         version: 0.1.1-rc.2(119bc70f73f8eddebfaa6b47561adeb3)
+      '@deepseek-ai/dsh-user-approval':
+        specifier: 0.1.1-rc.2
+        version: 0.1.1-rc.2(09871eaf880be2109e9d668352ef8c05)
 
   packages/ledger:
     dependencies:
@@ -160,11 +184,41 @@ importers:
         specifier: workspace:*
         version: link:../kernel
 
+  packages/lifecycle:
+    dependencies:
+      '@oldbulb/samsara-book':
+        specifier: workspace:*
+        version: link:../book
+      '@oldbulb/samsara-champion':
+        specifier: workspace:*
+        version: link:../champion
+      '@oldbulb/samsara-gate':
+        specifier: workspace:*
+        version: link:../gate
+      '@oldbulb/samsara-kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@oldbulb/samsara-ledger':
+        specifier: workspace:*
+        version: link:../ledger
+      '@oldbulb/samsara-loops':
+        specifier: workspace:*
+        version: link:../loops
+      '@oldbulb/samsara-pack':
+        specifier: workspace:*
+        version: link:../pack
+      '@oldbulb/samsara-scope':
+        specifier: workspace:*
+        version: link:../scope
+
   packages/loops:
     dependencies:
       '@oldbulb/samsara-kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@oldbulb/samsara-submit':
+        specifier: workspace:*
+        version: link:../submit
 
   packages/loops-claude-code:
     dependencies:
@@ -209,6 +263,12 @@ importers:
         specifier: 2.9.0
         version: 2.9.0
 
+  packages/proposer-sdk:
+    dependencies:
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+
   packages/proposers:
     dependencies:
       '@oldbulb/samsara-kernel':
@@ -232,12 +292,18 @@ importers:
       '@oldbulb/samsara-gate':
         specifier: workspace:*
         version: link:../gate
+      '@oldbulb/samsara-gate-catalog':
+        specifier: workspace:*
+        version: link:../gate-catalog
       '@oldbulb/samsara-kernel':
         specifier: workspace:*
         version: link:../kernel
       '@oldbulb/samsara-ledger':
         specifier: workspace:*
         version: link:../ledger
+      '@oldbulb/samsara-lifecycle':
+        specifier: workspace:*
+        version: link:../lifecycle
       '@oldbulb/samsara-loops':
         specifier: workspace:*
         version: link:../loops
@@ -304,9 +370,60 @@ importers:
       '@oldbulb/samsara-ledger':
         specifier: workspace:*
         version: link:../ledger
+      '@oldbulb/samsara-lifecycle':
+        specifier: workspace:*
+        version: link:../lifecycle
       '@oldbulb/samsara-signoff':
         specifier: workspace:*
         version: link:../signoff
+
+  packages/workbench:
+    dependencies:
+      '@oldbulb/samsara-book':
+        specifier: workspace:*
+        version: link:../book
+      '@oldbulb/samsara-champion':
+        specifier: workspace:*
+        version: link:../champion
+      '@oldbulb/samsara-gate':
+        specifier: workspace:*
+        version: link:../gate
+      '@oldbulb/samsara-gate-catalog':
+        specifier: workspace:*
+        version: link:../gate-catalog
+      '@oldbulb/samsara-kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@oldbulb/samsara-ledger':
+        specifier: workspace:*
+        version: link:../ledger
+      '@oldbulb/samsara-lifecycle':
+        specifier: workspace:*
+        version: link:../lifecycle
+      '@oldbulb/samsara-loops':
+        specifier: workspace:*
+        version: link:../loops
+      '@oldbulb/samsara-pack':
+        specifier: workspace:*
+        version: link:../pack
+      '@oldbulb/samsara-proposers':
+        specifier: workspace:*
+        version: link:../proposers
+      '@oldbulb/samsara-runner':
+        specifier: workspace:*
+        version: link:../runner
+      '@oldbulb/samsara-sandbox':
+        specifier: workspace:*
+        version: link:../sandbox
+      '@oldbulb/samsara-signoff':
+        specifier: workspace:*
+        version: link:../signoff
+      '@oldbulb/samsara-workdir':
+        specifier: workspace:*
+        version: link:../workdir
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
 
   packages/workdir:
     dependencies:

@@ -1,0 +1,24 @@
+{
+  "name": "@oldbulb/samsara-gate-catalog",
+  "version": "0.1.0",
+  "description": "Acceptance rules from the RSI literature as gate policies, and a bench that measures any gate's null rate and power on recorded attempts",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/oldbulb/samsara.git", "directory": "packages/gate-catalog" },
+  "publishConfig": { "access": "public" },
+  "keywords": ["dsh", "dsh-plugin", "cordis", "samsara", "rsi", "agent-evaluation"],
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" },
+    "./bench": { "types": "./lib/types/bench.d.ts", "default": "./lib/bench.js" },
+    "./plugin": { "types": "./lib/types/plugin.d.ts", "default": "./lib/plugin.js" }
+  },
+  "files": ["lib"],
+  "engines": { "node": ">=22.19" },
+  "scripts": { "build": "tsc -b tsconfig.json", "test": "vitest run --root ../.. packages/gate-catalog/tests" },
+  "dependencies": {
+    "@oldbulb/samsara-gate": "workspace:*",
+    "@oldbulb/samsara-kernel": "workspace:*"
+  }
+}

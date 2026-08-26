@@ -1,19 +1,24 @@
 // samsara-runner: the cordis plugin that turns the parsed `samsaraRun` request
 // into work. It waits for the loader so every loop provider has registered,
 // resolves the route from agentDefaultModel + this plugin's config, dispatches
-// on the command (run / challenge / round / certify / promote / demote / serve / export), prints a
-// summary, and exits through ctx.appExit.
+// on the command (run / challenge / round / certify / propose / calibrate /
+// control / campaign / experiment new / status / promote / demote / serve /
+// export / gate bench / gate change), prints a summary, and exits through
+// ctx.appExit. It mounts `runSet` as ctx.executor, the attempt executor
+// ctx.lifecycle runs attempts through; every command that changes a
+// challenger or a round calls the service and performs no transition itself.
 
 import { dirname, resolve } from 'node:path'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { Schema, type Context } from '@oldbulb/samsara-kernel'
 import type {} from '@oldbulb/samsara-loops'
-import type {} from '@oldbulb/samsara-ledger'
+import { backupSqlite, type ConsentRow } from '@oldbulb/samsara-ledger'
 import type {} from '@oldbulb/samsara-scope'
 import type {} from '@oldbulb/samsara-gate'
 import type {} from '@oldbulb/samsara-champion'
 import type {} from '@oldbulb/samsara-proposers'
-import type { ConsentRecord, Signoff } from '@oldbulb/samsara-signoff'
+import type {} from '@oldbulb/samsara-lifecycle'
+import type { ConsentRecord, Signoff, SignoffAction } from '@oldbulb/samsara-signoff'
 import { runSet, type RouteConfig } from './run.ts'
 import { readRunRecord } from './steps.ts'
 import { challenge, formatChallenge } from './challenge.ts'
@@ -21,10 +26,19 @@ import { round, formatRound } from './round.ts'
 import { certify, formatCertify } from './certify.ts'
 import { formatSummary } from './summary.ts'
 import { exportRun, formatExport, type ExportRequest } from './export.ts'
-import { SAMSARA_RUN_SERVICE, type SamsaraRunValues } from './startup.ts'
+import { benchRun, formatBench, type BenchRequest } from './bench.ts'
+import { propose, formatPropose, isCommandProposer, type ProposeDeps, type ProposeRequest } from './propose.ts'
+import { calibrate, formatCalibrate } from './calibrate.ts'
+import { control, formatControl } from './control.ts'
+import { experimentNew, formatExperiment } from './experiment.ts'
+import { formatStatus } from './status.ts'
+import { campaign, formatCampaign } from './campaign.ts'
+import { SAMSARA_RUN_SERVICE, type DemoteRequest, type GateChangeRequest, type LedgerBackupRequest, type PromoteRequest, type SamsaraRunValues } from './startup.ts'
+import { createAdapter as createCommandAdapter } from '@oldbulb/samsara-proposers/plugin-command'
 
 export const name = 'samsara-runner'
-export const inject = [SAMSARA_RUN_SERVICE, 'loops', 'agentDefaultModel', 'ledger']
+// subprocess: `propose --proposer ./command` spawns through the kernel's seam (E4) from this plugin's own context.
+export const inject = [SAMSARA_RUN_SERVICE, 'loops', 'agentDefaultModel', 'ledger', 'lifecycle', 'subprocess']
 
 export interface Config {
   /** Per-attempt base URL handed to the loop (route.baseUrl); empty = provider default. */
@@ -54,17 +68,30 @@ export { Semaphore, WriterQueue, runPool } from './pool.ts'
 export { STEPS, STEPS_DIR, RUN_RECORD, readStep, writeStep, completedSteps, isComplete, readRunRecord, writeRunRecord, stepPath } from './steps.ts'
 export type { Step, StepMarker, StepData, RunRecord } from './steps.ts'
 export type { RunRequest, RunDeps, RunResult, AttemptRow, ScoreLine, RouteConfig, Loops, LedgerSink, Materialize } from './run.ts'
-export { challenge, formatChallenge, challengerProposalOf, scoredAttemptsOf, GATE_PERMISSIVE } from './challenge.ts'
-export type { ChallengeRequest, ChallengeDeps, ChallengeResult, GatePolicyName } from './challenge.ts'
-export { round, formatRound, renderView } from './round.ts'
-export type { RoundRequest, RoundDeps, RoundResult } from './round.ts'
+export { challenge, formatChallenge, challengerProposalOf, scoredAttemptsOf, gateFor, roundFor, runOptionsOf, GATE_DEFAULT, GATE_FAST, GATE_PERMISSIVE, GATE_PRESETS, gatePolicyNames, gatePresetOf } from './challenge.ts'
+export type { ChallengeRequest, ChallengeDeps, ChallengeLedger, ChallengeLifecycle, ChallengeResult, GatePolicyName, GateSelection } from './challenge.ts'
+export { calibrate, formatCalibrate } from './calibrate.ts'
+export type { CalibrateRequest, CalibrateDeps } from './calibrate.ts'
+export { control, formatControl } from './control.ts'
+export type { ControlKind, ControlRequest, ControlDeps } from './control.ts'
+export { experimentNew, formatExperiment } from './experiment.ts'
+export type { ExperimentNewRequest, ExperimentNewDeps } from './experiment.ts'
+export { formatStatus } from './status.ts'
+export { campaign, campaignRunOf, formatCampaign, formatEvent } from './campaign.ts'
+export type { CampaignRequest, CampaignDeps } from './campaign.ts'
+export { round, formatRound, renderView, adapterOf, checkProposal, viewEnvironmentOf, formatEnvironment, VIEW_DIR, PROPOSER_DIR, VIEW_VERSION, VIEW_FILES, ENVIRONMENT_FILE } from './round.ts'
+export type { RoundRequest, RoundDeps, RoundResult, ViewEnvironment, SkillProposal } from './round.ts'
+export { propose, formatPropose, isCommandProposer } from './propose.ts'
+export type { ProposeRequest, ProposeDeps, ProposeResult } from './propose.ts'
+export { benchRun, benchGatesOf, readJsonl, formatBench, GATE_COMMAND_VERSION } from './bench.ts'
+export type { BenchRequest } from './bench.ts'
 export { certify, formatCertify, utilizationOf } from './certify.ts'
 export type { CertifyRequest, CertifyDeps, CertifyResult, CertifyRow, CrossCheck } from './certify.ts'
 export { summarize, formatSummary } from './summary.ts'
 export { exportRun, findEventFiles, readEvents, formatExport } from './export.ts'
 export type { ExportRequest, ExportResult, ExportFormat } from './export.ts'
 
-interface Io {
+export interface Io {
   stdout: { write(chunk: string): unknown }
   stderr: { write(chunk: string): unknown }
   exit(code: number): void
@@ -87,10 +114,19 @@ export function routeOf(selection: { provider: string; model: string; reasoningE
 }
 
 /** A service the command needs beyond the plugin's inject list; absent means its row did not mount. */
-function need<K extends 'scopes' | 'gate' | 'champion' | 'signoff' | 'proposers'>(ctx: Context, key: K): Context[K] {
+function need<K extends 'gate' | 'champion' | 'signoff' | 'proposers' | 'subprocess'>(ctx: Context, key: K): Context[K] {
   const v = ctx.get(key) as Context[K] | undefined
   if (v === undefined) throw new Error(`ctx.${key} is not mounted (is its row enabled in the profile, and did it start?)`)
   return v
+}
+
+/** `propose`: a registered adapter needs ctx.proposers; a `./command` proposer needs ctx.subprocess (E4) and nothing else. */
+function proposeDeps(ctx: Context, req: ProposeRequest): Pick<ProposeDeps, 'proposers' | 'commandAdapter'> {
+  if (isCommandProposer(req.proposer)) {
+    need(ctx, 'subprocess')
+    return { proposers: { get: () => undefined }, commandAdapter: (config) => createCommandAdapter(ctx, config) }
+  }
+  return { proposers: need(ctx, 'proposers'), commandAdapter: () => { throw new Error('propose: a registered proposer takes no command') } }
 }
 
 /** Every consent confirmed over the socket becomes a ledger row. */
@@ -100,50 +136,102 @@ function recordConsents(ctx: Context, signoff: Signoff): () => void {
   })
 }
 
-function waitForConsent(signoff: Signoff, challengerId: string, seconds: number): Promise<ConsentRecord> {
+function waitForConsent(signoff: Signoff, subject: string, action: SignoffAction, seconds: number, roundId: string | undefined): Promise<ConsentRecord> {
   return new Promise((resolve, reject) => {
     const off = signoff.onConfirm((c) => {
-      if (c.challenger_id !== challengerId || c.action !== 'promote') return
+      if (c.challenger_id !== subject || c.action !== action || c.round_id !== roundId) return
       clearTimeout(timer)
       off()
       resolve(c)
     })
     const timer = setTimeout(() => {
       off()
-      reject(new Error(`no promote consent for ${challengerId} arrived within ${seconds}s`))
+      reject(new Error(`no ${action} consent for ${subject} arrived within ${seconds}s`))
     }, seconds * 1000)
   })
 }
 
-async function promote(ctx: Context, req: { challengerId: string; wait?: number }, io: Io): Promise<void> {
-  const champion = need(ctx, 'champion')
-  const { challengerId } = req
-  let consent = ctx.ledger.consentsOf(challengerId).filter((c) => c.action === 'promote').sort((a, b) => (a.at < b.at ? 1 : -1))[0]
-  if (!consent && req.wait !== undefined) {
+/**
+ * The latest consent of `action` for `subject` on the ledger — for a
+ * `promote`, the one bound to `roundId` (E2); with `wait`, a sign-off is
+ * opened and the proof that answers it over the socket becomes that consent.
+ * `hint` names the command line that opens one.
+ */
+async function consentFor(ctx: Context, subject: string, action: SignoffAction, wait: number | undefined, hint: string, io: Io, roundId?: string): Promise<ConsentRow> {
+  let consent: ConsentRow | undefined = ctx.ledger.consentsOf(subject).filter((c) => c.action === action && (roundId === undefined || c.round_id === roundId)).sort((a, b) => (a.at < b.at ? 1 : -1))[0]
+  if (!consent && wait !== undefined) {
     const signoff = need(ctx, 'signoff')
     await signoff.ready
-    const pending = signoff.request(challengerId, 'promote')
-    io.stderr.write(`sign-off pending on ${signoff.config.socketPath} until ${pending.expiresAt}; waiting ${req.wait}s\n`)
+    const pending = signoff.request(subject, action, roundId !== undefined ? { roundId } : {})
+    io.stderr.write(`sign-off pending on ${signoff.config.socketPath} until ${pending.expiresAt}; waiting ${wait}s\n`)
     const record = recordConsents(ctx, signoff)
     try {
-      consent = await waitForConsent(signoff, challengerId, req.wait)
+      consent = await waitForConsent(signoff, subject, action, wait, roundId)
       await ctx.ledger.recordConsent(consent)
     } finally {
       record()
     }
   }
   if (!consent) {
-    throw new Error(`no promote consent on the ledger for ${challengerId}; run \`promote ${challengerId} --wait <seconds>\` and confirm with samsara-signoff`)
+    throw new Error(`no ${action} consent on the ledger for ${subject}; run \`${hint} --wait <seconds>\` and confirm with samsara-signoff`)
   }
-  const state = await champion.promote(challengerId, consent.id)
-  const replay = champion.replayCheck()
-  io.stdout.write(`promoted ${challengerId} with consent ${consent.id}\nkept: ${state.rows.join(', ') || '(none)'}\nreplay check: ${replay.equal ? 'ok' : `FAILED ${JSON.stringify(replay)}`}\n`)
+  return consent
 }
 
-async function demote(ctx: Context, req: { challengerId: string; reason: string }, io: Io): Promise<void> {
+/** The round a challenger is decided in: `--round`, else the open round against its parent that lists it (the latest one otherwise). */
+function roundIdOf(ctx: Context, challengerId: string, round: string | undefined): string {
+  if (round !== undefined) {
+    if (!ctx.ledger.round(round)) throw new Error(`no round ${round}`)
+    return round
+  }
+  const row = ctx.ledger.challenger(challengerId)
+  if (!row) throw new Error(`no challenger ${challengerId} on the ledger`)
+  const parent = row.parent_ids[0]
+  const rounds = parent !== undefined ? ctx.ledger.roundsOf(parent).filter((r) => r.sibling_ids.includes(challengerId)) : []
+  const found = rounds.find((r) => r.status !== 'decided') ?? rounds.at(-1)
+  if (!found) throw new Error(`challenger ${challengerId} is in no round; pass --round <id>`)
+  return found.id
+}
+
+/**
+ * `promote <id>`: the promote consent for the row (waited for over the socket
+ * with --wait), then `lifecycle.decide` on its round — the service promotes
+ * the round's candidate, which must be this row.
+ */
+export async function promote(ctx: Context, req: PromoteRequest, io: Io): Promise<void> {
   const champion = need(ctx, 'champion')
-  const state = await champion.demote(req.challengerId, req.reason)
-  io.stdout.write(`demoted ${req.challengerId}\nkept: ${state.rows.join(', ') || '(none)'}\n`)
+  const { challengerId } = req
+  const row = ctx.ledger.challenger(challengerId)
+  if (row?.verdict?.value !== 'promote') throw new Error(`challenger ${challengerId} has verdict ${row?.verdict?.value ?? 'none'}, not promote`)
+  const roundId = roundIdOf(ctx, challengerId, req.round)
+  const consent = await consentFor(ctx, challengerId, 'promote', req.wait, `promote ${challengerId}`, io, roundId)
+  const outcome = await ctx.lifecycle.decide(roundId)
+  if (outcome.pending) throw new Error(`round ${roundId}: its candidate is ${outcome.candidate}, not ${challengerId}; consent that row or drop it before promoting this one`)
+  if (outcome.promoted !== challengerId) throw new Error(`round ${roundId} decided without promoting ${challengerId}${outcome.promoted !== undefined ? ` (promoted ${outcome.promoted})` : ''}`)
+  const state = champion.current()
+  const replay = champion.replayCheck()
+  io.stdout.write(`promoted ${challengerId} with consent ${outcome.consentId ?? consent.id} (round ${roundId})\nkept: ${state.rows.join(', ') || '(none)'}\nreplay check: ${replay.equal ? 'ok' : `FAILED ${JSON.stringify(replay)}`}\n`)
+}
+
+/**
+ * `gate change <name@version>`: the gate_change consent whose subject is that
+ * policy — the row `challenge` / `round` / `certify` and `champion.promote`
+ * look for before a gate other than gate-default may judge for real.
+ */
+export async function gateChange(ctx: Context, req: GateChangeRequest, io: Io): Promise<ConsentRow> {
+  const { gate } = req
+  const consent = await consentFor(ctx, gate, 'gate_change', req.wait, `gate change ${gate}`, io)
+  io.stdout.write(`gate_change consent ${consent.id} names ${gate} (by ${consent.who} at ${consent.at})\n`)
+  return consent
+}
+
+/** `demote <id>`: the demote consent for the row (waited for with --wait, like promote), then `lifecycle.demote`. */
+export async function demote(ctx: Context, req: DemoteRequest, io: Io): Promise<void> {
+  const champion = need(ctx, 'champion')
+  const consent = await consentFor(ctx, req.challengerId, 'demote', req.wait, `demote ${req.challengerId} --reason "${req.reason}"`, io)
+  await ctx.lifecycle.demote(req.challengerId, req.reason, consent.id)
+  const state = champion.current()
+  io.stdout.write(`demoted ${req.challengerId} with consent ${consent.id}\nkept: ${state.rows.join(', ') || '(none)'}\n`)
 }
 
 async function serve(ctx: Context, io: Io): Promise<void> {
@@ -163,12 +251,31 @@ async function serve(ctx: Context, io: Io): Promise<void> {
   }
 }
 
+/** `ledger backup`: the sqlite online backup API over a second read-only handle, so the running host's writes stay consistent (E6). */
+export async function ledgerBackup(req: LedgerBackupRequest, io: Io): Promise<void> {
+  const out = resolve(req.out)
+  mkdirSync(dirname(out), { recursive: true })
+  const pages = await backupSqlite(resolve(req.db), out)
+  io.stdout.write(`ledger backup: ${pages} page(s) of ${resolve(req.db)} copied to ${out}\n`)
+}
+
 async function exportCommand(req: ExportRequest, io: Io): Promise<void> {
   const out = resolve(req.out)
   const { resourceSpans, attempts, spans } = exportRun(req)
   mkdirSync(dirname(out), { recursive: true })
   writeFileSync(out, JSON.stringify({ resourceSpans }, null, 2) + '\n')
   io.stdout.write(formatExport({ attempts, spans, out }) + '\n')
+}
+
+async function benchCommand(req: BenchRequest, io: Io): Promise<void> {
+  const result = await benchRun(req)
+  if (req.out !== undefined) {
+    const out = resolve(req.out)
+    mkdirSync(dirname(out), { recursive: true })
+    writeFileSync(out, JSON.stringify(result, null, 2) + '\n')
+    io.stderr.write(`bench result written to ${out}\n`)
+  }
+  io.stdout.write(formatBench(result))
 }
 
 type ResolvedValues = Exclude<SamsaraRunValues, { resumeDir: string }>
@@ -190,13 +297,23 @@ async function run(ctx: Context, config: Config, io: Io): Promise<void> {
   const loops = ctx.get('loops')
   const defaultModel = ctx.get('agentDefaultModel')
   const ledger = ctx.get('ledger')
-  if (parsed === undefined || loops === undefined || defaultModel === undefined || ledger === undefined) return
+  const lifecycle = ctx.get('lifecycle')
+  if (parsed === undefined || loops === undefined || defaultModel === undefined || ledger === undefined || lifecycle === undefined) return
   const req = resolveResume(parsed)
 
   if (req.command === 'promote') { await promote(ctx, req, io); io.exit(0); return }
   if (req.command === 'demote') { await demote(ctx, req, io); io.exit(0); return }
   if (req.command === 'serve') { await serve(ctx, io); io.exit(0); return }
   if (req.command === 'export') { await exportCommand(req, io); io.exit(0); return }
+  if (req.command === 'gate-bench') { await benchCommand(req, io); io.exit(0); return }
+  if (req.command === 'gate-change') { await gateChange(ctx, req, io); io.exit(0); return }
+  if (req.command === 'ledger-backup') { await ledgerBackup(req, io); io.exit(0); return }
+  if (req.command === 'status') { io.stdout.write(formatStatus(lifecycle.status()) + '\n'); io.exit(0); return }
+  if (req.command === 'experiment-new') {
+    io.stdout.write(formatExperiment(await experimentNew(req, { lifecycle, gate: need(ctx, 'gate') })) + '\n')
+    io.exit(0)
+    return
+  }
 
   if (req.command !== 'certify' && loops.get(req.loop) === undefined) {
     throw new Error(`no loop provider named "${req.loop}" is registered (is its plugin enabled in the profile?)`)
@@ -226,24 +343,46 @@ async function run(ctx: Context, config: Config, io: Io): Promise<void> {
     ...(championSkillDir !== undefined ? { championSkillDir } : {}),
   }
   if (championSkillDir !== undefined) deps.log(`champion skill: ${championSkillDir}`)
+  // The commands that transition rows do so through the service; the gate is read for the policy `--gate-policy` names.
+  const chain = () => ({ ...deps, lifecycle, gate: need(ctx, 'gate') })
+  let code = 0
   try {
     inFlight = (async () => {
       if (req.command === 'challenge') {
-        const result = await challenge({ ...req, out: resolve(req.out) }, { ...deps, scopes: need(ctx, 'scopes'), gate: need(ctx, 'gate') })
+        const result = await challenge({ ...req, out: resolve(req.out) }, chain())
         io.stdout.write(formatChallenge(result) + '\n')
       } else if (req.command === 'certify') {
-        const result = await certify({ ...req, out: resolve(req.out) }, { ...deps, scopes: need(ctx, 'scopes'), gate: need(ctx, 'gate') })
+        const result = await certify({ ...req, out: resolve(req.out) }, chain())
         io.stdout.write(formatCertify(result) + '\n')
       } else if (req.command === 'round') {
-        const result = await round({ ...req, out: resolve(req.out) }, { ...deps, scopes: need(ctx, 'scopes'), gate: need(ctx, 'gate'), proposers: need(ctx, 'proposers') })
+        const result = await round({ ...req, out: resolve(req.out) }, { ...chain(), proposers: need(ctx, 'proposers') })
         io.stdout.write(formatRound(result) + '\n')
+      } else if (req.command === 'control') {
+        const result = await control({ ...req, out: resolve(req.out) }, chain())
+        io.stdout.write(formatControl(result) + '\n')
+      } else if (req.command === 'calibrate') {
+        const result = await calibrate({ ...req, out: resolve(req.out) }, chain())
+        io.stdout.write(formatCalibrate(result) + '\n')
+      } else if (req.command === 'campaign') {
+        // A consent a round needs: waited for over the socket with --wait; without it (or on timeout) the campaign pauses.
+        const wait = req.wait
+        const result = await campaign({ ...req, out: resolve(req.out) }, {
+          ...chain(), proposers: need(ctx, 'proposers'),
+          currentSkillDir: () => ctx.get('champion')?.current().skill_ref,
+          ...(wait !== undefined ? { consent: (action, subject, roundId) => consentFor(ctx, subject, action, wait, `${action} ${subject}`, io, action === 'promote' ? roundId : undefined).catch(() => undefined) } : {}),
+        })
+        io.stdout.write(formatCampaign(result) + '\n')
+      } else if (req.command === 'propose') {
+        const result = await propose({ ...req, out: resolve(req.out) }, { ...deps, ...proposeDeps(ctx, req) })
+        io.stdout.write(formatPropose(result) + '\n')
+        code = result.scan.ok ? 0 : 1
       } else {
         const result = await runSet({ ...req, out: resolve(req.out) }, deps)
         io.stdout.write(formatSummary(result) + '\n')
       }
     })()
     await inFlight
-    io.exit(controller.signal.aborted ? 130 : 0)
+    io.exit(controller.signal.aborted ? 130 : code)
   } finally {
     process.removeListener('SIGINT', onSigint)
     disposeAbort()
@@ -256,6 +395,8 @@ export const DRAIN_GRACE_MS = 3000
 export function apply(ctx: Context, config: Config): void {
   const appExit = ctx.get('appExit')
   if (appExit === undefined) throw new Error('samsara-runner: the launcher must provide ctx.appExit before the tree mounts')
+  // The attempt executor ctx.lifecycle runs attempts through (run / calibrate / campaign).
+  ctx.provide('executor', { runSet })
   let exitCode: number | undefined
   // A fast one-shot can request exit while the launcher is still opening its
   // patch-file watchers; a watcher opened after the tree disposed keeps the

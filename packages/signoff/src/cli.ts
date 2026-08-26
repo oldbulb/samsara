@@ -26,7 +26,7 @@ program
   .command('confirm')
   .requiredOption('--socket <path>', 'sign-off socket path')
   .requiredOption('--key <private.pem>', 'private key file')
-  .requiredOption('--row <id>', 'challenger row id')
+  .requiredOption('--row <id>', 'challenger row id (for gate_change: the gate policy name@version)')
   .requiredOption('--action <action>', SIGNOFF_ACTIONS.join('|'))
   .requiredOption('--who <name>', 'who is signing')
   .action(async (o: { socket: string; key: string; row: string; action: string; who: string }) => {

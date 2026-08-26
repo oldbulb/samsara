@@ -5,6 +5,7 @@
     "@oldbulb/samsara-champion": "link:../../packages/champion",
     "@oldbulb/samsara-gate": "link:../../packages/gate",
     "@oldbulb/samsara-ledger": "link:../../packages/ledger",
+    "@oldbulb/samsara-lifecycle": "link:../../packages/lifecycle",
     "@oldbulb/samsara-loops": "link:../../packages/loops",
     "@oldbulb/samsara-loops-claude-code": "link:../../packages/loops-claude-code",
     "@oldbulb/samsara-loops-dsh": "link:../../packages/loops-dsh",

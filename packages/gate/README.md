@@ -10,9 +10,9 @@ The gate is a fixed point outside the loop: it reads ledger rows (`ScoredAttempt
 |---|---|---|
 | `@oldbulb/samsara-gate` | `GateRegistry` (default export, cordis Service on `ctx.gate`), types, `gatePolicy`, stats | the seam |
 | `@oldbulb/samsara-gate/default` | `gateDefault(req)` | the policy, a pure function |
-| `@oldbulb/samsara-gate/plugin-default` | plugin `gate-default` (inject `['gate']`) | mounts `gateDefault` as `gate-default@0.1.0` |
+| `@oldbulb/samsara-gate/plugin-default` | plugin `gate-default` (inject `['gate']`) | mounts `gateDefault` as `gate-default@0.2.0` |
 
-`GateRegistry.register({ name, version, judge })` returns a disposer; `current()` is the most recently registered policy still mounted; `judge(req)` returns `{ compare, verdict, gateMethod }`.
+`GateRegistry.register({ name, version, judge })` returns a disposer; `current()` is the most recently registered policy still mounted; `judge(req)` resolves to `{ compare, verdict, gateMethod }`. The seam is async end to end: a policy's `judge` may return a `GateJudgement` or a promise of one (`gate-default` is a pure function; `CommandGatePolicy` spawns its child without blocking the host event loop), and `GateRegistry.judge` always returns a promise.
 
 ## `gate-default` rules, in order
 
@@ -20,11 +20,11 @@ All statistics are computed once per request and stored in `Compare`; the rules 
 
 1. **Type** — any `judge`-kind row in the primary metric: `invalid` (`type:judge`). `ABORTED|FAILED` attempts are excluded and counted (`counts.excluded`); rows without a partner on `(taskId, sample)` are dropped and counted (`counts.unpaired`). No eligible challenger rows: `invalid` (`type:no-data`).
 2. **Validity (smoke)** — `validRate` = share of challenger attempts with `status === 'COMPLETED'` and `valid !== false`; below `validityFloor`: `drop`, otherwise `hold` (`validity`). Nothing else is decided on smoke.
-3. **Power floor (S2)** — `nEff` = distinct `entityKey` with paired data. `nEff < nEffFloor`: `hold:underpowered` (`power:nEff`); `mde > policy.mde` when the pack declares one: `hold:underpowered` (`power:mde`).
-4. **MDE (S1)** — `mde = (z_{1-alpha/2} + z_{1-power}) * noiseFloor.sdPaired / sqrt(nEff)`; the sd comes from the rerun noise floor, never from the comparison.
+3. **Power floor (S2)** — `nEff` = distinct `entityKey` with paired data. `nEff < nEffFloor`: `hold:underpowered` (`power:nEff`); `mde > policy.mde` when the pack declares a SESOI: `hold:underpowered` (`power:mde`).
+4. **MDE (S1)** — `mde = (z_{1-alpha/2} + z_{1-power}) * noiseFloor.sdPaired / sqrt(nEff * replicates)`, `replicates` = paired samples per task in this comparison; the sd comes from the rerun noise floor, never from the comparison.
 5. **Screen (S4)** — on the `futility.tier` (holdin), `z = mean / (sd(entity means) / sqrt(nEff))`; `z < zStop`: `drop` (`futility`). Nothing else stops early. Holdin otherwise ends as `hold` (`screen`); it never promotes.
 6. **Cost (S8)** — `costRatio = mean(challenger cost) / mean(champion cost)` over paired attempts, in usd when every row reports it, else tokens. `costRatio > maxRatio` and the challenger is not certified better on quality (rule 7's test): `drop` (`cost`).
-7. **Holdout test (S4)** — BCa cluster bootstrap (clusters = entities, jackknife acceleration) at the Holm-adjusted level `alpha / (k - index)`; `promote` iff the lower bound `> 0` **and** `mean >= mde`, else `hold` (`holdout`).
+7. **Holdout test (S4)** — BCa cluster bootstrap (clusters = entities, jackknife acceleration) at the Holm-adjusted level `alpha / (k - index)`; `promote` iff the lower bound `> 0` **and** `mean >= policy.mde` (the SESOI, 0 when absent), recorded as `Compare.minEffect`; else, when a SESOI is declared and the design is powered for it, the interval brackets zero and `costRatio` lies within `[1/maxRatio, maxRatio]`: `drop` (`indistinguishable`); else `hold` (`holdout`).
 8. **Ladder exposure (S7)** — `ladder.step = sd(entity means) / sqrt(nEff)`, `ladder.beatBest = mean > bestSoFar + step`. These two fields are all the proposer may see of the holdout; the ledger keeps the raw means judge-side.
 9. **Live** — not implemented: `hold` with `ruleFired = 'live:unimplemented'`.
 
@@ -40,9 +40,9 @@ All statistics are computed once per request and stored in `Compare`; the rules 
 | `validityFloor` | 0.9 |
 | `costBudget` | `{ metric: 'cost_usd', maxRatio: 1.25 }` |
 | `futility` | `{ tier: 'holdin', zStop: -1.0 }` |
-| `holdout` | `{ rotateAfterPromotions: 1, maxRounds: 20 }` |
+| `holdout` | `{ rotateAfterPromotions: 1, maxRounds: 20 }` — recorded on the verdict row, consumed by nothing (rotation is not implemented, S7) |
 | `nEffFloor` | **no default** — the pack declares it |
-| `mde` | absent — only the noise-floor MDE applies |
+| `mde` | absent = 0: significance alone promotes (the SESOI, `pack.holdout.mde`) |
 
 `CompareRequest.seed` seeds the bootstrap PRNG (mulberry32); the same ledger rows and seed reproduce the same verdict.
 
@@ -59,7 +59,7 @@ export function apply(ctx: Context) {
 }
 ```
 
-The policy registered last decides; every verdict records `gateMethod`. E1–E8, S5, S6 are framework invariants a policy cannot disable; S1–S4, S7, S8 are the behaviour of `gate-default` and are what a replacement is replacing.
+`judge` may also be `async`: a policy that waits on a subprocess or a service returns a promise and the registry awaits it. The policy registered last decides; every verdict records `gateMethod`. E1–E8, S5, S6 are framework invariants a policy cannot disable; S1–S4, S7, S8 are the behaviour of `gate-default` and are what a replacement is replacing.
 
 ## Tests
 

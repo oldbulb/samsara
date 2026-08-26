@@ -1,0 +1,6 @@
+{
+  "view_version": 1,
+  "champion_id": "ch-champion",
+  "metric": "pass",
+  "files": ["champion.json", "champion-skill", "tasks.jsonl", "champion-attempts.jsonl", "champion-scores.jsonl", "compares.jsonl", "environment.md", "proposal.schema.json"]
+}

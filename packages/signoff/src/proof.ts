@@ -4,8 +4,9 @@
 
 import { createHash, generateKeyPairSync, sign as cryptoSign, verify as cryptoVerify } from 'node:crypto'
 
-export type SignoffAction = 'promote' | 'reject' | 'reopen' | 'scorer_bump'
-export const SIGNOFF_ACTIONS: readonly SignoffAction[] = ['promote', 'reject', 'reopen', 'scorer_bump']
+/** Mirrors the ledger's `CONSENT_ACTIONS`. `gate_change` names a gate, not a challenger: its `rowId` is the policy's `name@version`. */
+export type SignoffAction = 'promote' | 'demote' | 'reject' | 'reopen' | 'eval_config_change' | 'gate_change' | 'holdout_reveal'
+export const SIGNOFF_ACTIONS: readonly SignoffAction[] = ['promote', 'demote', 'reject', 'reopen', 'eval_config_change', 'gate_change', 'holdout_reveal']
 
 export interface ProofPayload {
   nonce: string
@@ -13,7 +14,13 @@ export interface ProofPayload {
   action: SignoffAction
   who: string
   issuedAt: string
+  /** The round a `promote` consent is bound to (E2): the pending sign-off names it and the proof must repeat it. */
+  roundId?: string
 }
+
+/** The file names `samsara-signoff keygen` writes. The private key belongs on the signer's side; the host reads only the public one. */
+export const PRIVATE_KEY_FILE = 'signoff.key'
+export const PUBLIC_KEY_FILE = 'signoff.pub'
 
 export interface Proof {
   payload: ProofPayload
@@ -47,10 +54,10 @@ export function sha256(input: string): string {
   return createHash('sha256').update(input).digest('hex')
 }
 
-/** The bytes that get signed: the canonical JSON of exactly the five payload fields. */
+/** The bytes that get signed: the canonical JSON of exactly the payload fields (`roundId` only when the sign-off carries one). */
 export function canonicalPayload(payload: ProofPayload): string {
-  const { nonce, rowId, action, who, issuedAt } = payload
-  return canonicalJson({ nonce, rowId, action, who, issuedAt })
+  const { nonce, rowId, action, who, issuedAt, roundId } = payload
+  return canonicalJson({ nonce, rowId, action, who, issuedAt, ...(roundId !== undefined ? { roundId } : {}) })
 }
 
 /** Fresh Ed25519 keypair, both halves PEM (spki / pkcs8). */

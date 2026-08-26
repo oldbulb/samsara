@@ -1,0 +1,20 @@
+name: synthetic
+truth_latency: immediate
+skill: { dir: skill/, name: answer }
+contract: contract.schema.json
+tasks:
+  sets: { smoke: tasks/smoke.jsonl, holdin: tasks/holdin.jsonl, holdout: tasks/holdout.jsonl }
+  entity_key: entity_key
+  version: 1
+  stratum_key: stratum
+holdout:
+  mde: 0.05
+  # one reveal per challenger run on the held-out set, counted across the ledger; the README recipe spends 22
+  # (20 A/A rounds + the injected round + control aa), tests/synthetic.e2e.test.ts up to 21
+  budget: 24
+surfaces:
+  skill: { globs: ["skill/**"] }
+commands:
+  truth: ./bin/truth.mjs
+  score: ./bin/score.mjs
+  materialize: ./bin/materialize.mjs

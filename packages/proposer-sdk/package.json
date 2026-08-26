@@ -1,0 +1,42 @@
+{
+  "name": "@oldbulb/samsara-proposer-sdk",
+  "version": "0.1.0",
+  "description": "Write a proposer in TypeScript: load the rendered view, build a Proposal, validate it, write it out — no dsh, no cordis",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oldbulb/samsara.git",
+    "directory": "packages/proposer-sdk"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "samsara",
+    "rsi",
+    "proposer",
+    "optimizer"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run --root ../.. packages/proposer-sdk/tests"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  }
+}

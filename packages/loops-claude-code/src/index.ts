@@ -14,7 +14,8 @@ import type {} from '@oldbulb/samsara-loops'
 
 export * from './seam.ts'
 export { buildEnv, configDir } from './env.ts'
-export { MessageMapper, classifyResult, tokenUsage, PRESET_ID } from './mapper.ts'
+export { MessageMapper, classifyResult, tokenUsage, PRESET_ID, SDK_VERSION } from './mapper.ts'
+import { SDK_VERSION } from './mapper.ts'
 export { readSubmit, submitFileInstruction, submitPath, stripFrontmatter } from './submit.ts'
 export { claudeSpawnSpec, sdkEnvironmentOverlay, ManagedClaudeCodeProcess } from './process.ts'
 export { startRun, queryOptions, systemPromptAppend, STREAM_FILE, type RunDeps } from './run.ts'
@@ -22,7 +23,6 @@ export { startRun, queryOptions, systemPromptAppend, STREAM_FILE, type RunDeps }
 export const name = 'loops-claude-code'
 export const inject = ['loops', 'subprocess', 'credentials']
 
-export const SDK_VERSION = '0.3.220'
 export const PROVIDER_NAME = 'claude-code'
 const DEFAULT_GRACE_MS = 3_000
 
@@ -41,6 +41,7 @@ export const harnessFacts: HarnessFacts = {
   schemaEnforcement: 'permissive-tool',
   permission: 'bypassPermissions',
   reasoning: {},
+  envelope: { config: 'proxy', system: 'proxy', tools: 'proxy' },
   version: { loop: PROVIDER_NAME, sdk: SDK_VERSION },
 }
 

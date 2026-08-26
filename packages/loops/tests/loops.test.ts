@@ -1,5 +1,9 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { Context } from '@oldbulb/samsara-kernel'
+import { readSubmit } from '@oldbulb/samsara-submit'
 import {
   LoopRegistry,
   LoopRegistryError,
@@ -38,7 +42,7 @@ async function registry() {
 function fakeProvider(name: string, events: () => AsyncIterable<LoopEvent>): LoopProvider {
   return {
     name,
-    harnessFacts: { systemPromptMode: 'none', skillDelivery: 'prompt-inline', schemaEnforcement: 'permissive-tool', permission: 'none', reasoning: {}, version: { loop: 'fake' } },
+    harnessFacts: { systemPromptMode: 'none', skillDelivery: 'prompt-inline', schemaEnforcement: 'permissive-tool', permission: 'none', reasoning: {}, envelope: { config: 'absent', system: 'absent', tools: 'absent' }, version: { loop: 'fake' } },
     capabilities: { perAttemptBaseUrl: false, perAttemptEnv: false, nativeSchema: 'none', toolFilter: false, nativeMaxTurns: false },
     async start(s): Promise<LoopRun> {
       let rejectResult!: (e: unknown) => void
@@ -110,6 +114,30 @@ describe('NullLoopProvider', () => {
     await run.dispose()
   })
 
+  it('writes a canned submit under the submit-tool file convention and reports it as output', async () => {
+    const workdir = mkdtempSync(join(tmpdir(), 'samsara-null-'))
+    const ctx = await registry()
+    ctx.loops.register(new NullLoopProvider({ submit: { answer: 'x' } }))
+    const run = await ctx.loops.start('null', { ...spec('att-s'), workdir })
+    const events = await collectEvents(run)
+    expect(events.map(e => e.t)).toEqual(['started', 'assistant', 'output', 'finished'])
+    expect(events[2]).toMatchObject({ t: 'output', structured: { answer: 'x' }, source: 'submit-tool' })
+    expect(readSubmit(workdir, 'submit')?.value).toEqual({ answer: 'x' })
+    expect((await run.result).status).toBe('COMPLETED')
+  })
+
+  it('submits nothing by default, and the loops-null plugin passes its submit config through', async () => {
+    const workdir = mkdtempSync(join(tmpdir(), 'samsara-null-'))
+    const ctx = await registry()
+    ctx.loops.register(new NullLoopProvider())
+    await collectEvents(await ctx.loops.start('null', { ...spec(), workdir }))
+    expect(readSubmit(workdir, 'submit')).toBeUndefined()
+    const configured = await registry()
+    await configured.plugin(pluginNull, { submit: { answer: 'y' } })
+    await collectEvents(await configured.loops.start('null', { ...spec(), workdir }))
+    expect(readSubmit(workdir, 'submit')?.value).toEqual({ answer: 'y' })
+  })
+
   it('has stable harness facts', () => {
     const p = new NullLoopProvider()
     expect(factsSha(p.harnessFacts)).toMatch(/^[0-9a-f]{64}$/)
@@ -148,6 +176,28 @@ describe('start() wrapping', () => {
     const fin = await run.result
     expect(fin.status).toBe('FAILED')
     expect((await collectEvents(run)).filter(e => e.t === 'finished')).toHaveLength(1)
+  })
+
+  it('downgrades finished to FAILED/error when the loop hands back its skill snapshot changed', async () => {
+    const workdir = mkdtempSync(join(tmpdir(), 'samsara-loops-'))
+    const skillDir = join(workdir, '.agents', 'skills', 'skill')
+    mkdirSync(skillDir, { recursive: true })
+    writeFileSync(join(skillDir, 'params.json'), '{"k":0}')
+    const done: LoopEvent = { t: 'finished', at: 1, status: 'COMPLETED', stopReason: 'completed', usage: { inputTokens: 3, outputTokens: 4 }, cost: { usd: 0.5, source: 'self-reported' }, turns: 1, toolCalls: 2, artifacts: [] }
+    const ctx = await registry()
+    ctx.loops.register(fakeProvider('reads', async function* () { yield done }))
+    ctx.loops.register(fakeProvider('writes', async function* () {
+      writeFileSync(join(skillDir, 'params.json'), '{"k":1}')
+      yield done
+    }))
+    const s = { ...spec(), workdir, skill: { name: 'skill', dir: skillDir, sha: 'a'.repeat(64) } }
+    expect((await (await ctx.loops.start('reads', s)).result).status).toBe('COMPLETED')
+    const run = await ctx.loops.start('writes', s)
+    const fin = await run.result
+    expect(fin).toEqual({ ...done, status: 'FAILED', stopReason: 'error' })
+    expect((await collectEvents(run)).at(-1)).toEqual(fin)
+    // the changed snapshot is the new seal: a later attempt that leaves it alone completes
+    expect((await (await ctx.loops.start('reads', s)).result).status).toBe('COMPLETED')
   })
 
   it('keeps exactly one finished when the provider emits two', async () => {

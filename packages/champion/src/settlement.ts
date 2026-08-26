@@ -64,7 +64,13 @@ export interface CompareCoords {
   vs_id: string
   tier: Tier
   truth_snapshot_id: string
+  /** The Ladder's best-so-far the gate was asked to beat (`CompareRequest.bestSoFar`); absent when none yet. */
+  best_so_far?: number
   at?: string
+}
+
+function round2(x: number): number {
+  return Math.round(x * 100) / 100
 }
 
 /**
@@ -72,12 +78,17 @@ export interface CompareCoords {
  * For a kept (promoted) challenger the verdict is lifted to the settlement
  * vocabulary: `promote` again means `confirmed`, anything else `reversed`.
  * An unkept row keeps the gate's own value (`hold` stays open, `drop` closes).
+ * `shadow` marks a judgement by a gate that is not the promotion gate and has
+ * no `gate_change` consent: recorded beside the promotion verdict, never a decision.
+ * `ladder` copies the gate's Ladder output with the best-so-far it was judged
+ * against, rounded to two decimals as the proposer view rounds it.
  */
 export function compareRowOf(
   challengerId: string,
   judgement: GateVerdictRow,
   coords: CompareCoords,
   kept: boolean,
+  shadow = false,
 ): CompareRow {
   const c = judgement.compare
   const gateValue = judgement.verdict === 'hold:underpowered' ? 'hold' : judgement.verdict
@@ -97,6 +108,9 @@ export function compareRowOf(
     mde: c.mde,
     rule_fired: c.ruleFired,
     verdict: { value, by: judgement.gateMethod, rule: c.ruleFired },
+    gate: judgement.gateMethod,
+    shadow,
+    ladder: { step: c.ladder.step, beat_best: c.ladder.beatBest, ...(coords.best_so_far !== undefined ? { best_so_far: round2(coords.best_so_far) } : {}) },
     at: coords.at ?? new Date().toISOString(),
   }
 }

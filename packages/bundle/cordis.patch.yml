@@ -4,13 +4,19 @@
 # that the startup row provides, never from config.
 
 - insert:
-    # Storage: dsh-base mounts none, so the bundle brings the hub, the json
+    # Storage: dsh-base mounts none, so the bundle brings the hub, the sqlite
     # backend and the domain facility. The ledger domain (`samsara_ledger`)
-    # lands at `<root>/samsara_ledger.json`; `root` is a literal path resolved
-    # against the cwd the host was launched from (E3: no !!js), i.e. the repo's
-    # gitignored data/ dir when running from the checkout. Override `root` in
-    # the profile's own patch layer to pin an absolute location.
-    - id: storage
+    # lands at `path`, a literal resolved against the cwd the host was launched
+    # from (E3: no !!js), i.e. the repo's gitignored data/ dir when running
+    # from the checkout; pin an absolute location in the profile's own patch
+    # layer. One host writes it (E6: single writer is a deployment rule, not
+    # enforced by a lock); `dsh --profile host ledger backup --out <file>`
+    # copies it with sqlite's online backup API while the host runs. The hub
+    # and the facility carry the bundle's own ids: a profile
+    # that also loads dsh-web-app (which inserts `storage`/`storage-domain`
+    # under its own) disables these two and routes the domain through its
+    # facility (the loader rejects a duplicate id before it reads `disabled`).
+    - id: samsara-storage
       name: '@deepseek-ai/dsh-storage'
 
     - id: storage-sqlite
@@ -19,7 +25,7 @@
       config:
         path: data/ledger/samsara_ledger.sqlite
 
-    - id: storage-domain
+    - id: samsara-storage-domain
       name: '@deepseek-ai/dsh-storage-domain'
       inject: [storage]
       config:
@@ -36,18 +42,48 @@
     - id: gate
       name: '@oldbulb/samsara-gate'
 
+    # The catalog rules (@oldbulb/samsara-gate-catalog: keep-better, hillclimb,
+    # …; every rule when `policies` is omitted) are policies only when a profile
+    # mounts them; `gate bench` reads the catalog directly. Mounted here, before
+    # gate-default, they judge as shadows (a compare row beside the promotion
+    # verdict, no verdict of their own) and `--gate-policy <name>` can name
+    # them. Mounted after gate-default, the last one is the promotion gate and
+    # needs a `gate_change` consent before anything opens.
+    # - id: gate-catalog
+    #   name: '@oldbulb/samsara-gate-catalog/plugin'
+    #   inject: [gate]
+    #   config:
+    #     policies: [keep-better, hillclimb]
+
     - id: gate-default
       name: '@oldbulb/samsara-gate/plugin-default'
       inject: [gate]
+
+    # A gate in any language, as a subprocess (stdin: CompareRequest JSON,
+    # stdout: GateJudgement JSON; contract in examples/gates/README.md). The
+    # most recently registered policy is the one that judges, so this row
+    # after gate-default replaces it; running rounds under a non-default gate
+    # is a consent action (`gate_change`, architecture.md § Ledger).
+    # - id: gate-mine
+    #   name: '@oldbulb/samsara-gate/plugin-command'
+    #   inject: [gate]
+    #   config:
+    #     command: ./my_gate.py
+    #     name: mine
+    #     version: 0.1.0
 
     # ctx.loops: the registry every loop provider registers on.
     - id: loops
       name: '@oldbulb/samsara-loops'
 
     # The null loop: a provider that finishes at once without an LLM; smoke tests the seam.
+    # `submit` is a canned submission every attempt leaves behind (null: none), for a
+    # pack whose truth needs a submission but does not read the answer.
     - id: loops-null
       name: '@oldbulb/samsara-loops/plugin-null'
       inject: [loops]
+      config:
+        submit: null
 
     # In-process dsh child agent.
     - id: loops-dsh
@@ -90,12 +126,32 @@
       config:
         command: claude
 
+    # Any executable as proposer (examples/proposers/README.md): spawned as
+    # `<command> [args…] --view <dir> --out <dir>` through the kernel's
+    # subprocess seam with an explicit env (E5); it writes proposal.json (and
+    # skill/) into the out directory. One row per proposer, each under its own
+    # `name`; a credential reaches the child only via credentialRef/credentialVar.
+    # The child runs with cwd = its own work directory, so a script path in
+    # `command`/`args` must be absolute (or `command` on PATH). In a profile
+    # patch a new row goes under `- insert:`; a bare `- id:` patches an
+    # existing row and is dropped when the id does not exist.
+    # - id: proposer-noop
+    #   name: '@oldbulb/samsara-proposers/plugin-command'
+    #   inject: [proposers, subprocess, credentials]
+    #   config:
+    #     name: noop
+    #     command: python3
+    #     args: [/abs/path/to/samsara/examples/proposers/noop.py]
+    #     timeoutMs: 600000
+
     # ctx.scopes: disposable child scopes for challengers (E1: in-memory loader rows only).
     - id: scopes
       name: '@oldbulb/samsara-scope'
 
     # ctx.signoff: the consent channel (E2). Literal paths resolved against the
-    # launch cwd; generate the key with `samsara-signoff keygen --out data/signoff`.
+    # launch cwd. Generate the keypair on the signer's side (`samsara-signoff
+    # keygen --out <dir>`) and copy only signoff.pub here: a signoff.key beside
+    # the public key makes the service refuse every proof (KEY_ON_HOST).
     - id: signoff
       name: '@oldbulb/samsara-signoff'
       config:
@@ -110,10 +166,18 @@
         profileDir: profiles/host
         skillStore: data/skills
 
+    # ctx.lifecycle: every transition of a challenger row and of a round
+    # (propose/open/run/judge/decide/demote/settle); attempts run through the
+    # executor the runner mounts on ctx.executor.
+    - id: lifecycle
+      name: '@oldbulb/samsara-lifecycle'
+      inject: [ledger, scopes, gate, loops, champion]
+
     # Web carrier: the bundle inserts the webserver row itself (never
     # dsh-web-app, whose web-startup row would reject the runner's argv; see
-    # docs/dsh-plugin-notes.md B4). Loopback only.
-    - id: webserver
+    # docs/dsh-plugin-notes.md B4), under its own id so a profile that loads
+    # dsh-web-app's `webserver` row can disable this one. Loopback only.
+    - id: samsara-webserver
       name: '@deepseek-ai/dsh-host-webserver'
       config:
         host: 127.0.0.1
@@ -133,9 +197,12 @@
       name: '@oldbulb/samsara-runner/startup'
 
     # Runs the set; waits on the samsaraRun service instead of reading config.
+    # Mounts runSet as ctx.executor; every transition goes through ctx.lifecycle.
+    # subprocess: `propose --proposer ./command` spawns the proposer from this
+    # row's context (a registered proposer row brings its own).
     - id: samsara-runner
       name: '@oldbulb/samsara-runner'
-      inject: [samsaraRun, ledger]
+      inject: [samsaraRun, ledger, lifecycle, subprocess]
       config:
         baseUrl: ''
         credentialRef: ''

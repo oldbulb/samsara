@@ -39,11 +39,17 @@ def check(task, root):
     m = cmd("materialize", [line])[0]
     if not m["ok"]:
         return "materialize not ok"
+    leaked = [t for t in files["test"] if (wd / t).exists() or t in m["files"]]
+    if leaked:
+        return f"tests visible to the agent: {leaked}"
     stub = cmd("truth", [line])[0]["truth"]
     if stub["total"] == 0 or stub["failed"] == 0:
         return f"stub did not fail: {stub}"
+    # copy, not copy2: cargo fingerprints by mtime, and the example is older than the stub build
     for ex, sol in zip(files["example"], files["solution"]):
-        shutil.copy2(fixture / ex, wd / sol)
+        shutil.copy(fixture / ex, wd / sol)
+    if (fixture / ".meta" / "Cargo-example.toml").exists():  # the reference solution's own manifest
+        shutil.copy(fixture / ".meta" / "Cargo-example.toml", wd / "Cargo.toml")
     ref = cmd("truth", [line])[0]["truth"]
     if ref["failed"] != 0 or ref["passed"] != ref["total"] or ref["exit_code"] != 0:
         return f"reference did not pass: {ref}"

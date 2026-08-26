@@ -171,7 +171,7 @@ describe('startRun', () => {
     expect(run.id).toBe('att-1')
     const events = await collect(run.events)
     const finished = await run.result
-    expect(events.map((e) => e.t)).toEqual(['started', 'system_prompt', 'tool_call', 'assistant', 'tool_result', 'assistant', 'output', 'finished'])
+    expect(events.map((e) => e.t)).toEqual(['started', 'envelope', 'tool_call', 'assistant', 'tool_result', 'assistant', 'output', 'finished'])
     expect(events.find((e) => e.t === 'output')).toMatchObject({ source: 'submit-tool', structured: { answer: 42 } })
     expect(finished).toMatchObject({
       status: 'COMPLETED',

@@ -1,7 +1,7 @@
 {
   "name": "@oldbulb/samsara-proposers",
   "version": "0.1.0",
-  "description": "ctx.proposers: the registry of proposer adapters and the Proposal contract every adapter returns (claude-p, human)",
+  "description": "ctx.proposers: the registry of proposer adapters and the Proposal contract every adapter returns (claude-p, command, human)",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -35,9 +35,17 @@
       "types": "./lib/types/claude-p.d.ts",
       "default": "./lib/claude-p.js"
     },
+    "./command": {
+      "types": "./lib/types/command.d.ts",
+      "default": "./lib/command.js"
+    },
     "./plugin-claude-p": {
       "types": "./lib/types/plugin-claude-p.d.ts",
       "default": "./lib/plugin-claude-p.js"
+    },
+    "./plugin-command": {
+      "types": "./lib/types/plugin-command.d.ts",
+      "default": "./lib/plugin-command.js"
     },
     "./plugin-human": {
       "types": "./lib/types/plugin-human.d.ts",

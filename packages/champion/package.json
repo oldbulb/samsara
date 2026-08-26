@@ -50,6 +50,8 @@
     "@oldbulb/samsara-gate": "workspace:*",
     "@oldbulb/samsara-kernel": "workspace:*",
     "@oldbulb/samsara-ledger": "workspace:*",
+    "@oldbulb/samsara-signoff": "workspace:*",
+    "@oldbulb/samsara-workdir": "workspace:*",
     "yaml": "2.9.0"
   }
 }

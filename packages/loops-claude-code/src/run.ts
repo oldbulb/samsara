@@ -8,7 +8,7 @@ import type { Options, Query, SDKMessage, SpawnOptions } from '@anthropic-ai/cla
 import { scrubbedParentEnv, type Context, type SubprocessHandle, type SubprocessSpawnSpec } from '@oldbulb/samsara-kernel'
 import { apply as applySandbox, type SandboxHost } from '@oldbulb/samsara-sandbox'
 import { buildEnv, configDir } from './env.ts'
-import { classifyResult, MessageMapper, sha256, tokenUsage } from './mapper.ts'
+import { classifyResult, MessageMapper, SDK_VERSION, sha256, tokenUsage } from './mapper.ts'
 import { claudeSpawnSpec, ManagedClaudeCodeProcess } from './process.ts'
 import { EventQueue } from './queue.ts'
 import type { Artifact, AttemptSpec, FinishedEvent, LoopEvent, LoopRun } from './seam.ts'
@@ -152,7 +152,7 @@ export async function startRun(spec: AttemptSpec, deps: RunDeps): Promise<LoopRu
   const publishedQuery = q
   const publishedChild = child
   const queue = new EventQueue<LoopEvent>()
-  const mapper = new MessageMapper({ systemPromptAppend: append, pid: publishedChild.pid })
+  const mapper = new MessageMapper({ systemPromptAppend: append, sdkVersion: SDK_VERSION, provider: spec.route.provider, pid: publishedChild.pid })
 
   const timer = setTimeout(() => {
     timedOut = true

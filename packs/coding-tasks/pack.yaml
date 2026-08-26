@@ -12,6 +12,14 @@ holdout:
   budget: 8
 surfaces:
   skill: { globs: ["skill/**"] }
+# What truth/score/materialize and the attempts execute from: the four
+# provisioned runtimes (runtime/provision.sh), granted read-only to the
+# sandboxed subprocess; the lock files pin them into env_sha (E3); the three
+# names are the only host variables the commands may read beside the defaults.
+runtime:
+  dirs: [runtime/py, runtime/js, runtime/go, runtime/rust]
+  locks: ["runtime/py/requirements.txt", "runtime/js/package.json", "runtime/js/pnpm-lock.yaml"]
+  env: [CODING_TASKS_PYTHON, CODING_TASKS_GO, CODING_TASKS_CARGO]
 commands:
   truth: ./bin/truth
   score: ./bin/score

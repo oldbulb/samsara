@@ -4,7 +4,7 @@
 
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
-import { resolve, dirname, isAbsolute } from 'node:path'
+import { resolve, dirname, isAbsolute, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Ajv2020, type ValidateFunction, type ErrorObject } from 'ajv/dist/2020.js'
 import addFormats from 'ajv-formats'
@@ -39,8 +39,12 @@ export interface PackManifest {
     entity_key: string
     version?: number
     stratum_key?: string
+    protocol?: { stage?: string; contracts?: string[] }
   }
-  holdout?: { mde?: number; budget?: number }
+  metrics?: { primary: { name: string; unit?: string; direction?: 'up' | 'down' }; cost?: string }
+  /** What the commands and the attempts execute from: read-only roots for the sandbox, the globs of the files that pin them (hashed into env_sha), and the host environment names the commands may see. */
+  runtime?: { dirs?: string[]; locks?: string[]; env?: string[] }
+  holdout?: { mde?: number; budget?: number; retention_tolerance?: number; auto_demote?: boolean }
   surfaces?: Record<string, { globs?: string[]; config_keys?: string[] }>
   commands: Partial<Record<CommandName, string>> & { truth: string; score: string }
   guards?: { deny_patterns?: string[] }
@@ -262,6 +266,33 @@ export function surfaceBoundaries(def: PackDefinition): Record<string, SurfaceBo
   return surfaceBoundariesOf(def.manifest)
 }
 
+// ---------------------------------------------------------------- protected paths
+
+/**
+ * What no attempt, proposer or patch may reach, as the manifest declares it:
+ * the manifest itself, the contract, the task sets, and every file a command
+ * line names inside the pack (its judge). Pack-relative posix paths, sorted.
+ */
+export function protectedPaths(def: Pick<PackDefinition, 'dir' | 'contractPath' | 'taskSets' | 'commands'>): string[] {
+  const dir = resolve(def.dir)
+  const rel = (abs: string): string | undefined => {
+    const r = relative(dir, abs)
+    return r === '' || r.startsWith('..') || isAbsolute(r) ? undefined : r.split(sep).join('/')
+  }
+  const out = new Set<string>(['pack.yaml'])
+  const add = (abs: string) => { const r = rel(abs); if (r !== undefined) out.add(r) }
+  add(def.contractPath)
+  for (const set of Object.values(def.taskSets)) add(set.path)
+  for (const cmd of Object.values(def.commands)) {
+    for (const token of cmd.split(/\s+/)) {
+      if (token === '') continue
+      const abs = resolve(dir, token)
+      if (existsSync(abs)) add(abs)
+    }
+  }
+  return [...out].sort()
+}
+
 // ---------------------------------------------------------------- validateSubmit
 
 /** How long `exit` waits for the pipes to close before settling the call anyway. */
@@ -284,6 +315,24 @@ export function validateSubmit(def: PackDefinition, obj: unknown): void {
 }
 
 // ---------------------------------------------------------------- runCommand
+
+/** Host environment names every pack command sees; everything else (credentials, harness identity, the operator's shell) is withheld (E5/E8). */
+export const COMMAND_ENV_ALLOWLIST: readonly string[] = ['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LANGUAGE', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TERM', 'TMPDIR']
+
+/**
+ * The environment a pack command runs under: the allow-list above plus the
+ * names the pack declares in `runtime.env`, read from `source` (the host's
+ * `process.env`), with `extra` layered last (the per-attempt `TMPDIR`). Never
+ * the host's whole environment.
+ */
+export function commandEnv(def: Pick<PackDefinition, 'manifest'>, extra: Record<string, string> = {}, source: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const name of [...COMMAND_ENV_ALLOWLIST, ...(def.manifest.runtime?.env ?? [])]) {
+    const value = source[name]
+    if (value !== undefined) env[name] = value
+  }
+  return { ...env, ...extra }
+}
 
 function outputValidator(name: string): (line: Record<string, unknown>) => string | undefined {
   const v = builtinValidators()
@@ -319,7 +368,7 @@ export function runCommand(
   return new Promise((resolvePromise, reject) => {
     const child = spawn(cmd, opts.args ?? [], {
       cwd,
-      env: opts.env ?? process.env,
+      env: opts.env ?? commandEnv(def),
       shell: true,
       stdio: ['pipe', 'pipe', 'pipe'],
       ...(opts.timeoutMs !== undefined ? { timeout: opts.timeoutMs, killSignal: 'SIGKILL' as const } : {}),

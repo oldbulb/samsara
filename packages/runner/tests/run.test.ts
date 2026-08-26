@@ -5,6 +5,7 @@ import { resolve } from 'node:path'
 import type { AttemptSpec, FinishedEvent, LoopEvent, LoopProvider, LoopRun, HarnessFacts } from '@oldbulb/samsara-loops'
 import { factsSha } from '@oldbulb/samsara-loops'
 import { runSet, readSubmit, submitToolName, sanitizeId, newRunId, type Loops } from '../src/run.ts'
+import { readStep } from '../src/steps.ts'
 import { formatSummary, summarize } from '../src/summary.ts'
 import { loadPack } from '@oldbulb/samsara-pack'
 import { challengerId, attemptRowSchema, scoreRowSchema, type AttemptRow as LedgerAttemptRow, type ChallengerProposal, type ScoreRow } from '@oldbulb/samsara-ledger'
@@ -14,7 +15,7 @@ const MINI = resolve(import.meta.dirname, '..', '..', 'pack', 'tests', 'fixtures
 
 const FACTS: HarnessFacts = {
   systemPromptMode: 'none', skillDelivery: 'agents-skills-dir', schemaEnforcement: 'permissive-tool',
-  permission: 'none', reasoning: {}, version: { loop: 'fake' },
+  permission: 'none', reasoning: {}, envelope: { config: 'absent', system: 'absent', tools: 'absent' }, version: { loop: 'fake' },
 }
 
 function finished(over: Partial<FinishedEvent> = {}): FinishedEvent {
@@ -122,6 +123,8 @@ describe('runSet', () => {
     expect(proposals[0]!.harness_sha).toBe(factsSha(FACTS))
     expect(proposals[0]!.taskset_sha).toBe(res.tasksetSha)
     expect(proposals[0]!.route.loop).toBe('fake')
+    // the pack name is on the row: a round opened later on these coordinates derives the same eval_config_sha from it
+    expect(proposals[0]!.pack).toBe('minipack')
     expect(attempts).toHaveLength(res.rows.length)
     expect(attempts.every((a) => a.challenger_id === res.challengerId && a.tier === 'holdin')).toBe(true)
     expect(scores).toHaveLength(res.rows.reduce((n, r) => n + r.scores.length, 0))
@@ -150,6 +153,30 @@ describe('runSet', () => {
       expect(row.error).toMatch(/^loop: provider exploded/)
     }
     expect(res.rows.map((r) => r.attemptId.slice(-1))).toEqual(res.rows.map((_, i) => String(i % 2)))
+  })
+
+  it('E5: truth runs under the pack environment with the attempt TMPDIR, never under the host credentials', async () => {
+    const out = mkdtempSync(resolve(tmpdir(), 'runner-'))
+    const prev = { mode: process.env['MINIPACK_MODE'], key: process.env['RUNNER_TEST_API_KEY'] }
+    process.env['MINIPACK_MODE'] = 'env'
+    process.env['RUNNER_TEST_API_KEY'] = 'leak'
+    try {
+      const res = await runSet(req(out, { limit: 1 }), { loops: fakeLoops({ submit: { summary: 'done' } }), route: ROUTE, runId: 'r5' })
+      // The truth step records what the command returned (the score step then fails on this truth shape, which is not the point here).
+      const step = readStep(resolve(out, 'attempts', res.rows[0]!.attemptId), 'truth')!
+      expect(step.truth.status).toBe('settled')
+      const truth = step.value as { env: string[] }
+      expect(truth.env).toContain('PATH')
+      expect(truth.env).toContain('TMPDIR')
+      expect(truth.env).toContain('MINIPACK_MODE')
+      expect(truth.env).not.toContain('RUNNER_TEST_API_KEY')
+      expect(truth.env.filter((n) => /KEY|TOKEN|SECRET|PASSWORD/i.test(n))).toEqual([])
+    } finally {
+      for (const [name, value] of [['MINIPACK_MODE', prev.mode], ['RUNNER_TEST_API_KEY', prev.key]] as const) {
+        if (value === undefined) delete process.env[name]
+        else process.env[name] = value
+      }
+    }
   })
 
   it('honours --limit and records truth errors on the row', async () => {
@@ -191,23 +218,24 @@ describe('helpers', () => {
     expect(readSubmit(def, wd)).toMatchObject({ valid: true, submit: { summary: 'ok' } })
   })
 
-  it('summarize / formatSummary aggregate pass_rate and cost', () => {
+  it('summarize / formatSummary aggregate every metric the pack scored, by its own name, and the cost', () => {
     const row = (over: object) => ({
       attemptId: 'a', task_id: 't', loop: 'l', facts_sha: 'f', status: 'COMPLETED', stopReason: 'completed',
       usage: { inputTokens: 0, outputTokens: 0 }, cost: { source: 'unknown' }, toolCalls: 1,
       output: { valid: true }, truth: { status: 'settled' }, scores: [], ...over,
     }) as Parameters<typeof summarize>[0][number]
     const rows = [
-      row({ scores: [{ task_id: 't', metric: 'pass_rate', value: 1, kind: 'reality' }], cost: { usd: 0.5, source: 'self-reported' } }),
-      row({ scores: [{ task_id: 't', metric: 'pass_rate', value: 0, kind: 'reality' }, { task_id: 't', metric: 'cost_usd', value: 0.25, kind: 'mechanical' }] }),
+      row({ scores: [{ task_id: 't', metric: 'solved', value: 1, kind: 'reality' }], cost: { usd: 0.5, source: 'self-reported' } }),
+      row({ scores: [{ task_id: 't', metric: 'solved', value: 0, kind: 'reality' }, { task_id: 't', metric: 'spend', value: 0.25, kind: 'mechanical' }], cost: { usd: 0.25, source: 'self-reported' } }),
       row({ status: 'FAILED', stopReason: 'error' }),
     ]
     const s = summarize(rows)
-    expect(s).toEqual({ attempts: 3, passRateMean: 0.5, costUsd: 0.75, byStatus: { COMPLETED: 2, FAILED: 1 } })
+    expect(s).toEqual({ attempts: 3, means: { solved: 0.5, spend: 0.25 }, costUsd: 0.75, byStatus: { COMPLETED: 2, FAILED: 1 } })
     const text = formatSummary({ runId: 'r', pack: 'p', set: 'smoke', tasksetSha: 'abcdef0123456789', rows, attemptsPath: '/x/attempts.jsonl' })
-    expect(text).toContain('pass_rate mean 0.500')
-    expect(text).toContain('cost_usd 0.7500')
+    expect(text).toContain('solved mean 0.500  spend mean 0.250  usd 0.7500')
     expect(text).toContain('COMPLETED=2 FAILED=1')
+    expect(text.split('\n')[1]).toMatch(/^task +status +valid +truth +solved +spend +usd +tools$/)
     expect(text.split('\n').filter((l) => l.startsWith('t ')).length).toBe(3)
+    expect(formatSummary({ runId: 'r', pack: 'p', set: 'smoke', tasksetSha: 'abcdef0123456789', rows: [], attemptsPath: '/x' })).toContain('attempts 0  usd 0.0000')
   })
 })

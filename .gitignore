@@ -1,4 +1,4 @@
-data/
+/data/
 node_modules/
 .venv/
 *.log
@@ -20,3 +20,6 @@ profiles/*/cordis.patch.yml
 
 # Local tool scratch
 .playwright-mcp/
+# pack runtimes are provisioned, never tracked (packs/<pack>/runtime/provision.sh)
+packs/*/runtime/go/
+packs/*/runtime/rust/

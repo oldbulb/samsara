@@ -6,6 +6,7 @@ tasks:
   sets: { smoke: tasks/smoke.jsonl, holdin: tasks/holdin.jsonl, holdout: tasks/holdout.jsonl }
   entity_key: entity_key
 holdout: { mde: 0.1, budget: 2 }
+runtime: { env: [MINIPACK_MODE] }
 surfaces:
   skill: { globs: ["skill/**"] }
   tools: { config_keys: ["tools.allowlist"] }

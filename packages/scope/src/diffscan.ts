@@ -25,6 +25,9 @@ export const FORBIDDEN_ROW_PATTERNS: readonly string[] = [
   'storage*',
 ]
 
+/** Services an inserted entry may not inject: the fixed points, their storage, and the two services that write them. */
+export const FORBIDDEN_INJECT_PATTERNS: readonly string[] = [...FORBIDDEN_ROW_PATTERNS, 'lifecycle', 'champion']
+
 // The YAML tag spelled in two halves so a repo-wide grep for the tag finds only rows, never this scanner.
 const JS_EXPR_MARKERS = ['!!' + 'js', '__jsExpr']
 
@@ -139,9 +142,20 @@ function scanInsert(entry: EntryOptions, where: string, configKeys: string[], ou
   }
   checkRowId(entry.id, where, out)
   if (typeof entry.name === 'string') checkRowId(entry.name, where, out)
+  for (const service of injectNames(entry.inject)) {
+    const hit = FORBIDDEN_INJECT_PATTERNS.find(p => matchesGlob(service, p))
+    if (hit) out.push({ code: 'ROW_FORBIDDEN', where: `${where}.inject`, detail: `injects "${service}", which matches forbidden pattern ${hit}` })
+  }
   if (!configKeys.includes(entry.id)) {
     out.push({ code: 'CONFIG_KEY_UNDECLARED', where: entry.id, detail: 'inserting a row requires its id declared as a whole row in config_keys' })
   }
+}
+
+/** The service names an `inject` declares, in either of its forms (a list, or a map of name to requirement). */
+function injectNames(inject: unknown): string[] {
+  if (Array.isArray(inject)) return inject.filter((s): s is string => typeof s === 'string')
+  if (inject && typeof inject === 'object') return Object.keys(inject)
+  return []
 }
 
 function checkRowId(id: string, where: string, out: Violation[]): void {
@@ -176,6 +190,23 @@ function scanText(text: string, where: string, needles: string[], out: Violation
     if (text.includes(marker)) out.push({ code: 'JS_EXPR', where, detail: `contains ${marker} (E3)` })
   }
   for (const needle of needles) {
-    if (text.includes(needle)) out.push({ code: 'TASK_LITERAL', where, detail: `contains task literal ${JSON.stringify(needle)} (S5)` })
+    if (namesLiteral(text, needle)) out.push({ code: 'TASK_LITERAL', where, detail: `contains task literal ${JSON.stringify(needle)} (S5)` })
+  }
+}
+
+/**
+ * Whether `text` names `needle` as a whole token: an entity key such as `say`
+ * or `react` must not fire inside `essay` or `reaction`. A neighbouring
+ * letter, digit or underscore continues the token; anything else ends it.
+ */
+function namesLiteral(text: string, needle: string): boolean {
+  let from = 0
+  for (;;) {
+    const at = text.indexOf(needle, from)
+    if (at < 0) return false
+    const before = at === 0 ? '' : text[at - 1]!
+    const after = text[at + needle.length] ?? ''
+    if (!/[A-Za-z0-9_]/.test(before) && !/[A-Za-z0-9_]/.test(after)) return true
+    from = at + 1
   }
 }

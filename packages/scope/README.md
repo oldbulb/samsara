@@ -9,7 +9,7 @@
 | `@oldbulb/samsara-scope` | `ScopeManager` (default export, cordis Service on `ctx.scopes`), `ScopeError`, types | the seam |
 | `@oldbulb/samsara-scope/diffscan` | `scan(patch, boundaries, taskIds, forbiddenPaths?, literals?)` | pure boundary / judge-pipeline / task-literal / `!!`js scan |
 | `@oldbulb/samsara-scope/sha` | `harnessSha(entries)`, `harnessShaOfLayers(layers)`, `envSha(env?)`, `envFacts`, `canonicalJson` | pure coordinates recorded beside every challenger |
-| `@oldbulb/samsara-scope/envlock` | `envLock({ repoRoot, packDir, loops, imageDigest? })`, `findRepoRoot`, `packRuntimeLocks`, `venvListing` | environment fingerprint from lock files (E3; adoptions item 3) |
+| `@oldbulb/samsara-scope/envlock` | `envLock({ repoRoot, packDir, packLocks?, loops, imageDigest? })`, `findRepoRoot`, `packRuntimeLocks` | environment fingerprint from lock files (E3; adoptions item 3) |
 
 ## Patch shapes
 
@@ -58,12 +58,12 @@ With a loader on the context (`ctx.loader`, what `dsh` boots), config rows are c
 
 ## Environment lock (`envLock`)
 
-`envLock({ repoRoot, packDir, loops, imageDigest? })` returns `{ inputs, sha }` where `sha = sha256(canonicalJson(inputs))` and `inputs` is:
+`envLock({ repoRoot, packDir, packLocks?, loops, imageDigest? })` returns `{ inputs, sha }` where `sha = sha256(canonicalJson(inputs))` and `inputs` is:
 
 | field | source |
 |---|---|
 | `pnpmLock` | sha256 of `<repoRoot>/pnpm-lock.yaml` (`null` when absent; `findRepoRoot(dir)` walks up to it) |
-| `packRuntimeLocks` | `<packDir>/runtime/**` → sha256 of every `requirements*.txt`, `uv.lock`, `package-lock.json`, `pnpm-lock.yaml`, `.python-version` (`node_modules` skipped), plus, for every directory holding `pyvenv.cfg`, the sha256 of its sorted `name==version` listing from `lib/python*/site-packages/*.dist-info/METADATA`; keys are pack-relative posix paths |
+| `packRuntimeLocks` | sha256 of every file under `packDir` the pack's `runtime.locks` globs match (`packLocks`, from its `pack.yaml`: a requirements file, a venv's `*.dist-info/METADATA`, a `go.sum`, a `Cargo.lock` — the pack names what pins its runtimes, the framework knows none of them); keys are pack-relative posix paths; empty when the pack declares none |
 | `node`, `dshPin` | `process.version`, `DSH_PIN` |
 | `claudeVersion` | first line of `claude --version`, read once per process, only when `loops` includes `claude-code` and the binary is on PATH |
 | `imageDigest` | the option, else `$SAMSARA_IMAGE_DIGEST`, omitted when empty |

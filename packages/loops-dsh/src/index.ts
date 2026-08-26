@@ -66,6 +66,7 @@ export const HARNESS_FACTS: HarnessFacts = {
   schemaEnforcement: 'scoped-tool+retry',
   permission: 'approval/policy=never',
   reasoning: {},
+  envelope: { config: 'exact', system: 'exact', tools: 'exact' },
   version: { loop: DSH_PIN },
   // The agent's bash tool runs in-process through dsh's mode-based sandbox seam
   // (read-only / workspace-write over one root); it cannot take the attempt's

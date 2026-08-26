@@ -22,6 +22,7 @@ const input = {
   workdir: WORK,
   packDir: PACK,
   runtimeDirs: [`${PACK}/runtime/py`, `${PACK}/runtime/js`],
+  packDenied: ['bin/truth.mjs', 'bin/score.mjs', 'contract.schema.json', 'tasks/holdin.jsonl', 'tasks/holdout.jsonl', 'tasks/smoke.jsonl'],
   ledgerDir: '/srv/samsara/data/ledger',
   homeDir: '/home/op',
   denied: ['/srv/samsara/data/signoff'],
@@ -46,6 +47,7 @@ describe('policyFor', () => {
     expect(p.readOnly).toEqual([...DEFAULT_SYSTEM_ROOTS, ...PACK_READ_ONLY.map((r) => `${PACK}/${r}`), ...input.runtimeDirs])
     expect(p.denied).toEqual([
       ...PACK_DENIED.map((r) => `${PACK}/${r}`),
+      ...input.packDenied.map((r) => `${PACK}/${r}`),
       input.ledgerDir,
       ...HOME_DENIED.map((r) => `/home/op/${r}`),
       '/srv/samsara/data/signoff',
@@ -65,11 +67,20 @@ describe('policyFor', () => {
     expect(p.readOnly).toContain('/srv/runs/r1/view')
   })
 
-  it('refuses a fixture entry inside the pack fixtures/, a home passed as a runtime root, and a workdir inside the pack data', () => {
-    expect(() => policyFor({ ...input, fixturePath: `${PACK}/fixtures/python/t1` })).toThrow(SandboxError)
-    expect(() => policyFor({ ...input, fixturePath: `${PACK}/fixtures/python/t1` })).toThrow(/inside denied path/)
+  it('the declared judge is denied wherever the pack keeps it: a pack with no denied path under bin/ still cannot grant its truth command', () => {
+    // Only what the manifest names is protected, so a pack that keeps its judge outside the conventional layout is covered by the invariant.
+    const elsewhere = { ...input, packDenied: ['judge/truth.py', 'judge/score.py', 'sets/smoke.jsonl', 'schema.json'] }
+    expect(policyFor(elsewhere).denied).toContain(`${PACK}/judge/truth.py`)
+    expect(policyFor(elsewhere).denied).not.toContain(`${PACK}/bin/truth`)
+    expect(() => policyFor({ ...elsewhere, readOnly: [`${PACK}/judge`] })).toThrow(/reachable through the grant on/)
+    expect(() => policyFor({ ...elsewhere, fixturePath: `${PACK}/sets/smoke.jsonl` })).toThrow(/reachable through the grant on/)
+  })
+
+  it('refuses a fixture entry inside a protected pack path, a home passed as a runtime root, and a workdir inside the pack tasks', () => {
+    expect(() => policyFor({ ...input, fixturePath: `${PACK}/tasks/smoke.jsonl/t1` })).toThrow(SandboxError)
+    expect(() => policyFor({ ...input, fixturePath: `${PACK}/tasks/smoke.jsonl/t1` })).toThrow(/inside denied path/)
     expect(() => policyFor({ ...input, runtimeDirs: ['/home/op'] })).toThrow(/reachable through the grant on \/home\/op/)
-    expect(() => policyFor({ ...input, workdir: `${PACK}/data/w` })).toThrow(SandboxError)
+    expect(() => policyFor({ ...input, workdir: `${PACK}/tasks/smoke.jsonl/w` })).toThrow(SandboxError)
     expect(() => policyFor({ ...input, systemRoots: ['/'] })).toThrow(/reachable through the grant on \//)
   })
 

@@ -6,3 +6,10 @@
 {"task_id": "javascript/scale-generator", "entity_key": "scale-generator", "stratum": "javascript", "lang": "javascript", "exercise": "scale-generator", "fixture": "fixtures/javascript/scale-generator"}
 {"task_id": "javascript/triangle", "entity_key": "triangle", "stratum": "javascript", "lang": "javascript", "exercise": "triangle", "fixture": "fixtures/javascript/triangle"}
 {"task_id": "javascript/two-bucket", "entity_key": "two-bucket", "stratum": "javascript", "lang": "javascript", "exercise": "two-bucket", "fixture": "fixtures/javascript/two-bucket"}
+{"task_id": "rust/fizzy", "entity_key": "fizzy", "stratum": "rust", "lang": "rust", "exercise": "fizzy", "fixture": "fixtures/rust/fizzy"}
+{"task_id": "rust/scale-generator", "entity_key": "scale-generator", "stratum": "rust", "lang": "rust", "exercise": "scale-generator", "fixture": "fixtures/rust/scale-generator"}
+{"task_id": "rust/two-bucket", "entity_key": "two-bucket", "stratum": "rust", "lang": "rust", "exercise": "two-bucket", "fixture": "fixtures/rust/two-bucket"}
+{"task_id": "go/beer-song", "entity_key": "beer-song", "stratum": "go", "lang": "go", "exercise": "beer-song", "fixture": "fixtures/go/beer-song"}
+{"task_id": "go/dnd-character", "entity_key": "dnd-character", "stratum": "go", "lang": "go", "exercise": "dnd-character", "fixture": "fixtures/go/dnd-character"}
+{"task_id": "go/scale-generator", "entity_key": "scale-generator", "stratum": "go", "lang": "go", "exercise": "scale-generator", "fixture": "fixtures/go/scale-generator"}
+{"task_id": "go/two-bucket", "entity_key": "two-bucket", "stratum": "go", "lang": "go", "exercise": "two-bucket", "fixture": "fixtures/go/two-bucket"}

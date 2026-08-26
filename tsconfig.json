@@ -1,22 +1,68 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/kernel" },
-    { "path": "packages/pack" },
-    { "path": "packages/book" },
-    { "path": "packages/loops" },
-    { "path": "packages/submit" },
-    { "path": "packages/workdir" },
-    { "path": "packages/sandbox" },
-    { "path": "packages/loops-dsh" },
-    { "path": "packages/loops-claude-code" },
-    { "path": "packages/runner" },
-    { "path": "packages/gate" },
-    { "path": "packages/ledger" },
-    { "path": "packages/scope" },
-    { "path": "packages/signoff" },
-    { "path": "packages/champion" },
-    { "path": "packages/proposers" },
-    { "path": "packages/ui" }
+    {
+      "path": "packages/kernel"
+    },
+    {
+      "path": "packages/pack"
+    },
+    {
+      "path": "packages/book"
+    },
+    {
+      "path": "packages/loops"
+    },
+    {
+      "path": "packages/submit"
+    },
+    {
+      "path": "packages/workdir"
+    },
+    {
+      "path": "packages/sandbox"
+    },
+    {
+      "path": "packages/loops-dsh"
+    },
+    {
+      "path": "packages/loops-claude-code"
+    },
+    {
+      "path": "packages/runner"
+    },
+    {
+      "path": "packages/gate"
+    },
+    {
+      "path": "packages/ledger"
+    },
+    {
+      "path": "packages/scope"
+    },
+    {
+      "path": "packages/signoff"
+    },
+    {
+      "path": "packages/champion"
+    },
+    {
+      "path": "packages/lifecycle"
+    },
+    {
+      "path": "packages/proposers"
+    },
+    {
+      "path": "packages/ui"
+    },
+    {
+      "path": "packages/gate-catalog"
+    },
+    {
+      "path": "packages/proposer-sdk"
+    },
+    {
+      "path": "packages/workbench"
+    }
   ]
 }

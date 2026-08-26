@@ -1,6 +1,58 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "rootDir": "src", "outDir": "lib", "declarationDir": "lib/types" },
-  "include": ["src"],
-  "references": [{ "path": "../kernel" }, { "path": "../book" }, { "path": "../pack" }, { "path": "../loops" }, { "path": "../submit" }, { "path": "../workdir" }, { "path": "../ledger" }, { "path": "../gate" }, { "path": "../scope" }, { "path": "../signoff" }, { "path": "../champion" }, { "path": "../proposers" }, { "path": "../sandbox" }]
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib",
+    "declarationDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../kernel"
+    },
+    {
+      "path": "../book"
+    },
+    {
+      "path": "../pack"
+    },
+    {
+      "path": "../loops"
+    },
+    {
+      "path": "../submit"
+    },
+    {
+      "path": "../workdir"
+    },
+    {
+      "path": "../ledger"
+    },
+    {
+      "path": "../gate"
+    },
+    {
+      "path": "../scope"
+    },
+    {
+      "path": "../signoff"
+    },
+    {
+      "path": "../champion"
+    },
+    {
+      "path": "../lifecycle"
+    },
+    {
+      "path": "../proposers"
+    },
+    {
+      "path": "../sandbox"
+    },
+    {
+      "path": "../gate-catalog"
+    }
+  ]
 }

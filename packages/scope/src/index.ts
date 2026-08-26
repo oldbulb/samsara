@@ -14,9 +14,9 @@ import { envSha, harnessSha } from './sha.ts'
 import type { Challenger, PatchOptions, Violation } from './types.ts'
 
 export * from './types.ts'
-export { scan, DEFAULT_FORBIDDEN_PATHS, FORBIDDEN_ROW_PATTERNS, leafPaths } from './diffscan.ts'
+export { scan, DEFAULT_FORBIDDEN_PATHS, FORBIDDEN_ROW_PATTERNS, FORBIDDEN_INJECT_PATTERNS, leafPaths } from './diffscan.ts'
 export { harnessSha, harnessShaOfLayers, envSha, envFacts, canonicalJson, sha256, ENV_ALLOWLIST, ENV_PREFIXES } from './sha.ts'
-export { envLock, findRepoRoot, packRuntimeLocks, venvListing, claudeVersionOnPath, RUNTIME_LOCK_FILES } from './envlock.ts'
+export { envLock, findRepoRoot, packRuntimeLocks, claudeVersionOnPath } from './envlock.ts'
 export type { EnvLock, EnvLockInputs, EnvLockOptions } from './envlock.ts'
 
 declare module '@oldbulb/samsara-kernel' {
@@ -93,7 +93,7 @@ export class ScopeManager extends Service {
 
   async open(challenger: Challenger): Promise<Scope> {
     const { patch } = challenger
-    const result = scan(patch, challenger.boundaries, challenger.taskIds, undefined, challenger.literals ?? [])
+    const result = scan(patch, challenger.boundaries, challenger.taskIds, challenger.forbiddenPaths, challenger.literals ?? [])
     if (!result.ok) {
       throw new ScopeError('PATCH_REJECTED', `patch rejected by the diff scan (${result.violations.length} violation(s))`, result.violations)
     }

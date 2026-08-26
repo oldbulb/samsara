@@ -4,7 +4,7 @@ import { toSpans, toResourceSpans, type LoopEvent, type OtlpSpan } from '../src/
 const T0 = 1_700_000_000_000
 const EVENTS: LoopEvent[] = [
   { t: 'started', at: T0, native: { kind: 'fake', id: 'n-1' } },
-  { t: 'system_prompt', at: T0 + 1, sha256: 'a'.repeat(64), bytes: 10, tools: ['read'] },
+  { t: 'envelope', at: T0 + 1, config: { sha256: 'a'.repeat(64), provider: 'prov', model: 'm-1' }, system: { sha256: 'a'.repeat(64), bytes: 10 }, tools: { sha256: 'a'.repeat(64), names: ['read'] } },
   { t: 'assistant', at: T0 + 100, turn: 0, textBytes: 5, usage: { inputTokens: 10, outputTokens: 3 } },
   { t: 'tool_call', at: T0 + 110, callId: 'c1', name: 'read', argsSha256: 'b'.repeat(64), argsBytes: 7 },
   { t: 'tool_result', at: T0 + 150, callId: 'c1', isError: false, bytes: 20, durationMs: 40 },

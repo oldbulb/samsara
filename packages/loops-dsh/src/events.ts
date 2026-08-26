@@ -5,7 +5,7 @@
 
 import { createHash } from 'node:crypto'
 import type { SessionEvent, ContentBlock } from '@oldbulb/samsara-kernel'
-import type { HarnessFacts, LoopEvent, TokenUsage } from '@oldbulb/samsara-loops'
+import { canonicalJson, type HarnessFacts, type LoopEvent, type TokenUsage } from '@oldbulb/samsara-loops'
 import { addUsage, type Limits } from './limits.ts'
 
 type Finished = Extract<LoopEvent, { t: 'finished' }>
@@ -79,12 +79,14 @@ export function createEventMapper(options: MapperOptions): EventMapper {
           sawHeader = true
           const { header } = event.data
           const system = header.system ?? ''
+          const tools = header.tools ?? []
+          // Exact on every field: dsh logs the envelope it sent (docs/design/loops.md § Envelope).
           return [{
-            t: 'system_prompt',
+            t: 'envelope',
             at: event.time,
-            sha256: sha256(system),
-            bytes: Buffer.byteLength(system),
-            tools: (header.tools ?? []).map((tool) => tool.name),
+            config: { sha256: sha256(canonicalJson(header.config)), provider: header.config.provider, model: header.config.model },
+            system: { sha256: sha256(system), bytes: Buffer.byteLength(system) },
+            tools: { sha256: sha256(canonicalJson(tools)), names: tools.map((tool) => tool.name) },
           }]
         }
         case 'tool/call': {

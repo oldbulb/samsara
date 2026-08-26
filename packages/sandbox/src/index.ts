@@ -30,9 +30,11 @@ export interface PolicyInput {
   workdir: string
   /** The pack's root; only its `skill/` and `loader/` are granted, read-only. */
   packDir: string
-  /** Runtime roots the subprocess executes from (pack venvs, node_modules, a CLI install); read-only. */
+  /** Runtime roots the subprocess executes from (the pack's declared `runtime.dirs`, a CLI install); read-only. */
   runtimeDirs?: readonly string[]
-  /** The host-side fixture cache entry for this task; read-only. Must not live under the pack's `fixtures/`. */
+  /** Pack subpaths that must stay unreachable, as the manifest declares them (the judge, the task sets, the contract: `protectedPaths(def)`). */
+  packDenied?: readonly string[]
+  /** The host-side fixture cache entry for this task; read-only. Must not live under a denied pack path. */
   fixturePath?: string
   /** Further read-only roots (the proposer's rendered view). */
   readOnly?: readonly string[]
@@ -79,8 +81,8 @@ export const DEFAULT_SYSTEM_ROOTS: readonly string[] = ['/usr', '/lib', '/lib32'
 
 /** Pack subpaths the subprocess may read. */
 export const PACK_READ_ONLY: readonly string[] = ['skill', 'loader']
-/** Pack subpaths that must stay unreachable: the task sets, the truth, the fixtures' answers, the judge. */
-export const PACK_DENIED: readonly string[] = ['tasks', 'data', 'fixtures', join('bin', 'truth'), join('bin', 'score')]
+/** Pack subpaths that must stay unreachable whatever the pack declares; the judge, the task sets and the contract arrive as `packDenied` from its manifest. */
+export const PACK_DENIED: readonly string[] = ['pack.yaml']
 /** Home subpaths that must stay unreachable. */
 export const HOME_DENIED: readonly string[] = ['.config', '.ssh', '.claude', '.credentials.yaml']
 
@@ -106,8 +108,8 @@ function unique(paths: readonly string[]): string[] {
  * Compose the grants for one subprocess and verify the denied set against them.
  * Throws {@link SandboxError} when a denied path lies under an allowed root
  * (it would be readable) or an allowed root lies under a denied path (a hole
- * an allow-list cannot express) — e.g. a `fixturePath` inside the pack's
- * `fixtures/`, or a home directory passed as a runtime root.
+ * an allow-list cannot express) — e.g. a `fixturePath` inside a pack path the
+ * manifest protects, or a home directory passed as a runtime root.
  */
 export function policyFor(input: PolicyInput): SandboxPolicy {
   const workdir = absolute(input.workdir, 'workdir')
@@ -121,7 +123,7 @@ export function policyFor(input: PolicyInput): SandboxPolicy {
   ])
   const readWrite = unique([workdir, '/dev/null'])
   const denied = unique([
-    ...PACK_DENIED.map((rel) => join(packDir, rel)),
+    ...[...PACK_DENIED, ...(input.packDenied ?? [])].map((rel) => join(packDir, rel)),
     ...(input.ledgerDir !== undefined ? [absolute(input.ledgerDir, 'ledgerDir')] : []),
     ...(input.homeDir !== undefined ? HOME_DENIED.map((rel) => join(absolute(input.homeDir!, 'homeDir'), rel)) : []),
     ...(input.denied ?? []).map((p) => absolute(p, 'denied[]')),

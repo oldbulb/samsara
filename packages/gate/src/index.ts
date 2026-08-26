@@ -11,6 +11,8 @@ import type { CompareRequest, GateJudgement, GatePolicyProvider } from './types.
 export * from './types.ts'
 export * from './stats.ts'
 export { gateDefault, GATE_DEFAULT_NAME, GATE_DEFAULT_VERSION } from './default.ts'
+export * from './spec.ts'
+export { CommandGatePolicy, GateCommandError, DEFAULT_COMMAND_GATE_TIMEOUT_MS, type CommandGateOptions, type GateCommandErrorCode } from './command.ts'
 
 declare module '@oldbulb/samsara-kernel' {
   interface Context {
@@ -62,10 +64,10 @@ export class GateRegistry extends Service {
     return [...this.policies]
   }
 
-  judge(req: CompareRequest): GateVerdictRow {
+  async judge(req: CompareRequest): Promise<GateVerdictRow> {
     const policy = this.current()
     if (!policy) throw new GateRegistryError('no gate policy is registered', 'NO_POLICY')
-    const { compare, verdict } = policy.judge(req)
+    const { compare, verdict } = await policy.judge(req)
     return { compare, verdict, gateMethod: gateMethodOf(policy) }
   }
 }

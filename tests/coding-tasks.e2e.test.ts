@@ -1,7 +1,7 @@
 // End-to-end: the framework (@oldbulb/samsara-pack + @oldbulb/samsara-book) drives the
 // coding-tasks pack purely through pack.yaml and subprocess jsonl.
 import { beforeAll, describe, expect, it } from 'vitest'
-import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { loadPack, runCommand, type PackDefinition, type TaskLine } from '../packages/pack/src/index.ts'
@@ -16,7 +16,7 @@ beforeAll(() => {
 })
 
 describe('book from pack task sets', () => {
-  it('has 82 tasks (34 + 48 by stratum) with a disjoint holdout', () => {
+  it('has 148 tasks (30 + 34 + 36 + 48 by stratum) with a disjoint holdout', () => {
     const book = createBook({
       sets: {
         smoke: def.taskSets.smoke.tasks as Task[],
@@ -28,12 +28,12 @@ describe('book from pack task sets', () => {
     })
     expect(() => book.assertDisjointHoldout()).not.toThrow()
     const all = [...book.tasks('smoke'), ...book.tasks('holdin'), ...book.tasks('holdout')]
-    expect(all).toHaveLength(82)
+    expect(all).toHaveLength(148)
     const byStratum = new Map<string, number>()
     for (const t of all) byStratum.set(t.stratum ?? '', (byStratum.get(t.stratum ?? '') ?? 0) + 1)
     const counts = [...byStratum.values()].sort((a, b) => a - b)
-    expect(counts).toEqual([34, 48])
-    expect(book.tasks('smoke')).toHaveLength(8)
+    expect(counts).toEqual([30, 34, 36, 48])
+    expect(book.tasks('smoke')).toHaveLength(15)
   })
 })
 
@@ -41,7 +41,7 @@ describe('book from pack task sets', () => {
 function sampleTasks(): TaskLine[] {
   const pool = [...def.taskSets.smoke.tasks, ...def.taskSets.holdin.tasks]
   const strata = [...new Set(pool.map((t) => t.stratum))].sort()
-  expect(strata).toHaveLength(2)
+  expect(strata).toHaveLength(4)
   return strata.flatMap((s) => pool.filter((t) => t.stratum === s).slice(0, 2))
 }
 
@@ -55,13 +55,13 @@ describe('materialize → truth → reference solution → truth → score', () 
 
   it('runs the full loop for 2 tasks per stratum', { timeout: 600_000 }, async () => {
     const sample = tasks()
-    expect(sample).toHaveLength(4)
+    expect(sample).toHaveLength(8)
     const root = mkdtempSync(join(tmpdir(), 'samsara-e2e-'))
     roots.push(root)
 
     const lines = sample.map((t) => ({ task_id: t.task_id, workdir: join(root, t.task_id.replace('/', '__')) }))
 
-    // 1. materialize
+    // 1. materialize: the stub and the instructions, never a test file (the protocol is closed-book)
     const mat = await runCommand(def, 'materialize', lines)
     expect(mat).toHaveLength(sample.length)
     for (const [i, row] of mat.entries()) {
@@ -69,9 +69,15 @@ describe('materialize → truth → reference solution → truth → score', () 
       expect(row.ok).toBe(true)
       expect(Array.isArray(row.files)).toBe(true)
       expect((row.files as string[]).length).toBeGreaterThan(0)
+      const fixture = resolve(PACK_DIR, sample[i]!['fixture'] as string)
+      const meta = JSON.parse(readFileSync(join(fixture, '.meta', 'config.json'), 'utf8')) as FixtureMeta
+      for (const t of meta.files.test) {
+        expect(row.files, `${row.task_id as string} materialized ${t}`).not.toContain(t)
+        expect(existsSync(join(lines[i]!.workdir, t)), `${row.task_id as string}: ${t} visible`).toBe(false)
+      }
     }
 
-    // 2. truth on the untouched stub: settled, some failures
+    // 2. truth on the untouched stub: restores the hidden tests, settled, some failures
     const stubTruth = await runCommand(def, 'truth', lines)
     expect(stubTruth).toHaveLength(sample.length)
     const stubSha = new Map<string, string>()
@@ -86,14 +92,19 @@ describe('materialize → truth → reference solution → truth → score', () 
       stubSha.set(row.task_id as string, row.truth_sha as string)
     }
 
-    // 3. overwrite stub with the reference solution (from the fixture's .meta)
+    // 3. overwrite stub with the reference solution (from the fixture's .meta);
+    //    a Rust reference may bring its own manifest (Cargo.toml is a solution file)
     for (const [i, t] of sample.entries()) {
       const fixture = resolve(PACK_DIR, t['fixture'] as string)
       const meta = JSON.parse(readFileSync(join(fixture, '.meta', 'config.json'), 'utf8')) as FixtureMeta
-      expect(meta.files.example).toHaveLength(meta.files.solution.length)
+      expect(meta.files.example.length).toBeGreaterThan(0)
+      expect(meta.files.example.length).toBeLessThanOrEqual(meta.files.solution.length)
       meta.files.example.forEach((ex, k) => {
         cpSync(join(fixture, ex), join(lines[i]!.workdir, meta.files.solution[k]!))
       })
+      if (existsSync(join(fixture, '.meta', 'Cargo-example.toml'))) {
+        cpSync(join(fixture, '.meta', 'Cargo-example.toml'), join(lines[i]!.workdir, 'Cargo.toml'))
+      }
     }
 
     // 4. truth again: all pass, truth_sha unchanged (tests are pinned, not the solution)

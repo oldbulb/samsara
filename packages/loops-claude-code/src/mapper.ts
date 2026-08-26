@@ -4,9 +4,11 @@
 
 import { createHash } from 'node:crypto'
 import type { SDKMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk'
-import type { LoopEvent, StopReason, TokenUsage } from './seam.ts'
+import { canonicalJson, type LoopEvent, type StopReason, type TokenUsage } from './seam.ts'
 
 export const PRESET_ID = 'preset:claude_code'
+/** The Claude Agent SDK version this loop is written against; stands in for the preset text the SDK does not expose. */
+export const SDK_VERSION = '0.3.220'
 const ARGS_PREVIEW_CHARS = 200
 
 export function sha256(text: string): string {
@@ -59,8 +61,12 @@ export function classifyResult(result: SDKResultMessage | undefined, aborted: bo
 }
 
 export interface MapperOptions {
-  /** Text appended to the preset system prompt; part of the system_prompt hash. */
+  /** Text appended to the preset system prompt; part of the envelope's system hash. */
   systemPromptAppend: string
+  /** SDK version; part of the system hash, since the preset text it renders is not exposed. */
+  sdkVersion: string
+  /** Provider route of the attempt; the SDK reports only the model. */
+  provider: string
   pid?: number
   now?: () => number
 }
@@ -68,6 +74,8 @@ export interface MapperOptions {
 export class MessageMapper {
   private readonly now: () => number
   private readonly append: string
+  private readonly sdkVersion: string
+  private readonly provider: string
   private readonly pid: number | undefined
   private turn = 0
   private started = false
@@ -78,6 +86,8 @@ export class MessageMapper {
   constructor(opts: MapperOptions) {
     this.now = opts.now ?? Date.now
     this.append = opts.systemPromptAppend
+    this.sdkVersion = opts.sdkVersion
+    this.provider = opts.provider
     this.pid = opts.pid
   }
 
@@ -87,7 +97,7 @@ export class MessageMapper {
     switch (message.type) {
       case 'system':
         if (message.subtype !== 'init') return []
-        return this.onInit(message.session_id, message.tools, at)
+        return this.onInit(message.session_id, message.tools, message.model, at)
       case 'assistant':
         return this.onAssistant(message.message.content, message.message.usage, at)
       case 'user':
@@ -100,7 +110,7 @@ export class MessageMapper {
     }
   }
 
-  private onInit(sessionId: string, tools: string[], at: number): LoopEvent[] {
+  private onInit(sessionId: string, tools: string[], model: string, at: number): LoopEvent[] {
     const events: LoopEvent[] = []
     if (!this.started) {
       this.started = true
@@ -108,8 +118,18 @@ export class MessageMapper {
       if (this.pid !== undefined) native.pid = this.pid
       events.push({ t: 'started', at, native })
     }
-    const hashed = [PRESET_ID, this.append, ...tools].join('\n')
-    events.push({ t: 'system_prompt', at, sha256: sha256(hashed), bytes: byteLength(hashed), tools: [...tools] })
+    // Proxy on every field (docs/design/loops.md § Envelope): the SDK exposes the
+    // model id, the tool names and our own append, never the preset text or the
+    // tool schemas — so identifiers and the SDK version stand in for the content.
+    const system = [PRESET_ID, this.sdkVersion, this.append].join('\n')
+    const config = { provider: this.provider, model }
+    events.push({
+      t: 'envelope',
+      at,
+      config: { sha256: sha256(canonicalJson(config)), ...config },
+      system: { sha256: sha256(system), bytes: byteLength(system) },
+      tools: { sha256: sha256(canonicalJson(tools)), names: [...tools] },
+    })
     return events
   }
 

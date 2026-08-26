@@ -34,6 +34,14 @@
     "./plugin-default": {
       "types": "./lib/types/plugin-default.d.ts",
       "default": "./lib/plugin-default.js"
+    },
+    "./command": {
+      "types": "./lib/types/command.d.ts",
+      "default": "./lib/command.js"
+    },
+    "./plugin-command": {
+      "types": "./lib/types/plugin-command.d.ts",
+      "default": "./lib/plugin-command.js"
     }
   },
   "files": [

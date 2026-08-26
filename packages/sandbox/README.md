@@ -7,13 +7,16 @@ item 2).
 
 Two pure functions and one probe:
 
-- `policyFor({ workdir, packDir, runtimeDirs?, fixturePath?, readOnly?, systemRoots?, ledgerDir?, homeDir?, denied? })`
+- `policyFor({ workdir, packDir, runtimeDirs?, packDenied?, fixturePath?, readOnly?, systemRoots?, ledgerDir?, homeDir?, denied? })`
   → `{ readOnly, readWrite, denied }`. `readWrite` is the workdir (+ `/dev/null`);
   `readOnly` is the OS runtime roots, the pack's `skill/` and `loader/`, the
   runtime roots, the fixture cache entry and any extra roots (the proposer's
-  rendered view); `denied` is the pack's `tasks/`, `data/`, `fixtures/`,
-  `bin/truth`, `bin/score`, the ledger dir, `~/.config`, `~/.ssh`, `~/.claude`,
-  `~/.credentials.yaml` and whatever the caller adds. The composition throws
+  rendered view); `denied` is the pack's `pack.yaml`, every pack path its
+  manifest protects (`packDenied`: the judge commands, the task sets, the
+  contract — `protectedPaths(def)` from `@oldbulb/samsara-pack`, which
+  `@oldbulb/samsara-workdir` passes as `policyPaths.packDenied`), the ledger
+  dir, `~/.config`, `~/.ssh`, `~/.claude`, `~/.credentials.yaml` and whatever
+  the caller adds. The composition throws
   (`SandboxError`) if any denied path lies under an allowed root or any
   allowed root lies under a denied path.
 - `apply(spec, policy, host?)` → the `SubprocessSpawnSpec` to spawn instead.
@@ -41,19 +44,20 @@ not passed to the launcher — it is the invariant `policyFor` checks the grants
 against. Two consequences:
 
 - The pack root is never granted; only `skill/` and `loader/` are. A pack that
-  needs more at run time puts it under `runtime/` (`@oldbulb/samsara-workdir` lists the
-  existing `runtime/*` directories as `policyPaths.runtimeDirs`).
-- A fixture entry must live outside the pack's `fixtures/` (a host-side cache
-  entry, or files the pack's `materialize` copied into the workdir). Granting
-  `fixtures/<task>` would expose its `.meta/` too, so `policyFor` refuses it.
+  needs more at run time declares it as `runtime.dirs` in its `pack.yaml`
+  (`@oldbulb/samsara-workdir` lists the declared directories that exist as
+  `policyPaths.runtimeDirs`); the framework assumes no layout.
+- A fixture entry must live outside every protected pack path (a host-side
+  cache entry, or files the pack's `materialize` copied into the workdir):
+  granting a path under one would expose the judge, so `policyFor` refuses it.
 
 ## Threat model
 
 The confined process is the challenger's agent (or the proposer): model output
 running with `bypassPermissions`. What the policy denies is read access to the
-judge and the answers — the task sets (`tasks/`, including held-out ids), the
-truth (`data/`, `fixtures/**/.meta`), the scorer (`bin/truth`, `bin/score`),
-the ledger, and the operator's credentials — and write access to anything but
+judge and the answers — the task sets (including held-out ids), the truth and
+the scorer (whatever files the pack's `commands` name), the contract, the
+ledger, and the operator's credentials — and write access to anything but
 the attempt's own directory. The ruleset is inherited across `execve`, so
 every descendant (a shell, an interpreter, a nested agent) is equally confined.
 

@@ -48,7 +48,14 @@ export type CostSource = 'self-reported' | 'price-table' | 'proxy' | 'unknown'
 
 export type LoopEvent =
   | { t: 'started'; at: number; native: { kind: string; id: string; pid?: number } }
-  | { t: 'system_prompt'; at: number; sha256: string; bytes: number; tools: string[] }
+  | {
+      t: 'envelope'
+      at: number
+      /** What the model was shown, in dsh's request-envelope terms (`request/header`: config / system / tools). How faithfully each field is known is `HarnessFacts.envelope`. */
+      config: { sha256: string; provider: string; model: string }
+      system: { sha256: string; bytes: number }
+      tools: { sha256: string; names: string[] }
+    }
   | { t: 'tool_call'; at: number; callId: string; name: string; argsSha256: string; argsBytes: number; argsPreview?: string }
   | { t: 'tool_result'; at: number; callId: string; isError: boolean; bytes: number; durationMs?: number }
   | { t: 'assistant'; at: number; turn: number; textBytes: number; usage?: TokenUsage }
@@ -77,12 +84,22 @@ export interface LoopRun {
   dispose(): Promise<void>
 }
 
+/**
+ * How faithfully a loop reports one field of the request envelope:
+ * `exact` — the harness exposes the content itself (dsh logs it as `request/header`);
+ * `proxy` — an identifier and a version stand in for it (a preset id, a tool-name list);
+ * `absent` — the loop shows the model nothing of the kind.
+ */
+export type EnvelopeFidelity = 'exact' | 'proxy' | 'absent'
+
 export interface HarnessFacts {
   systemPromptMode: string
   skillDelivery: 'agents-skills-dir' | 'plugin-slash' | 'prompt-inline'
   schemaEnforcement: 'scoped-tool+retry' | 'cli-validator+retry' | 'provider-strict' | 'permissive-tool'
   permission: string
   reasoning: Record<string, unknown>
+  /** Fidelity of each `envelope` field this loop reports. Static per provider, so it is part of facts_sha: rows whose envelopes were seen differently are not A/B-comparable. */
+  envelope: { config: EnvelopeFidelity; system: EnvelopeFidelity; tools: EnvelopeFidelity }
   version: { loop: string; sdk?: string }
   /** Filesystem enforcement the provider's processes ran under on this host. */
   sandbox?: 'landlock' | 'none'
@@ -118,7 +135,12 @@ function canonical(value: unknown): unknown {
   return value
 }
 
-/** sha256 of the canonical JSON (sorted keys, undefined dropped) of a provider's harness facts. */
+/** Canonical JSON (sorted keys, undefined dropped): the form every envelope and facts hash is taken over. */
+export function canonicalJson(value: unknown): string {
+  return JSON.stringify(canonical(value))
+}
+
+/** sha256 of the canonical JSON of a provider's harness facts. */
 export function factsSha(facts: HarnessFacts): string {
-  return createHash('sha256').update(JSON.stringify(canonical(facts))).digest('hex')
+  return createHash('sha256').update(canonicalJson(facts)).digest('hex')
 }

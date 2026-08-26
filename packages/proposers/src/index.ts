@@ -24,6 +24,17 @@ export {
   type ResolvedConfig as ClaudePResolvedConfig,
   type SpawnFn,
 } from './claude-p.ts'
+export {
+  CommandAdapter,
+  COMMAND_STDERR_FILE,
+  COMMAND_STDOUT_FILE,
+  DEFAULT_COMMAND_TIMEOUT_MS,
+  commandArgvOf,
+  resolveCommandConfig,
+  type CommandConfig,
+  type CommandDeps,
+  type ResolvedCommandConfig,
+} from './command.ts'
 
 declare module '@oldbulb/samsara-kernel' {
   interface Context {

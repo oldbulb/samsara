@@ -12,7 +12,7 @@ const PAR = resolve(import.meta.dirname, 'fixtures', 'parpack')
 
 const FACTS: HarnessFacts = {
   systemPromptMode: 'none', skillDelivery: 'agents-skills-dir', schemaEnforcement: 'permissive-tool',
-  permission: 'none', reasoning: {}, version: { loop: 'fake' },
+  permission: 'none', reasoning: {}, envelope: { config: 'absent', system: 'absent', tools: 'absent' }, version: { loop: 'fake' },
 }
 
 function finished(over: Partial<FinishedEvent> = {}): FinishedEvent {

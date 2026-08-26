@@ -1,8 +1,9 @@
 # @oldbulb/samsara-proposers
 
 `ctx.proposers`: the registry of proposer adapters, the `Proposal` contract
-(`docs/design/proposers.md`) with its JSON schema, and two v1 adapters:
-`claude-p` (an external `claude -p` process) and `human` (the operator supplies the patch).
+(`docs/design/proposers.md`) with its JSON schema, and three v1 adapters:
+`claude-p` (an external `claude -p` process), `command` (any executable under the
+directory-in / directory-out contract) and `human` (the operator supplies the patch).
 
 A proposer never sees truth: it receives a directory of files rendered by the ledger
 (`ledger.read(view, 'proposer')`) and a scratch work directory, and returns a `Proposal`.
@@ -26,6 +27,7 @@ and becomes `optimizer_config_sha` on the challenger row.
 |---|---|---|---|
 | `@oldbulb/samsara-proposers` (default export) | `proposers` | — | the service |
 | `@oldbulb/samsara-proposers/plugin-claude-p` | `proposer-claude-p` | `proposers`, `subprocess`, `credentials` | `ClaudePAdapter` |
+| `@oldbulb/samsara-proposers/plugin-command` | `proposer-command` | `proposers`, `subprocess`, `credentials` | `CommandAdapter` under `config.name` |
 | `@oldbulb/samsara-proposers/plugin-human` | `proposer-human` | `proposers` | `HumanAdapter` |
 
 ## `claude-p`
@@ -85,6 +87,40 @@ explicit injection above reaches the child). The gateway sees a standard Anthrop
 `Authorization: Bearer <token>`; per-proposal cost attribution works the same way as for loops —
 give `baseUrl` a route segment per proposer.
 
+## `command`
+
+A proposer in any language (`examples/proposers/README.md`; SDKs in
+`packages/proposer-sdk` and `sdk/py`). One proposal = one process:
+
+```
+<command> [args…] --view <viewDir> --out <workDir>
+```
+
+spawned like `claude-p` (through `ctx.subprocess.spawn` inside the plugin's effect, `cwd = workDir`,
+`stdin` ignored, stdout/stderr saved as `<workDir>/proposer.stdout.txt` / `proposer.stderr.txt`,
+the environment is an allowlist, never the parent's: `PATH`/`LANG`/`LC_ALL` from the host, then
+`config.env`, then `HOME` and `TMPDIR` at `workDir`, then the resolved credential). The child writes
+`<workDir>/proposal.json` (the draft schema) and, for the skill surface, a skill directory whose
+`skill_dir` resolves against `workDir` and must stay inside it; rows surfaces pass through. The
+adapter stamps `parent` and `proposer` (`name` and `version` from config, `config_sha` = sha256 of
+the canonical `{ command, args, env }`). Exit ≠ 0, timeout and abort reject.
+
+```yaml
+# a new row goes under `insert`: a bare `- id:` patches an existing row and is dropped when no layer has the id
+- insert:
+    - id: proposer-noop
+      name: '@oldbulb/samsara-proposers/plugin-command'
+      inject: [proposers, subprocess, credentials]
+      config:
+        name: noop                     # registered as, and stamped on, the Proposal
+        command: python3
+        args: [/abs/path/to/samsara/examples/proposers/noop.py]   # cwd is the work directory: a script path must be absolute
+        timeoutMs: 600000              # default
+        # version: '1'                 # proposer.version; default 'unknown'
+        # credentialRef: OPENAI_KEY    # resolved through ctx.credentials (E5) ...
+        # credentialVar: OPENAI_API_KEY   # ... and injected as this variable only
+```
+
 ## `human`
 
 ```yaml
@@ -111,4 +147,6 @@ is not confined (no prompt, no view). `ClaudePDeps.host` is the test seam.
 `pnpm --filter @oldbulb/samsara-proposers test` — schema validation, `HumanAdapter`, `ClaudePAdapter`
 against a fake spawn that writes `proposal.json` + `skill/` (argv shape, env contents and
 absence of inherited `*_KEY`/secret names, timeout and abort terminate the child, `configSha`
-stability), the service and both plugins. No process is started and no network is touched.
+stability), the service and the plugins; `CommandAdapter` against a real node fixture proposer
+(`tests/fixtures/noop-proposer.mjs`: success, non-zero exit, malformed proposal, timeout, abort)
+and `examples/proposers/noop.py` when `python3` is on `PATH`. No network is touched.

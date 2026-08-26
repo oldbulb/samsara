@@ -1,17 +1,22 @@
 // @oldbulb/samsara-signoff — `ctx.signoff`: the consent channel the loop cannot reach.
 //
 // A caller inside the host asks `request(rowId, action)` for a nonce; a human
-// signs {nonce, rowId, action, who, issuedAt} with a private key that lives in
-// a 0600 file on their side, and submits the proof over a 0600 unix socket.
-// `confirm` turns a valid proof into a ConsentRecord. There is no HTTP route:
-// anything that can only present an HTTP request has no proof (E2).
+// signs {nonce, rowId, action, who, issuedAt, roundId?} with a private key
+// that lives in a 0600 file on their side, and submits the proof over a 0600
+// unix socket. `confirm` turns a valid proof into a ConsentRecord that keeps
+// the proof, so `verifyConsent` can check any stored row again before it is
+// acted on. There is no HTTP route: anything that can only present an HTTP
+// request has no proof; a private key found beside the host's public key is
+// refused, since whatever the host runs could read it (E2).
 
 import { randomBytes } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { chmod, rm } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
+import { dirname, join } from 'node:path'
 import { Context, Schema, Service } from '@oldbulb/samsara-kernel'
 import {
+  PRIVATE_KEY_FILE,
   SIGNOFF_ACTIONS,
   proofSha,
   sha256,
@@ -44,7 +49,7 @@ export const Config: Schema<Config> = Schema.object({
   publicKeyPath: Schema.string().required(),
 })
 
-export type SignoffErrorCode = 'UNKNOWN_NONCE' | 'EXPIRED' | 'BAD_SIGNATURE' | 'ROW_MISMATCH' | 'BAD_REQUEST' | 'NO_KEY'
+export type SignoffErrorCode = 'UNKNOWN_NONCE' | 'EXPIRED' | 'BAD_SIGNATURE' | 'ROW_MISMATCH' | 'BAD_REQUEST' | 'NO_KEY' | 'KEY_ON_HOST' | 'NO_PROOF' | 'BAD_PROOF'
 
 export class SignoffError extends Error {
   constructor(message: string, readonly code: SignoffErrorCode) {
@@ -57,6 +62,8 @@ export interface PendingSignoff {
   nonce: string
   rowId: string
   action: SignoffAction
+  /** The round a `promote` sign-off is bound to; the proof must name it. */
+  roundId?: string
   /** ISO time after which the nonce is no longer accepted. */
   expiresAt: string
 }
@@ -69,6 +76,20 @@ export interface ConsentRecord {
   channel: 'unix-socket'
   proof_sha: string
   at: string
+  /** The round the consent is bound to (from the sign-off it answered). */
+  round_id?: string
+  /** The proof itself, kept so any reader can verify the row against the public key later. */
+  proof: Proof
+}
+
+/** The consent row as the ledger holds it (the proof as plain data, validated here): what `verifyConsent` checks. */
+export interface StoredConsent {
+  id: string
+  challenger_id: string
+  action: string
+  proof_sha: string
+  round_id?: string | undefined
+  proof?: { payload: { nonce: string; rowId: string; action: string; who: string; issuedAt: string; roundId?: string | undefined }; signature: string } | undefined
 }
 
 export const PENDING_TTL_MS = 10 * 60 * 1000
@@ -89,6 +110,9 @@ export class Signoff extends Service {
     if (!existsSync(config.publicKeyPath)) {
       process.stderr.write(`signoff: no public key at ${config.publicKeyPath}; every confirm is refused until one exists\n`)
     }
+    if (this.keyOnHost()) {
+      process.stderr.write(`signoff: the private key ${this.privateKeyPath()} sits beside the public key on this host; every confirm is refused until it is moved to the signer's side (E2)\n`)
+    }
     this.ready = Promise.resolve(ctx.effect(async () => {
       const server = await this.listen(config.socketPath)
       return async () => {
@@ -98,16 +122,18 @@ export class Signoff extends Service {
     }, 'signoff.listen()')).then(() => {})
   }
 
-  /** Open a pending sign-off for a row; the nonce is what the human must sign. */
-  request(rowId: string, action: SignoffAction): PendingSignoff {
+  /** Open a pending sign-off for a row; the nonce is what the human must sign. A `promote` names the round it decides. */
+  request(rowId: string, action: SignoffAction, opts: { roundId?: string } = {}): PendingSignoff {
     if (!SIGNOFF_ACTIONS.includes(action)) throw new SignoffError(`unknown action "${action}"`, 'BAD_REQUEST')
     if (!rowId) throw new SignoffError('rowId is required', 'BAD_REQUEST')
+    if (action === 'promote' && !opts.roundId) throw new SignoffError('a promote sign-off names the round it decides (roundId)', 'BAD_REQUEST')
     this.purge()
     const nonce = randomBytes(32).toString('hex')
     const pending: PendingSignoff = {
       nonce,
       rowId,
       action,
+      ...(opts.roundId !== undefined ? { roundId: opts.roundId } : {}),
       expiresAt: new Date(internals.now() + PENDING_TTL_MS).toISOString(),
     }
     this.pendingByNonce.set(nonce, pending)
@@ -140,14 +166,15 @@ export class Signoff extends Service {
       this.pendingByNonce.delete(payload.nonce)
       throw new SignoffError('pending sign-off has expired', 'EXPIRED')
     }
-    if (pending.rowId !== payload.rowId || pending.action !== payload.action) {
-      throw new SignoffError('proof names a different row or action than the pending sign-off', 'ROW_MISMATCH')
+    if (pending.rowId !== payload.rowId || pending.action !== payload.action || pending.roundId !== payload.roundId) {
+      throw new SignoffError('proof names a different row, action or round than the pending sign-off', 'ROW_MISMATCH')
     }
     if (!verify(this.publicKey(), payload, proof.signature)) {
       throw new SignoffError('signature does not verify against the configured public key', 'BAD_SIGNATURE')
     }
     this.pendingByNonce.delete(payload.nonce)
-    const proof_sha = proofSha({ payload, signature: proof.signature })
+    const kept: Proof = { payload, signature: proof.signature }
+    const proof_sha = proofSha(kept)
     const at = new Date(internals.now()).toISOString()
     return {
       id: sha256(canonicalJson(['consent', proof_sha])),
@@ -157,11 +184,45 @@ export class Signoff extends Service {
       channel: 'unix-socket',
       proof_sha,
       at,
+      ...(payload.roundId !== undefined ? { round_id: payload.roundId } : {}),
+      proof: kept,
     }
   }
 
-  /** Read on every confirm: fail closed while the file is absent, pick it up once it exists. */
+  /**
+   * Re-verify a consent row as the ledger holds it (E2): the proof must be
+   * present, hash to the row's `proof_sha` and id, name the row's subject,
+   * action and round, and verify under the public key. Throws SignoffError.
+   */
+  verifyConsent(row: StoredConsent): void {
+    if (!row.proof) throw new SignoffError(`consent ${row.id} carries no proof; a row without one cannot be verified`, 'NO_PROOF')
+    const payload = checkPayload(row.proof as Proof)
+    const proof_sha = proofSha({ payload, signature: row.proof.signature })
+    if (proof_sha !== row.proof_sha || sha256(canonicalJson(['consent', proof_sha])) !== row.id) {
+      throw new SignoffError(`consent ${row.id}: the proof does not hash to the row's proof_sha and id`, 'BAD_PROOF')
+    }
+    if (payload.rowId !== row.challenger_id || payload.action !== row.action || payload.roundId !== row.round_id) {
+      throw new SignoffError(`consent ${row.id}: the proof names a different row, action or round than the row`, 'ROW_MISMATCH')
+    }
+    if (!verify(this.publicKey(), payload, row.proof.signature)) {
+      throw new SignoffError(`consent ${row.id}: signature does not verify against the configured public key`, 'BAD_SIGNATURE')
+    }
+  }
+
+  private privateKeyPath(): string {
+    return join(dirname(this.config.publicKeyPath), PRIVATE_KEY_FILE)
+  }
+
+  /** The private key beside the public one is the key on the host: reachable from whatever the host runs (E2). */
+  private keyOnHost(): boolean {
+    return existsSync(this.privateKeyPath())
+  }
+
+  /** Read on every confirm: fail closed while the file is absent or the private key sits beside it, pick it up once that changes. */
   private publicKey(): string {
+    if (this.keyOnHost()) {
+      throw new SignoffError(`the private key ${this.privateKeyPath()} sits beside the public key on this host; move it to the signer's side (E2)`, 'KEY_ON_HOST')
+    }
     try {
       return readFileSync(this.config.publicKeyPath, 'utf8')
     } catch {
@@ -223,12 +284,13 @@ function checkPayload(proof: Proof): ProofPayload {
   if (!p || typeof p !== 'object' || typeof proof.signature !== 'string') {
     throw new SignoffError('proof must carry a payload object and a signature string', 'BAD_REQUEST')
   }
-  const { nonce, rowId, action, who, issuedAt } = p
+  const { nonce, rowId, action, who, issuedAt, roundId } = p
   for (const [k, v] of Object.entries({ nonce, rowId, who, issuedAt })) {
     if (typeof v !== 'string' || !v) throw new SignoffError(`payload.${k} must be a non-empty string`, 'BAD_REQUEST')
   }
+  if (roundId !== undefined && (typeof roundId !== 'string' || !roundId)) throw new SignoffError('payload.roundId must be a non-empty string when present', 'BAD_REQUEST')
   if (!SIGNOFF_ACTIONS.includes(action)) throw new SignoffError(`unknown action "${String(action)}"`, 'BAD_REQUEST')
-  return { nonce, rowId, action, who, issuedAt }
+  return { nonce, rowId, action, who, issuedAt, ...(roundId !== undefined ? { roundId } : {}) }
 }
 
 // The loader mounts this module as the `signoff` row: a Service class is a plugin.

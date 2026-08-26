@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@oldbulb/samsara-kernel'
 import type { AttemptRow, ChallengerRow, CompareRow, ConsentRow, SettlementRow } from '@oldbulb/samsara-ledger'
-import type { GateVerdictRow } from '@oldbulb/samsara-gate'
+import { GATE_DEFAULT_NAME, GATE_DEFAULT_VERSION, type GateVerdictRow } from '@oldbulb/samsara-gate'
+import { hashDir } from '@oldbulb/samsara-workdir'
 import {
   Champion,
   ChampionError,
@@ -26,6 +27,7 @@ import {
 } from '../src/index.ts'
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex')
+const DEFAULT = `${GATE_DEFAULT_NAME}@${GATE_DEFAULT_VERSION}`
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
 
@@ -78,7 +80,7 @@ function challenger(over: Partial<ChallengerRow> = {}): ChallengerRow {
     tasksets: { smoke: sha('a'), holdin: sha('b'), holdout: sha('c') },
     budget: 1,
     status: 'judged',
-    verdict: { value: 'promote', by: 'gate-default@0.1.0', rule: 'holdout' },
+    verdict: { value: 'promote', by: DEFAULT, rule: 'holdout' },
     proposed_at: '2026-08-23T00:00:00.000Z',
     ...over,
   }
@@ -126,7 +128,6 @@ class FakeLedger implements ChampionLedger {
     this.statusLog.push({ id, status, ...(patch.verdict ? { verdict: patch.verdict.value } : {}) })
     return next
   }
-  async recordCompare(row: CompareRow) { this.compares.push(row); return sha(JSON.stringify(row)) }
   async recordSettlement(row: SettlementRow) { this.settlements.push(row); return row.id }
 }
 
@@ -142,10 +143,17 @@ function profile(base = BASE): { home: string; dir: string; patch: string } {
   return { home, dir, patch: join(dir, 'cordis.patch.yml') }
 }
 
-async function open(dir: string, ledger: FakeLedger) {
+/** The promotion gate as the champion sees it: whatever ctx.gate says is current, here the shipped gate-default. */
+const PROMOTION_GATE = { name: GATE_DEFAULT_NAME, version: GATE_DEFAULT_VERSION, judge: () => { throw new Error('unused') } }
+
+/** ctx.signoff as the champion uses it: `verifyConsent` re-checks the row's proof; here it accepts everything unless told otherwise. */
+const signoffOf = (verify: (row: ConsentRow) => void = () => {}) => ({ verifyConsent: verify })
+
+async function open(dir: string, ledger: FakeLedger, gate: { current(): typeof PROMOTION_GATE | undefined } = { current: () => PROMOTION_GATE }, signoff = signoffOf()) {
   const ctx = new Context()
   ctx.provide('ledger', ledger)
-  ctx.provide('signoff', {})
+  ctx.provide('signoff', signoff)
+  ctx.provide('gate', gate)
   const fiber = ctx.plugin(Champion, { profileDir: dir, skillStore: join(dir, '..', '..', 'skills') })
   await fiber
   return ctx.champion
@@ -244,7 +252,48 @@ describe('Champion service', () => {
     expect(ledger.statusLog).toEqual([])
   })
 
-  it('promotes a config patch: file gets the section, base rows survive byte-for-byte, hot-apply verified, ledger decided', async () => {
+  it('refuses a promote verdict from a gate other than the promotion gate unless a gate_change consent names it', async () => {
+    const { dir } = profile()
+    const ledger = new FakeLedger()
+    const row = ledger.add(challenger({ verdict: { value: 'promote', by: 'keep-better@0.1.0', rule: 'keep-better' } }))
+    ledger.consent(row.id)
+    const champion = await open(dir, ledger)
+    await expect(champion.promote(row.id, 'consent-1')).rejects.toMatchObject({ code: 'FOREIGN_GATE' })
+    expect(readFileSync(join(dir, 'cordis.patch.yml'), 'utf8')).toBe(BASE)
+    expect(ledger.statusLog).toEqual([])
+    // The consent's subject is the gate's name@version; a promote consent on that name is not it.
+    ledger.consent('keep-better@0.1.0', 'consent-wrong', 'promote')
+    await expect(champion.promote(row.id, 'consent-1')).rejects.toMatchObject({ code: 'FOREIGN_GATE' })
+    ledger.consent('keep-better@0.1.0', 'consent-gate', 'gate_change')
+    const state = await champion.promote(row.id, 'consent-1')
+    expect(state.rows).toEqual([`prompt:${sha('p1')}`])
+    expect(ledger.statusLog).toEqual([])
+  })
+
+  it('with no gate mounted, only a consented gate can promote', async () => {
+    const { dir } = profile()
+    const ledger = new FakeLedger()
+    const row = ledger.add(challenger())
+    ledger.consent(row.id)
+    const champion = await open(dir, ledger, { current: () => undefined })
+    await expect(champion.promote(row.id, 'consent-1')).rejects.toMatchObject({ code: 'FOREIGN_GATE' })
+    ledger.consent(DEFAULT, 'consent-gate', 'gate_change')
+    expect((await champion.promote(row.id, 'consent-1')).rows).toHaveLength(1)
+  })
+
+  it('a mounted gate other than gate-default is the promotion gate only when a gate_change consent names it', async () => {
+    const { dir } = profile()
+    const ledger = new FakeLedger()
+    const row = ledger.add(challenger({ verdict: { value: 'promote', by: 'mine@0.1.0', rule: 'holdout' } }))
+    ledger.consent(row.id)
+    const champion = await open(dir, ledger, { current: () => ({ ...PROMOTION_GATE, name: 'mine', version: '0.1.0' }) })
+    await expect(champion.promote(row.id, 'consent-1')).rejects.toMatchObject({ code: 'FOREIGN_GATE', message: expect.stringContaining(`the mounted gate mine@0.1.0 is not ${DEFAULT}`) })
+    expect(ledger.statusLog).toEqual([])
+    ledger.consent('mine@0.1.0', 'consent-gate', 'gate_change')
+    expect((await champion.promote(row.id, 'consent-1')).rows).toHaveLength(1)
+  })
+
+  it('promotes a config patch: file gets the section, base rows survive byte-for-byte, hot-apply verified, no ledger status written', async () => {
     const { dir, patch } = profile()
     const ledger = new FakeLedger()
     const row = ledger.add(challenger())
@@ -263,12 +312,14 @@ describe('Champion service', () => {
     expect(champion.current()).toEqual(state)
     expect(verifyHotApply(state.profilePatchRows, champion.dump()).ok).toBe(true)
     expect(champion.dump()).toMatch(/model: m2/)
-    expect(ledger.statusLog).toEqual([{ id: row.id, status: 'decided', verdict: 'promote' }])
-    expect(ledger.challenger(row.id)?.verdict?.consent_id).toBe('consent-1')
+    // The status flip is the lifecycle's (decide), not the champion's.
+    expect(ledger.statusLog).toEqual([])
+    expect(ledger.challenger(row.id)).toMatchObject({ status: 'judged', verdict: { value: 'promote' } })
+    expect(ledger.challenger(row.id)?.verdict?.consent_id).toBeUndefined()
     expect(changed).toEqual([stateSha(state)])
     // Idempotent: a second promote of the same challenger is a no-op.
     expect(await champion.promote(row.id, 'consent-1')).toEqual(state)
-    expect(ledger.statusLog).toHaveLength(1)
+    await ledger.setStatus(row.id, 'decided', { verdict: { ...row.verdict!, consent_id: 'consent-1' } })
     expect(champion.replayCheck().equal).toBe(true)
   })
 
@@ -279,7 +330,7 @@ describe('Champion service', () => {
     writeFileSync(join(src, 'SKILL.md'), '# skill\n')
     writeFileSync(join(src, 'scripts', 'run.sh'), 'true\n')
     const ledger = new FakeLedger()
-    const row = ledger.add(challenger({ id: sha('skill-1'), surface: 'skill', patch: { skill_ref: src } }))
+    const row = ledger.add(challenger({ id: sha('skill-1'), surface: 'skill', skill_sha: hashDir(src), patch: { skill_ref: src } }))
     ledger.consent(row.id, 'consent-s')
     const champion = await open(dir, ledger)
     const state = await champion.promote(row.id, 'consent-s')
@@ -288,6 +339,38 @@ describe('Champion service', () => {
     expect(state.rows).toEqual([`skill:${row.skill_sha}`])
     expect(readFileSync(join(dest, 'scripts', 'run.sh'), 'utf8')).toBe('true\n')
     expect(champion.current().skill_ref).toBe(dest)
+    // E7: what the host serves hashes to the promoted skill_sha.
+    expect(hashDir(champion.current().skill_ref!)).toBe(row.skill_sha)
+  })
+
+  it('E7: a skill row whose skill_sha is not the hash of its snapshot is refused, and nothing lands in the store or the file', async () => {
+    const { dir, home, patch } = profile()
+    const src = join(home, 'skill-src')
+    mkdirSync(src, { recursive: true })
+    writeFileSync(join(src, 'SKILL.md'), '# skill\n')
+    const ledger = new FakeLedger()
+    const row = ledger.add(challenger({ id: sha('skill-2'), surface: 'skill', skill_sha: sha('not-the-snapshot'), patch: { skill_ref: src } }))
+    ledger.consent(row.id, 'consent-s')
+    const champion = await open(dir, ledger)
+    const before = readFileSync(patch, 'utf8')
+    await expect(champion.promote(row.id, 'consent-s')).rejects.toMatchObject({ code: 'HOT_APPLY_MISMATCH', detail: { expected_sha: row.skill_sha, observed_sha: hashDir(src) } })
+    expect(existsSync(join(home, 'skills', row.skill_sha))).toBe(false)
+    expect(readFileSync(patch, 'utf8')).toBe(before)
+    expect(champion.current().kept).toEqual([])
+  })
+
+  it('E2: a consent whose proof does not verify under the public key is refused (BAD_CONSENT) and nothing is written', async () => {
+    const { dir, patch } = profile()
+    const ledger = new FakeLedger()
+    const row = ledger.add(challenger())
+    const consent = ledger.consent(row.id)
+    const checked: ConsentRow[] = []
+    const champion = await open(dir, ledger, undefined, signoffOf((c) => { checked.push(c); throw new Error('signature does not verify against the configured public key') }))
+    const before = readFileSync(patch, 'utf8')
+    await expect(champion.promote(row.id, consent.id)).rejects.toMatchObject({ code: 'BAD_CONSENT', message: expect.stringContaining('does not verify') })
+    expect(checked).toEqual([consent])
+    expect(readFileSync(patch, 'utf8')).toBe(before)
+    expect(champion.current().kept).toEqual([])
   })
 
   it('restores the previous file when the hot-apply check fails', async () => {
@@ -303,7 +386,7 @@ describe('Champion service', () => {
     await expect(champion.promote(bad.id, 'consent-bad')).rejects.toMatchObject({ code: 'HOT_APPLY_MISMATCH' })
     expect(readFileSync(patch, 'utf8')).toBe(before)
     expect(champion.current().rows).toEqual([`prompt:${sha('p1')}`])
-    expect(ledger.statusLog.map((l) => l.id)).toEqual([good.id])
+    expect(ledger.statusLog).toEqual([])
   })
 
   it('restores an absent file when the first promotion fails hot-apply', async () => {
@@ -318,7 +401,7 @@ describe('Champion service', () => {
     expect(champion.current().kept).toEqual([])
   })
 
-  it('demote removes the rows and records reversed on the ledger', async () => {
+  it('demote removes the rows and leaves the ledger to the lifecycle', async () => {
     const { dir, patch } = profile()
     const ledger = new FakeLedger()
     const a = ledger.add(challenger())
@@ -329,14 +412,17 @@ describe('Champion service', () => {
     await champion.promote(a.id, 'ca')
     await champion.promote(b.id, 'cb')
     expect(champion.current().rows).toHaveLength(2)
-    const state = await champion.demote(a.id, 'operator')
+    const state = await champion.demote(a.id)
     expect(state.rows).toEqual([`tools:${sha('p2')}`])
     expect(state.profilePatchRows).toEqual([{ insert: [{ id: 'added', name: 'x', config: { k: 1 } }] }])
     expect(parseProfilePatch(readFileSync(patch, 'utf8')).baseText).toBe(BASE)
     expect(champion.dump()).toMatch(/model: m1/)
-    expect(ledger.statusLog.at(-1)).toEqual({ id: a.id, status: 'decided', verdict: 'reversed' })
-    expect(ledger.challenger(a.id)?.verdict?.rule).toBe('demote:operator')
-    await expect(champion.demote(a.id, 'again')).rejects.toMatchObject({ code: 'NOT_KEPT' })
+    expect(ledger.statusLog).toEqual([])
+    expect(ledger.challenger(a.id)).toMatchObject({ status: 'judged', verdict: { value: 'promote' } })
+    await expect(champion.demote(a.id)).rejects.toMatchObject({ code: 'NOT_KEPT' })
+    // With the rows the lifecycle would have written, the file and the ledger agree.
+    await ledger.setStatus(b.id, 'decided', { verdict: { ...b.verdict!, consent_id: 'cb' } })
+    await ledger.setStatus(a.id, 'decided', { verdict: { value: 'reversed', by: 'champion', rule: 'demote:operator' } })
     expect(champion.replayCheck().equal).toBe(true)
   })
 
@@ -347,6 +433,8 @@ describe('Champion service', () => {
     ledger.consent(a.id, 'ca')
     const champion = await open(dir, ledger)
     await champion.promote(a.id, 'ca')
+    await ledger.setStatus(a.id, 'decided', { verdict: { ...a.verdict!, consent_id: 'ca' } })
+    expect(champion.replayCheck().equal).toBe(true)
     await ledger.setStatus(a.id, 'decided', { verdict: { value: 'reversed', by: 'gate', rule: 'settlement' } })
     expect(champion.replayCheck()).toEqual({ equal: false, missingInFile: [], extraInFile: [`prompt:${sha('p1')}`] })
     // Hand-edited file: the section is gone but the ledger still says promote.
@@ -370,7 +458,7 @@ describe('Champion service', () => {
 
 function judgement(verdict: GateVerdictRow['verdict']): GateVerdictRow {
   return {
-    gateMethod: 'gate-default@0.1.0',
+    gateMethod: DEFAULT,
     verdict,
     compare: {
       perTask: [{ taskId: 't1', entityKey: 'e1', sample: 0, delta: 0.1 }],
@@ -400,7 +488,7 @@ describe('settlement bookkeeping', () => {
     expect(plan.every((p) => p.settlement_id === 'settle-1' && p.truth_snapshot_id === 'ts1')).toBe(true)
   })
 
-  it('onSettlement records the settlement append-only and emits samsara/rescore; a reversal demotes', async () => {
+  it('onSettlement records the settlement append-only and emits samsara/rescore', async () => {
     const { dir } = profile()
     const ledger = new FakeLedger()
     const row = ledger.add(challenger())
@@ -416,30 +504,24 @@ describe('settlement bookkeeping', () => {
     expect(events).toEqual([{ settlement_id: 'settle-1', challenger_id: row.id, attempt_ids: [attempt(row.id, 't1').id], truth_snapshot_id: 'ts1' }])
     expect(ledger.settlements).toHaveLength(1)
     expect(ledger.settlements[0]?.triggered_rescoring).toEqual([row.id])
-
-    // The re-score comes back: the kept row no longer promotes -> reversed -> demoted.
-    const compare = await champion.rescored(row.id, judgement('hold'), { vs_id: 'champion', tier: 'holdout', truth_snapshot_id: 'ts1', at: 'now' })
-    expect(compare.verdict.value).toBe('reversed')
-    expect(ledger.compares).toHaveLength(1)
-    expect(champion.current().kept).toEqual([])
-    expect(ledger.challenger(row.id)?.verdict?.value).toBe('reversed')
-    expect(champion.dump()).toMatch(/model: m1/)
+    // The re-score result is the lifecycle's to record (`rescore`); the champion wrote nothing else.
+    expect(ledger.statusLog).toEqual([])
   })
 
-  it('a kept row that promotes again is confirmed and stays; an unkept row keeps the gate value', async () => {
-    const { dir } = profile()
-    const ledger = new FakeLedger()
-    const row = ledger.add(challenger())
-    ledger.consent(row.id)
-    const other = ledger.add(challenger({ id: sha('other'), verdict: { value: 'hold', by: 'g', rule: 'r' } }))
-    const champion = await open(dir, ledger)
-    await champion.promote(row.id, 'consent-1')
-    const confirmed = await champion.rescored(row.id, judgement('promote'), { vs_id: 'x', tier: 'holdout', truth_snapshot_id: 'ts1' })
-    expect(confirmed.verdict.value).toBe('confirmed')
-    expect(champion.current().rows).toHaveLength(1)
-    const held = await champion.rescored(other.id, judgement('hold:underpowered'), { vs_id: 'x', tier: 'holdout', truth_snapshot_id: 'ts1' })
-    expect(held.verdict.value).toBe('hold')
-    expect(ledger.challenger(other.id)?.status).toBe('judged')
-    expect(compareRowOf(other.id, judgement('drop'), { vs_id: 'x', tier: 'holdin', truth_snapshot_id: 'ts1' }, false).verdict.value).toBe('drop')
+  it('compareRowOf: a kept row that promotes again is confirmed, anything else reversed; an unkept row keeps the gate value', () => {
+    const coords = { vs_id: 'x', tier: 'holdout' as const, truth_snapshot_id: 'ts1' }
+    expect(compareRowOf(sha('c'), judgement('promote'), coords, true).verdict.value).toBe('confirmed')
+    expect(compareRowOf(sha('c'), judgement('hold'), coords, true)).toMatchObject({ gate: DEFAULT, shadow: false, verdict: { value: 'reversed' } })
+    expect(compareRowOf(sha('c'), judgement('hold:underpowered'), coords, false).verdict.value).toBe('hold')
+    expect(compareRowOf(sha('c'), judgement('drop'), { ...coords, tier: 'holdin' }, false).verdict.value).toBe('drop')
+  })
+
+  it('compareRowOf fills the Ladder slot from the judgement and the best-so-far the gate was given, rounded to 2 dp', () => {
+    const coords = { vs_id: 'x', tier: 'holdout' as const, truth_snapshot_id: 'ts1' }
+    const none = compareRowOf(sha('c'), judgement('hold'), coords, false)
+    expect(none.ladder).toEqual({ step: 0.01, beat_best: true })
+    const some = compareRowOf(sha('c'), judgement('hold'), { ...coords, best_so_far: 0.08171 }, false, true)
+    expect(some.ladder).toEqual({ step: 0.01, beat_best: true, best_so_far: 0.08 })
+    expect(some).toMatchObject({ gate: DEFAULT, shadow: true })
   })
 })

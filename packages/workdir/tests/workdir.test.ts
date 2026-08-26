@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { resolve } from 'node:path'
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { loadPack } from '@oldbulb/samsara-pack'
+import { loadPack, protectedPaths } from '@oldbulb/samsara-pack'
 import { materialize, policyPaths, workdirDiff, denyGuard, hashDir, WorkdirError, type Workdir } from '../src/index.ts'
 
 const MINI = resolve(import.meta.dirname, '..', '..', 'pack', 'tests', 'fixtures', 'minipack')
@@ -18,7 +18,7 @@ afterEach(async () => {
 
 async function make(attemptId = 'a1', extra: Partial<Parameters<typeof materialize>[0]> = {}) {
   baseDir ??= mkdtempSync(resolve(tmpdir(), 'workdir-'))
-  const w = await materialize({ attemptId, taskId: 's1', challengerId: 'c1', pack, skill, baseDir, ...extra })
+  const w = await materialize({ attemptId, taskId: 's1', challengerId: 'c1', sample: 0, pack, skill, baseDir, ...extra })
   made.push(w)
   return w
 }
@@ -33,12 +33,17 @@ describe('materialize', () => {
     expect(existsSync(resolve(w.path, '.claude/skills/mini/SKILL.md'))).toBe(true)
     expect(statSync(w.tokenPath).mode & 0o777).toBe(0o400)
     const token = JSON.parse(readFileSync(w.tokenPath, 'utf8'))
-    expect(token).toMatchObject({ attemptId: 'a1', taskId: 's1', challengerId: 'c1' })
+    expect(token).toMatchObject({ attemptId: 'a1', taskId: 's1', challengerId: 'c1', sample: 0, skill_path: '.agents/skills/mini' })
     expect(typeof token.issuedAt).toBe('string')
+    expect(existsSync(resolve(w.path, token.skill_path, 'SKILL.md'))).toBe(true)
     expect(w.tmpdir).toBe(resolve(w.path, '.tmp'))
     expect(statSync(w.tmpdir).isDirectory()).toBe(true)
     expect(w.baseline.has('.agents/skills/mini/SKILL.md')).toBe(true)
     expect(w.baseline.has('.task/token.json')).toBe(true)
+  })
+  it('the token carries the sample it was sealed with', async () => {
+    const w = await make('a3', { sample: 3 })
+    expect(JSON.parse(readFileSync(w.tokenPath, 'utf8')).sample).toBe(3)
   })
   it('skill sha is content-addressed and stable', async () => {
     const a = await make('a1')
@@ -51,11 +56,15 @@ describe('materialize', () => {
     await make('a1')
     await expect(make('a1')).rejects.toBeInstanceOf(WorkdirError)
   })
-  it('exposes the sandbox policy paths: workdir, pack dir, existing runtime roots', async () => {
+  it('exposes the sandbox policy paths: workdir, pack dir, the declared runtime roots that exist, the protected pack paths', async () => {
     const w = await make('a1')
-    expect(w.policyPaths).toEqual({ workdir: w.path, packDir: resolve(MINI), runtimeDirs: [] })
-    const withRuntime = policyPaths(w.path, { dir: resolve(import.meta.dirname, 'fixtures', 'runtime-pack') })
-    expect(withRuntime.runtimeDirs).toEqual([resolve(import.meta.dirname, 'fixtures', 'runtime-pack', 'runtime', 'py')])
+    expect(w.policyPaths).toEqual({ workdir: w.path, packDir: resolve(MINI), runtimeDirs: [], packDenied: protectedPaths(pack) })
+    expect(w.policyPaths.packDenied).toEqual(['bin/materialize', 'bin/score', 'bin/truth', 'contract.schema.json', 'pack.yaml', 'tasks/holdin.jsonl', 'tasks/holdout.jsonl', 'tasks/smoke.jsonl'])
+    const runtimePack = resolve(import.meta.dirname, 'fixtures', 'runtime-pack')
+    const withRuntime = policyPaths(w.path, { ...pack, dir: runtimePack, manifest: { ...pack.manifest, runtime: { dirs: ['runtime/py', 'runtime/missing', 'runtime/notes.txt'] } } })
+    expect(withRuntime.runtimeDirs).toEqual([resolve(runtimePack, 'runtime', 'py')])
+    // Undeclared, nothing under the pack is granted: the framework assumes no layout.
+    expect(policyPaths(w.path, { ...pack, dir: runtimePack }).runtimeDirs).toEqual([])
   })
   it('dispose removes the attempt dir and is idempotent', async () => {
     const w = await make('a1')

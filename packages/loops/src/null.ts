@@ -1,8 +1,12 @@
 // The built-in null loop: starts, says one empty assistant turn, finishes
-// COMPLETED. Touches neither the workdir nor any model. Exists so the host
-// plumbing (scope, workdir, ledger tailing) can be exercised end-to-end with
-// no spend.
+// COMPLETED. Calls no model. Exists so the host plumbing (scope, workdir,
+// ledger tailing) can be exercised end-to-end with no spend. With a canned
+// `submit` it also leaves that value as the attempt's submission (the
+// @oldbulb/samsara-submit file convention), so a pack whose truth does not
+// depend on the answer can run the whole challenger path — smoke's validity
+// rule included — through it.
 
+import { writeSubmit } from '@oldbulb/samsara-submit'
 import type { AttemptSpec, HarnessFacts, LoopCapabilities, LoopEvent, LoopProvider, LoopRun, FinishedEvent } from './types.ts'
 
 export const NULL_HARNESS_FACTS: HarnessFacts = {
@@ -11,8 +15,14 @@ export const NULL_HARNESS_FACTS: HarnessFacts = {
   schemaEnforcement: 'permissive-tool',
   permission: 'none',
   reasoning: {},
+  envelope: { config: 'absent', system: 'absent', tools: 'absent' },
   version: { loop: 'null@0' },
   sandbox: 'none',
+}
+
+export interface NullLoopOptions {
+  /** Written as the submission of every attempt; null (the default) submits nothing. */
+  submit?: Record<string, unknown> | null
 }
 
 export class NullLoopProvider implements LoopProvider {
@@ -26,8 +36,12 @@ export class NullLoopProvider implements LoopProvider {
     nativeMaxTurns: false,
   }
 
+  constructor(private readonly options: NullLoopOptions = {}) {}
+
   async start(spec: AttemptSpec): Promise<LoopRun> {
     const at = Date.now()
+    const submit = this.options.submit ?? null
+    if (submit !== null) writeSubmit(spec.workdir, spec.tools.submitTool.name, submit)
     const finished: FinishedEvent = {
       t: 'finished',
       at,
@@ -42,6 +56,7 @@ export class NullLoopProvider implements LoopProvider {
     const events: LoopEvent[] = [
       { t: 'started', at, native: { kind: 'null', id: spec.attemptId } },
       { t: 'assistant', at, turn: 0, textBytes: 0, usage: { inputTokens: 0, outputTokens: 0 } },
+      ...(submit !== null ? [{ t: 'output', at, structured: submit, text: JSON.stringify(submit), source: 'submit-tool' } as const] : []),
       finished,
     ]
     return {

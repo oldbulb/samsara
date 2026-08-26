@@ -1,13 +1,14 @@
 // Cross-harness certification (docs/design/ui-and-certification.md): the same
 // skill snapshot runs as a challenger on each named loop in turn (challenge()
-// per loop; the champion runs on that loop too when the ledger holds nothing),
-// and the table lists one judged row per loop. Loops are never pooled: a
+// per loop, each in its own round on ctx.lifecycle; the champion runs on that
+// loop too when the ledger holds nothing), and the table lists one judged row
+// per loop. Loops are never pooled: a
 // cross-loop compare is put through the gate once, to show the refusal.
 
 import { basename, resolve } from 'node:path'
 import { mean } from '@oldbulb/samsara-gate'
-import { gatePolicy, type GateVerdictRow, type ScoredAttempt } from '@oldbulb/samsara-gate'
-import type { AttemptRow as LedgerAttemptRow } from '@oldbulb/samsara-ledger'
+import { gatePolicy, type ScoredAttempt } from '@oldbulb/samsara-gate'
+import type { AttemptRow as LedgerAttemptRow, CompareRow } from '@oldbulb/samsara-ledger'
 import { factsSha, type LoopProvider } from '@oldbulb/samsara-loops'
 import { challenge as runChallenge, scoredAttemptsOf, type ChallengeDeps, type ChallengeRequest, type ChallengeResult, type GatePolicyName } from './challenge.ts'
 import type { RunRequest } from './run.ts'
@@ -33,7 +34,8 @@ export interface CertifyRow {
   challengerId: string
   championId: string
   tasks: number
-  passRate: number
+  /** Mean of the primary metric over the challenger's scored attempts. */
+  mean: number
   utilization: number | 'inline' | undefined
   costMean: number
   costUnit: 'usd' | 'tokens'
@@ -41,6 +43,8 @@ export interface CertifyRow {
   verdict: string
   rule: string
   gateMethod: string
+  /** The judgement came from a gate other than the promotion gate without a `gate_change` consent: listed, never the verdict. */
+  shadow: boolean
 }
 
 export interface CrossCheck {
@@ -52,6 +56,8 @@ export interface CrossCheck {
 
 export interface CertifyResult {
   skillSha: string
+  /** The primary metric the rows' means are of. */
+  metric: string
   rows: CertifyRow[]
   /** Absent with fewer than two judged loops. */
   cross?: CrossCheck
@@ -99,7 +105,9 @@ export async function certify(req: CertifyRequest, deps: CertifyDeps): Promise<C
     const champion = scoredAttemptsOf(deps.ledger.attemptsOf(result.championId), scores, tasks, req.metric)
     const cost = costOf(challenger)
     const current = deps.ledger.challenger(result.challengerId)?.verdict
-    const j: GateVerdictRow | undefined = result.judgement
+    const c: CompareRow | undefined = result.compare
+    // A rejection now, or one the ledger already held (the row was decided before this command).
+    const rejected = result.rejected !== undefined || current?.by === 'diffscan'
     const row: CertifyRow = {
       loop,
       adapterVersion: provider.harnessFacts.version.loop,
@@ -107,31 +115,32 @@ export async function certify(req: CertifyRequest, deps: CertifyDeps): Promise<C
       challengerId: result.challengerId,
       championId: result.championId,
       tasks: tasks.size,
-      passRate: mean(challenger.map((a) => a.value)),
+      mean: mean(challenger.map((a) => a.value)),
       utilization: utilizationOf(attempts),
       costMean: cost.mean,
       costUnit: cost.unit,
-      verdict: current?.value === 'reversed' ? 'revoked' : result.rejected ? 'rejected' : j?.verdict ?? 'n/a',
-      rule: result.rejected ? (current?.rule ?? 'diffscan') : j?.compare.ruleFired ?? '',
-      gateMethod: j?.gateMethod ?? (result.rejected ? 'diffscan' : ''),
+      verdict: current?.value === 'reversed' ? 'revoked' : rejected ? 'rejected' : result.invalid !== undefined ? 'invalid' : c?.verdict.value ?? result.decided?.value ?? 'n/a',
+      rule: rejected ? (current?.rule ?? 'diffscan') : result.invalid ?? c?.rule_fired ?? result.decided?.rule ?? '',
+      gateMethod: c?.gate ?? c?.verdict.by ?? (rejected ? 'diffscan' : result.invalid !== undefined ? 'lifecycle' : result.decided?.by ?? ''),
+      shadow: result.shadow ?? false,
     }
     rows.push(row)
-    log(`certify ${loop}: ${row.verdict} (${row.rule}) pass_rate ${fmt(row.passRate)} utilization ${fmtUtil(row.utilization)}`)
-    if (j) judged.push({ row, provider, challenger, champion })
+    log(`certify ${loop}: ${fmtVerdict(row)} ${req.metric} ${fmt(row.mean)} utilization ${fmtUtil(row.utilization)}`)
+    if (c) judged.push({ row, provider, challenger, champion })
   }
 
   // Cross-loop: challenger on loop a vs champion on loop b must be refused by rule 0.
   let cross: CrossCheck | undefined
   const [a, b] = judged
   if (a && b) {
-    const verdict = deps.gate.judge({
+    const verdict = await deps.gate.judge({
       challenger: a.challenger, champion: b.champion, tier: req.set, primaryMetric: req.metric,
       noiseFloor: { sdPaired: 0, nReruns: 0 }, policy: gatePolicy({ nEffFloor: req.nEffFloor }), round: { k: 1, index: 0 }, seed: 0,
       factsSha: { challenger: a.row.factsSha, champion: b.row.factsSha },
     })
     cross = { challengerLoop: a.row.loop, championLoop: b.row.loop, verdict: verdict.verdict, rule: verdict.compare.ruleFired }
   }
-  return { skillSha, rows, ...(cross ? { cross } : {}) }
+  return { skillSha, metric: req.metric, rows, ...(cross ? { cross } : {}) }
 }
 
 function fmt(v: number): string {
@@ -142,11 +151,15 @@ function fmtUtil(u: CertifyRow['utilization']): string {
   return u === undefined ? 'n/a' : u === 'inline' ? 'inline' : u.toFixed(2)
 }
 
+function fmtVerdict(row: CertifyRow): string {
+  return (row.rule ? `${row.verdict} (${row.rule})` : row.verdict) + (row.shadow ? ' [shadow]' : '')
+}
+
 export function formatCertify(r: CertifyResult): string {
-  const header = ['loop', 'adapter version', 'facts_sha', 'tasks', 'pass_rate', 'utilization', 'cost mean', 'verdict', 'gate']
+  const header = ['loop', 'adapter version', 'facts_sha', 'tasks', r.metric, 'utilization', 'cost mean', 'verdict', 'gate']
   const body = r.rows.map((row) => [
-    row.loop, row.adapterVersion, row.factsSha.slice(0, 12), String(row.tasks), fmt(row.passRate), fmtUtil(row.utilization),
-    `${fmt(row.costMean)} ${row.costUnit}`, row.rule ? `${row.verdict} (${row.rule})` : row.verdict, row.gateMethod,
+    row.loop, row.adapterVersion, row.factsSha.slice(0, 12), String(row.tasks), fmt(row.mean), fmtUtil(row.utilization),
+    `${fmt(row.costMean)} ${row.costUnit}`, fmtVerdict(row), row.gateMethod,
   ])
   const widths = header.map((h, i) => Math.max(h.length, ...body.map((b) => b[i]!.length)))
   const line = (cells: string[]) => '| ' + cells.map((c, i) => c.padEnd(widths[i]!)).join(' | ') + ' |'

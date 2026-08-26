@@ -39,9 +39,21 @@
       "types": "./lib/types/certify.d.ts",
       "default": "./lib/certify.js"
     },
+    "./propose": {
+      "types": "./lib/types/propose.d.ts",
+      "default": "./lib/propose.js"
+    },
+    "./bench": {
+      "types": "./lib/types/bench.d.ts",
+      "default": "./lib/bench.js"
+    },
     "./startup": {
       "types": "./lib/types/startup.d.ts",
       "default": "./lib/startup.js"
+    },
+    "./gate-presets": {
+      "types": "./lib/types/gate-presets.d.ts",
+      "default": "./lib/gate-presets.js"
     }
   },
   "files": [
@@ -58,8 +70,10 @@
     "@oldbulb/samsara-book": "workspace:*",
     "@oldbulb/samsara-champion": "workspace:*",
     "@oldbulb/samsara-gate": "workspace:*",
+    "@oldbulb/samsara-gate-catalog": "workspace:*",
     "@oldbulb/samsara-kernel": "workspace:*",
     "@oldbulb/samsara-ledger": "workspace:*",
+    "@oldbulb/samsara-lifecycle": "workspace:*",
     "@oldbulb/samsara-loops": "workspace:*",
     "@oldbulb/samsara-pack": "workspace:*",
     "@oldbulb/samsara-proposers": "workspace:*",

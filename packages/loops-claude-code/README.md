@@ -69,7 +69,7 @@ subprocess overlay with tombstones for every scrubbed name it dropped (same as d
 
 | SDKMessage | LoopEvent |
 |---|---|
-| `system/init` | `started{native:{kind:'claude-code', id: session_id, pid}}` then `system_prompt{sha256(preset id + append + tools), tools}` |
+| `system/init` | `started{native:{kind:'claude-code', id: session_id, pid}}` then `envelope` — proxy on all three fields: config = `{provider, model}` (the SDK reports only the model), system = sha256 of preset id + SDK version + append (the preset text is not exposed), tools = sha256 of the tool names (schemas are not exposed) |
 | `assistant` `tool_use` block | `tool_call{callId, name, argsSha256, argsBytes, argsPreview}` |
 | `assistant` (every message) | `assistant{turn, textBytes, usage}` |
 | `user` `tool_result` block | `tool_result{callId, isError, bytes, durationMs}` |

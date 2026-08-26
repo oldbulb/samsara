@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { resolve } from 'node:path'
-import { mkdtempSync, writeFileSync, cpSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync, cpSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { loadPack, runCommand, surfaceBoundaries, validateSubmit, PackError } from '../src/index.ts'
+import { commandEnv, loadPack, protectedPaths, runCommand, surfaceBoundaries, validateSubmit, PackError } from '../src/index.ts'
 
 const MINI = resolve(import.meta.dirname, 'fixtures', 'minipack')
 
@@ -43,6 +43,42 @@ describe('loadPack', () => {
     expect((err as PackError).code).toBe('tasks')
     expect((err as PackError).lineNo).toBe(1)
   })
+  it('loads the documented contract: metrics, tasks.protocol, holdout.retention_tolerance and runtime', () => {
+    const dir = mkdtempSync(resolve(tmpdir(), 'fullpack-'))
+    cpSync(MINI, dir, { recursive: true })
+    writeFileSync(resolve(dir, 'pack.yaml'), [
+      'name: fullpack', 'truth_latency: delayed', 'skill: { dir: skill/, name: mini }', 'contract: contract.schema.json',
+      'tasks:', '  sets: { smoke: tasks/smoke.jsonl, holdin: tasks/holdin.jsonl, holdout: tasks/holdout.jsonl }', '  entity_key: entity_key', '  version: 3',
+      '  protocol: { stage: closed-book, contracts: [hidden-tests] }',
+      'metrics:', '  primary: { name: solved, unit: fraction, direction: up }', '  cost: spend',
+      'runtime: { dirs: [runtime/py], locks: ["runtime/**/*.lock"], env: [PACK_MODE] }',
+      'holdout: { mde: 0.05, retention_tolerance: 0.05, auto_demote: true, budget: 4 }',
+      'surfaces: { skill: { globs: ["skill/**"] } }',
+      'commands: { truth: ./bin/truth, score: ./bin/score }',
+    ].join('\n') + '\n')
+    const def = loadPack(dir)
+    expect(def.manifest.metrics).toEqual({ primary: { name: 'solved', unit: 'fraction', direction: 'up' }, cost: 'spend' })
+    expect(def.manifest.tasks.protocol).toEqual({ stage: 'closed-book', contracts: ['hidden-tests'] })
+    expect(def.manifest.runtime).toEqual({ dirs: ['runtime/py'], locks: ['runtime/**/*.lock'], env: ['PACK_MODE'] })
+    expect(def.manifest.holdout).toEqual({ mde: 0.05, retention_tolerance: 0.05, auto_demote: true, budget: 4 })
+  })
+  it('rejects the holdout rotation keys nothing reads (S7: rotation is not implemented)', () => {
+    const dir = mkdtempSync(resolve(tmpdir(), 'rotpack-'))
+    cpSync(MINI, dir, { recursive: true })
+    writeFileSync(resolve(dir, 'pack.yaml'), readFileSync(resolve(MINI, 'pack.yaml'), 'utf8').replace('holdout: { mde: 0.1, budget: 2 }', 'holdout: { mde: 0.1, rotate_after_promotions: 1 }'))
+    let err: unknown
+    try { loadPack(dir) } catch (e) { err = e }
+    expect((err as PackError).code).toBe('manifest')
+  })
+})
+
+describe('protectedPaths', () => {
+  it('names the manifest, the contract, the task sets and every pack file a command line names', () => {
+    const def = loadPack(MINI)
+    expect(protectedPaths(def)).toEqual(['bin/materialize', 'bin/score', 'bin/truth', 'contract.schema.json', 'pack.yaml', 'tasks/holdin.jsonl', 'tasks/holdout.jsonl', 'tasks/smoke.jsonl'])
+    const interp = { ...def, commands: { truth: 'python3 bin/truth --as-of now', score: '/usr/bin/env node ./bin/score' } }
+    expect(protectedPaths(interp)).toEqual(['bin/score', 'bin/truth', 'contract.schema.json', 'pack.yaml', 'tasks/holdin.jsonl', 'tasks/holdout.jsonl', 'tasks/smoke.jsonl'])
+  })
 })
 
 describe('validateSubmit', () => {
@@ -63,6 +99,24 @@ describe('runCommand', () => {
     const rows = await runCommand(def, 'truth', tasks)
     expect(rows.map((r) => r.task_id)).toEqual(['s1', 'h1'])
     expect(rows[0]).toMatchObject({ status: 'settled', truth_sha: 'ab'.repeat(32) })
+  })
+  it('E5: a command sees the allow-list and the names the pack declares, never a credential or the harness identity', async () => {
+    const source = { PATH: process.env['PATH']!, HOME: '/h', LANG: 'C', TMPDIR: '/t', MINIPACK_MODE: 'env', DEEPSEEK_API_KEY: 'k', GITHUB_TOKEN: 't', DSH_PROFILE: 'host', UNRELATED: '1' }
+    expect(commandEnv(def, { TMPDIR: '/attempt/tmp' }, source)).toEqual({ PATH: source.PATH, HOME: '/h', LANG: 'C', TMPDIR: '/attempt/tmp', MINIPACK_MODE: 'env' })
+    const prev = process.env['MINIPACK_SECRET_KEY']
+    process.env['MINIPACK_SECRET_KEY'] = 'leak'
+    process.env['MINIPACK_MODE'] = 'env'
+    try {
+      const [row] = await runCommand(def, 'truth', [tasks[0]!])
+      const names = (row!['truth'] as { env: string[] }).env
+      expect(names).toContain('PATH')
+      expect(names).toContain('MINIPACK_MODE')
+      expect(names).not.toContain('MINIPACK_SECRET_KEY')
+    } finally {
+      delete process.env['MINIPACK_MODE']
+      if (prev === undefined) delete process.env['MINIPACK_SECRET_KEY']
+      else process.env['MINIPACK_SECRET_KEY'] = prev
+    }
   })
   it('runs score and materialize', async () => {
     const score = await runCommand(def, 'score', [{ task_id: 's1', truth: { passed: 1, total: 2 }, output: {} }])

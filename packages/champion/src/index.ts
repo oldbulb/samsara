@@ -2,18 +2,25 @@
 //
 // The champion is an alias to content-addressed refs; its on-disk form is the
 // generated section of the host profile's patch layer. promote() needs a
-// gate verdict of `promote` AND a consents row from signoff (two fixed points
+// gate verdict of `promote` from the promotion gate (gate-default mounted on
+// ctx.gate, or a gate a `gate_change` consent names) AND a consents row from
+// signoff whose proof still verifies under the public key (two fixed points
 // the loop cannot write), rewrites the file atomically, and proves the
 // hot-apply by recomposing the profile exactly as `--dump-config` does and
-// hashing what the kept rows read back as (E7). Every ledger write here is an
-// append or a status flip; nothing is overwritten.
+// hashing what the kept rows read back as (E7); for a skill promotion the
+// snapshot the host now serves (`current().skill_ref`) must hash to the row's
+// `skill_sha`. The only ledger write here is
+// the settlement append; every status flip and compare row is ctx.lifecycle's,
+// which drives promote/demote and records what they decided.
 
 import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { EventEmitter } from 'node:events'
 import { basename, dirname, join, resolve } from 'node:path'
 import { Context, Schema, Service, loadProfile, renderConfigDump, PROFILE_PATCH_FILENAME, type PatchOptions } from '@oldbulb/samsara-kernel'
-import type { GateVerdictRow } from '@oldbulb/samsara-gate'
-import type { AttemptRow, ChallengerRow, CompareRow, ConsentRow, SettlementRow } from '@oldbulb/samsara-ledger'
+import { gateMethodOf, GATE_DEFAULT_NAME, GATE_DEFAULT_VERSION, type GateRegistry } from '@oldbulb/samsara-gate'
+import type { AttemptRow, ChallengerRow, ConsentRow, SettlementRow } from '@oldbulb/samsara-ledger'
+import type {} from '@oldbulb/samsara-signoff'
+import { hashDir } from '@oldbulb/samsara-workdir'
 import {
   EMPTY_STATE,
   parseProfilePatch,
@@ -28,7 +35,7 @@ import {
   type KeptPatch,
   type ReplayResult,
 } from './state.ts'
-import { compareRowOf, planRescore, type CompareCoords, type RescoreEvent, type SettledEvent } from './settlement.ts'
+import { planRescore, type RescoreEvent, type SettledEvent } from './settlement.ts'
 
 export * from './state.ts'
 export * from './settlement.ts'
@@ -43,6 +50,8 @@ export type ChampionErrorCode =
   | 'UNKNOWN_CHALLENGER'
   | 'NOT_PROMOTABLE'
   | 'NO_CONSENT'
+  | 'BAD_CONSENT'
+  | 'FOREIGN_GATE'
   | 'BAD_PATCH'
   | 'HOT_APPLY_MISMATCH'
   | 'NOT_KEPT'
@@ -81,8 +90,6 @@ export interface ChampionLedger {
   consentsOf(challengerId: string): ConsentRow[]
   attemptsOf(challengerId: string): AttemptRow[]
   lineage(id: string): ChallengerRow[]
-  setStatus(id: string, status: ChallengerRow['status'], patch?: Partial<Pick<ChallengerRow, 'tier_reached' | 'verdict'>>): Promise<ChallengerRow>
-  recordCompare(row: CompareRow): Promise<string>
   recordSettlement(row: SettlementRow): Promise<string>
 }
 
@@ -151,32 +158,46 @@ export class Champion extends Service {
     if (row.verdict?.value !== 'promote') {
       throw new ChampionError(`challenger ${challengerId} has verdict ${row.verdict?.value ?? 'none'}, not promote`, 'NOT_PROMOTABLE')
     }
+    this.checkGate(challengerId, row.verdict.by)
     const consent = this.ledger.consentsOf(challengerId).find((c) => c.id === consentId && c.action === 'promote')
     if (!consent) throw new ChampionError(`no consent ${consentId} to promote ${challengerId}`, 'NO_CONSENT')
+    // E2: a consents row is honoured only as the proof it carries verifies now, under the host's public key.
+    try {
+      this.ctx.signoff.verifyConsent(consent)
+    } catch (e) {
+      throw new ChampionError(`consent ${consentId} does not verify: ${e instanceof Error ? e.message : String(e)}`, 'BAD_CONSENT', e)
+    }
 
     const before = this.current()
     if (before.kept.some((k) => k.challenger_id === challengerId)) return before
     const kept = this.keptOf(row, consent)
     const after = stateOf([...before.kept, kept])
+    const previous = this.readFile()
     await this.write(after)
-    await this.ledger.setStatus(challengerId, 'decided', { verdict: { ...row.verdict, consent_id: consentId } })
+    if (kept.skill_ref !== undefined) {
+      // E7 for the skill surface: what the file now serves is the promoted snapshot, byte for byte.
+      const served = this.current().skill_ref
+      const observed = served !== undefined && existsSync(served) ? hashDir(served) : ''
+      if (served !== kept.skill_ref || observed !== row.skill_sha) {
+        this.restore(previous)
+        throw new ChampionError(
+          `hot-apply mismatch: the skill served is ${served ?? '(none)'} hashing ${observed.slice(0, 12) || '(absent)'}, promoted ${kept.skill_ref} with skill_sha ${row.skill_sha.slice(0, 12)}`,
+          'HOT_APPLY_MISMATCH',
+          { ok: false, expected_sha: row.skill_sha, observed_sha: observed, mismatches: ['skill_ref did not apply'] } satisfies HotApplyResult,
+        )
+      }
+    }
     this.emitter.emit('champion/changed', after)
     return after
   }
 
-  async demote(challengerId: string, reason: string): Promise<ChampionState> {
+  async demote(challengerId: string): Promise<ChampionState> {
     const before = this.current()
     if (!before.kept.some((k) => k.challenger_id === challengerId)) {
       throw new ChampionError(`challenger ${challengerId} is not kept`, 'NOT_KEPT')
     }
     const after = stateOf(before.kept.filter((k) => k.challenger_id !== challengerId))
     await this.write(after)
-    const row = this.ledger.challenger(challengerId)
-    if (row) {
-      const verdict: NonNullable<ChallengerRow['verdict']> = { value: 'reversed', by: 'champion', rule: `demote:${reason}` }
-      if (row.verdict?.consent_id !== undefined) verdict.consent_id = row.verdict.consent_id
-      await this.ledger.setStatus(challengerId, 'decided', { verdict })
-    }
     this.emitter.emit('champion/changed', after)
     return after
   }
@@ -200,17 +221,18 @@ export class Champion extends Service {
     return plan
   }
 
-  /** A re-score result: append the compare row; a kept row that no longer holds `promote` is demoted. */
-  async rescored(challengerId: string, judgement: GateVerdictRow, coords: CompareCoords): Promise<CompareRow> {
-    const kept = this.current().kept.some((k) => k.challenger_id === challengerId)
-    const compare = compareRowOf(challengerId, judgement, coords, kept)
-    await this.ledger.recordCompare(compare)
-    if (compare.verdict.value === 'reversed') {
-      await this.demote(challengerId, `reversed on ${coords.truth_snapshot_id}: ${compare.rule_fired}`)
-    } else if (!kept && this.ledger.challenger(challengerId)) {
-      await this.ledger.setStatus(challengerId, 'judged', { verdict: compare.verdict })
-    }
-    return compare
+  /**
+   * The verdict must come from the promotion gate — the policy mounted on
+   * ctx.gate, itself either gate-default or a gate a `gate_change` consent
+   * names by `name@version` — or from a gate such a consent names.
+   */
+  private checkGate(challengerId: string, by: string): void {
+    const mounted = (this.ctx.get('gate') as GateRegistry | undefined)?.current()
+    const promotionGate = mounted ? gateMethodOf(mounted) : undefined
+    if (by === promotionGate && by === `${GATE_DEFAULT_NAME}@${GATE_DEFAULT_VERSION}`) return
+    if (this.ledger.consentsOf(by).some((c) => c.action === 'gate_change')) return
+    const why = by === promotionGate ? `the mounted gate ${by} is not ${GATE_DEFAULT_NAME}@${GATE_DEFAULT_VERSION}` : `not the promotion gate ${promotionGate ?? '(none mounted)'}`
+    throw new ChampionError(`challenger ${challengerId} was judged by ${by}: ${why}, and no gate_change consent names ${by}`, 'FOREIGN_GATE')
   }
 
   // ------------------------------------------------------------------ file
@@ -225,6 +247,16 @@ export class Champion extends Service {
         const tmp = `${dest}.tmp-${process.pid}`
         rmSync(tmp, { recursive: true, force: true })
         cpSync(row.patch.skill_ref, tmp, { recursive: true })
+        // The store is content-addressed by the row's skill_sha: a snapshot that hashes to anything else is not this row's.
+        const observed = hashDir(tmp)
+        if (observed !== row.skill_sha) {
+          rmSync(tmp, { recursive: true, force: true })
+          throw new ChampionError(
+            `hot-apply mismatch: the snapshot at ${row.patch.skill_ref} hashes to ${observed.slice(0, 12)}, the row's skill_sha is ${row.skill_sha.slice(0, 12)}`,
+            'HOT_APPLY_MISMATCH',
+            { ok: false, expected_sha: row.skill_sha, observed_sha: observed, mismatches: ['skill snapshot differs from skill_sha'] } satisfies HotApplyResult,
+          )
+        }
         renameSync(tmp, dest)
       }
       return { challenger_id: row.id, surface: row.surface, ref: refOfRow(row), rows: [], skill_ref: dest, consent_id: consent.id, promoted_at }

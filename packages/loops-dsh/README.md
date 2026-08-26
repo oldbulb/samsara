@@ -29,7 +29,7 @@ idempotent and always runs `handle.dispose()` (`Promise.allSettled` with the res
 
 | session event | loop event |
 |---|---|
-| first `request/header` | `system_prompt` — sha256 + bytes of the rendered system text, tool names |
+| first `request/header` | `envelope` — exact on all three fields: sha256 of the canonical call config (+ provider, model), sha256 + bytes of the rendered system text, sha256 of the tool schemas (+ names) |
 | `tool/call` | `tool_call` — sha256/bytes/preview of the raw argument string |
 | `tool/result` | `tool_result` — `isError` from the block flag or dsh's error identity, duration from the paired call |
 | `tool/result` of the submit tool, not an error | additionally `output{source:'submit-tool', structured: parsed args}` |
@@ -105,6 +105,13 @@ built as `--ro /` under Landlock), which cannot take the per-attempt read
 allow-list `@oldbulb/samsara-sandbox` composes, so the pack's `tasks/`, `data/` and
 `bin/` stay reachable from an in-process attempt. The subprocess-based loop
 (`loops-claude-code`) is the confined one; see `packages/sandbox/README.md`.
+
+The same reach applies to the host's own files: the ledger, the sign-off
+socket and the public key. E2 holds on this loop only because a proof is a
+signature under a key that is not on the host — `@oldbulb/samsara-signoff`
+refuses every confirm while a `signoff.key` sits beside its public key, and
+`champion.promote` re-verifies a consent row's proof before acting on it — not
+because an attempt cannot read the disk.
 
 ## Tests
 

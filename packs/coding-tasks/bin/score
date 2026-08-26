@@ -17,5 +17,6 @@ for line in read_lines():
     row = lambda metric, value, kind: emit(  # noqa: E731
         {"task_id": task_id, "metric": metric, "value": float(value), "kind": kind, "stratum": stratum})
     row("pass_rate", pass_rate, "reality")
+    row("solved", 1.0 if total and pass_rate == 1.0 else 0.0, "reality")  # aider's unit: every hidden test passes
     row("cost_usd", usage.get("cost_usd") or 0.0, "mechanical")
     row("tool_calls", output.get("tool_calls") or 0, "mechanical")

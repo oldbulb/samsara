@@ -3,11 +3,11 @@
 
 usage: tools/import_polyglot.py <path-to-polyglot-benchmark>
 
-Copies every python/ and javascript/ practice exercise verbatim (minus
-node_modules) into fixtures/<lang>/<exercise>/ and writes
+Copies every python/, javascript/, rust/ and go/ practice exercise verbatim
+(minus node_modules) into fixtures/<lang>/<exercise>/ and writes
 tasks/{smoke,holdin,holdout}.jsonl with a deterministic split by
-sha256(entity_key), entity = exercise name, so both languages of one
-exercise land in the same set.
+sha256(entity_key), entity = exercise name, so every language of one
+exercise lands in the same set.
 """
 import hashlib
 import json
@@ -16,13 +16,14 @@ import sys
 from pathlib import Path
 
 PACK = Path(__file__).resolve().parent.parent
-LANGS = ("python", "javascript")
-SPLIT = {"smoke": 8, "holdin": 45, "holdout": 30}
+LANGS = ("python", "javascript", "rust", "go")
+SPLIT = {"smoke": 15, "holdin": 83, "holdout": 53}
 
 
-# Exercises whose untouched stub already passes (refactoring tasks) are not
-# "fix the failing tests" tasks and are excluded.
-EXCLUDE = {"javascript/ledger"}
+# Exercises whose untouched stub already passes (refactoring tasks) or that
+# ship no tests at all (go/counter: "design the test suite", deprecated) are
+# not "fix the failing tests" tasks and are excluded.
+EXCLUDE = {"javascript/ledger", "go/counter", "go/ledger", "go/markdown"}
 
 
 def main(src: Path) -> None:

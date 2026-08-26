@@ -10,11 +10,16 @@
 // dsh-base by hand (agents, sessions, presets, tools, persistence, sandbox …)
 // and would still not exercise the profile/bundle composition the host runs.
 //
-// Skips (never fails) when the environment cannot run it: no `dsh` on PATH, no
-// dsh-llm-replay package reachable, or the recording's submit tool name no
-// longer matches the pack's (the skill was renamed after recording; replay
-// serves chunks blindly, so the recorded `submit_<old>` call would hit an
-// unknown tool and the script would be exhausted one step early).
+// Skips (never fails) when the environment cannot run it: no `dsh` on PATH, the
+// `host` profile not linked and installed under $DSH_HOME (the README's
+// `pnpm test` comes before `dsh plugin --profile host install`), no
+// dsh-llm-replay package reachable, the pack's Python runtime not provisioned
+// (truth runs pytest from `runtime/py/.venv`; without it the settlement is a
+// pass_rate of 0 for a reason that has nothing to do with the loop), or the
+// recording's submit tool name no longer matches the pack's (the skill was
+// renamed after recording; replay serves chunks blindly, so the recorded
+// `submit_<old>` call would hit an unknown tool and the script would be
+// exhausted one step early).
 
 import { execFile, execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -24,6 +29,7 @@ import { promisify } from 'node:util'
 import { afterAll, describe, expect, it } from 'vitest'
 import { loadPack } from '../../packages/pack/src/index.ts'
 import { submitToolName } from '../../packages/runner/src/run.ts'
+import { hostProfileMissing } from './dsh-home.ts'
 import { bindFixtureCwd } from './project-fixture.ts'
 
 const ROOT = resolve(import.meta.dirname, '..', '..')
@@ -33,6 +39,8 @@ const SCENARIO = 'dsh-beer-song'
 const FIXTURE = process.env['SAMSARA_REPLAY_FIXTURE'] ?? join(ROOT, 'tests', 'fixtures', 'replay', SCENARIO, 'session.replay.jsonl')
 const OVERLAY_TEMPLATE = join(import.meta.dirname, 'replay.overlay.yml')
 const TASK_ID = 'python/beer-song'
+/** The interpreter the pack's truth runs under; `packs/coding-tasks/runtime/provision.sh` creates it. */
+const PACK_PYTHON = join(PACK_DIR, 'runtime', 'py', '.venv', 'bin', 'python')
 
 /** The live attempt workdir, read from the runtime-context message of each request. */
 const CWD_FROM_REQUEST = '{{fromRequest:session workspace: "([^"]+)"}}'
@@ -96,8 +104,11 @@ describe('loops-dsh replays a recorded transcript through `dsh --profile host ru
   it(`${SCENARIO}: 1 attempt, COMPLETED, valid submit, pass_rate 1, no network`, { timeout: 180_000 }, async (ctx) => {
     const dsh = findDsh()
     if (!dsh) return ctx.skip('`dsh` is not on PATH (npm i -g @deepseek-ai/dsh@<pin>)')
+    const missing = hostProfileMissing()
+    if (missing) return ctx.skip(missing)
     const llmReplay = findLlmReplay()
     if (!llmReplay) return ctx.skip('@deepseek-ai/dsh-llm-replay not found (set SAMSARA_LLM_REPLAY=<path to lib/index.js>)')
+    if (!existsSync(PACK_PYTHON)) return ctx.skip(`pack runtime not provisioned: ${PACK_PYTHON} is missing (run packs/coding-tasks/runtime/provision.sh)`)
 
     // The recording must still match the live prompt surface: the model's
     // final call must target the submit tool the runner registers today.

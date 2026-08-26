@@ -1,0 +1,3 @@
+{"task_id":"t1","entity_key":"e1","stratum":"a","prompt":"first"}
+{"task_id":"t2","entity_key":"e2","stratum":"a","prompt":"second"}
+{"task_id":"t3","entity_key":"e3","stratum":"b","prompt":"third"}

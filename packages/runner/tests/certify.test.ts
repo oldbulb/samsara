@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { AttemptRow, ChallengerRow, ScoreRow } from '@oldbulb/samsara-ledger'
+import type { AttemptRow, ChallengerRow, CompareRow, ScoreRow } from '@oldbulb/samsara-ledger'
 import { sha256 } from '@oldbulb/samsara-ledger'
 import { gateDefault, GATE_DEFAULT_NAME, GATE_DEFAULT_VERSION, type CompareRequest } from '@oldbulb/samsara-gate'
 import { factsSha, type HarnessFacts, type LoopProvider } from '@oldbulb/samsara-loops'
@@ -9,7 +9,7 @@ import type { ChallengeRequest, ChallengeResult } from '../src/challenge.ts'
 const Z = sha256('')
 
 function facts(loop: string, delivery: HarnessFacts['skillDelivery']): HarnessFacts {
-  return { systemPromptMode: 'x', skillDelivery: delivery, schemaEnforcement: 'permissive-tool', permission: 'p', reasoning: {}, version: { loop: `${loop}@1` } }
+  return { systemPromptMode: 'x', skillDelivery: delivery, schemaEnforcement: 'permissive-tool', permission: 'p', reasoning: {}, envelope: { config: 'absent', system: 'absent', tools: 'absent' }, version: { loop: `${loop}@1` } }
 }
 const providers: Record<string, LoopProvider> = {
   a: { name: 'a', harnessFacts: facts('a', 'prompt-inline'), capabilities: { perAttemptBaseUrl: false, perAttemptEnv: false, nativeSchema: 'none', toolFilter: false, nativeMaxTurns: false }, start: () => Promise.reject(new Error('unused')) },
@@ -43,15 +43,19 @@ function ledgerFake(values: Record<string, number[]>) {
   return {
     rows,
     propose: () => Promise.reject(new Error('unused')), recordAttempt: () => Promise.reject(new Error('unused')), appendScores: () => Promise.reject(new Error('unused')),
-    setStatus: () => Promise.reject(new Error('unused')), recordCompare: () => Promise.reject(new Error('unused')),
     challenger: (id: string) => rows.get(id) as ChallengerRow | undefined,
     attemptsOf: (id: string) => attempts.get(id) ?? [],
     scoresOf: (id: string) => scores.get(id) ?? [],
+    comparesOf: () => [],
+    consentsOf: () => [],
+    round: () => undefined,
   }
 }
 
 const judged = new Map<string, CompareRequest>()
 const gate = {
+  current: () => ({ name: GATE_DEFAULT_NAME, version: GATE_DEFAULT_VERSION, judge: gateDefault }),
+  list: () => [],
   register: () => () => {},
   judge: (req: CompareRequest) => {
     judged.set(`${req.challenger[0]?.challengerId}|${req.champion[0]?.challengerId}`, req)
@@ -60,12 +64,19 @@ const gate = {
 }
 
 const calls: ChallengeRequest[] = []
+const compareOf = (ids: { challengerId: string; championId: string }, gate: string, shadow: boolean): CompareRow => ({
+  challenger_id: ids.challengerId, vs_id: ids.championId, tier: 'smoke', truth_snapshot_id: Z, per_task: [], mean: 0.1, ci: [0, 1], method: 'm', cluster_key: 'e',
+  n_eff: 3, mde: 0, rule_fired: 'validity', verdict: { value: 'hold', by: gate, rule: 'validity' }, gate, shadow, at: 'now',
+})
 const challengeFn = (req: ChallengeRequest): Promise<ChallengeResult> => {
   calls.push(req)
-  const ids = { challengerId: `chal-${req.loop}`, championId: `champ-${req.loop}` }
+  const ids = { challengerId: `chal-${req.loop}`, championId: `champ-${req.loop}`, roundId: `round-${req.loop}` }
   if (req.loop === 'b') return Promise.resolve({ ...ids, rejected: [{ code: 'OUTSIDE_SURFACE', where: 'x', detail: 'd' }] as never })
-  return Promise.resolve({ ...ids, judgement: { verdict: 'hold', gateMethod: 'gate-default@0.1.0', compare: { ruleFired: 'validity', mean: 0.1, ci: [0, 1], nEff: 3, mde: 0, costRatio: 1 } as never } })
+  return Promise.resolve({ ...ids, compare: compareOf(ids, 'gate-default@0.1.0', false), promotionGate: 'gate-default@0.1.0', shadow: false })
 }
+/** The same judgement, but from a gate that is not the promotion gate. */
+const shadowFn = (req: ChallengeRequest): Promise<ChallengeResult> =>
+  challengeFn(req).then((res) => (res.compare ? { ...res, compare: compareOf(res, 'keep-better@0.1.0', true), shadow: true } : res))
 
 const req: CertifyRequest = {
   pack: 'p', set: 'smoke', repeat: 1, out: '/o', maxTurns: 1, maxMinutes: 1, limit: 3,
@@ -76,7 +87,7 @@ function deps(ledger: ReturnType<typeof ledgerFake>, over: Partial<CertifyDeps> 
   return {
     loops: { get: (n: string) => providers[n], start: () => Promise.reject(new Error('unused')) },
     route: { provider: 'x', model: 'm', credentialRef: '' },
-    ledger, scopes: { open: () => Promise.reject(new Error('unused')), championRows: () => [] } as never, gate, challengeFn, ...over,
+    ledger, lifecycle: {} as never, gate, challengeFn, ...over,
   }
 }
 
@@ -104,14 +115,25 @@ describe('certify', () => {
     expect(r.rows).toHaveLength(2)
     expect(r.rows[0]).toMatchObject({
       loop: 'a', adapterVersion: 'a@1', factsSha: factsSha(providers['a']!.harnessFacts), tasks: 3, utilization: 'inline',
-      costMean: 0.5, costUnit: 'usd', verdict: 'hold', rule: 'validity', gateMethod: 'gate-default@0.1.0',
+      costMean: 0.5, costUnit: 'usd', verdict: 'hold', rule: 'validity', gateMethod: 'gate-default@0.1.0', shadow: false,
     })
-    expect(r.rows[0]!.passRate).toBeCloseTo(2 / 3)
+    expect(r.metric).toBe('pass_rate')
+    expect(r.rows[0]!.mean).toBeCloseTo(2 / 3)
     expect(r.rows[1]).toMatchObject({ loop: 'b', adapterVersion: 'b@1', tasks: 3, costMean: 20, costUnit: 'tokens', verdict: 'rejected', gateMethod: 'diffscan' })
     expect(r.rows[1]!.utilization).toBeCloseTo(2 / 3)
     // Only one loop was judged, so there is nothing to cross.
     expect(r.cross).toBeUndefined()
     expect(formatCertify(r)).toContain('| a    | a@1')
+    expect(formatCertify(r)).not.toContain('shadow')
+  })
+
+  it('marks a shadow judgement in the row and the table, next to the gate that made it', async () => {
+    const logs: string[] = []
+    const r = await certify({ ...req, loops: ['a'] }, deps(ledgerFake(values), { challengeFn: shadowFn, log: (m) => logs.push(m) }))
+    expect(r.rows[0]).toMatchObject({ verdict: 'hold', rule: 'validity', gateMethod: 'keep-better@0.1.0', shadow: true })
+    const text = formatCertify(r)
+    expect(text).toContain('| hold (validity) [shadow] | keep-better@0.1.0 |')
+    expect(logs[0]).toContain('certify a: hold (validity) [shadow]')
   })
 
   it('puts challenger-on-a vs champion-on-b through the gate and reports facts:mismatch', async () => {

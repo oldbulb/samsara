@@ -10,10 +10,10 @@
 import { createWriteStream, mkdirSync, readFileSync, appendFileSync, existsSync, writeFileSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { relative, resolve } from 'node:path'
-import { createBook, type Book, type TaskSet } from '@oldbulb/samsara-book'
+import { createBook, type Book, type Task, type TaskSet } from '@oldbulb/samsara-book'
 import { attemptRowOf, sha256, canonicalJson, type ChallengerProposal, type Ledger, type Tier } from '@oldbulb/samsara-ledger'
 import { factsSha, type AttemptSpec, type FinishedEvent, type LoopEvent, type LoopProvider, type LoopRun, type TokenUsage } from '@oldbulb/samsara-loops'
-import { loadPack, runCommand, validateSubmit, PackError, type PackDefinition, type TaskLine } from '@oldbulb/samsara-pack'
+import { commandEnv, loadPack, runCommand, validateSubmit, PackError, type PackDefinition, type TaskLine } from '@oldbulb/samsara-pack'
 import { envLock, findRepoRoot, type EnvLock } from '@oldbulb/samsara-scope'
 import { policyFor } from '@oldbulb/samsara-sandbox'
 import { submitPath } from '@oldbulb/samsara-submit'
@@ -37,6 +37,8 @@ export interface RunRequest {
   loop: string
   set: TaskSet
   limit?: number
+  /** Only tasks whose `stratum` (the pack's `stratum_key`) is one of these; absent = every stratum. Applied before `limit`. */
+  stratum?: string[]
   repeat: number
   out: string
   maxTurns: number
@@ -173,12 +175,22 @@ export function readSubmit(def: PackDefinition, workdir: string): SubmitRead {
   return { valid: true, file, submit }
 }
 
+/** The tasks a request addresses: the set, narrowed to `stratum` when given, then the first `limit`. */
+export function selectTasks(book: Book, req: Pick<RunRequest, 'set' | 'limit' | 'stratum'>): readonly Task[] {
+  const all = book.tasks(req.set)
+  const chosen = req.stratum ? all.filter((t) => req.stratum!.includes(t.stratum ?? '')) : all
+  return chosen.slice(0, req.limit ?? undefined)
+}
+
 export function bookOf(def: PackDefinition): Book {
-  return createBook({
+  const book = createBook({
     sets: { smoke: def.taskSets.smoke.tasks, holdin: def.taskSets.holdin.tasks, holdout: def.taskSets.holdout.tasks },
     entityKey: 'entity_key',
     holdoutPolicy: { mde: def.manifest.holdout?.mde ?? 0.05, budget: def.manifest.holdout?.budget ?? 0 },
   })
+  // S2/S7: a held-out set sharing an entity with the visible sets is refused (HoldoutNotDisjoint).
+  book.assertDisjointHoldout()
+  return book
 }
 
 function failedFinish(at: number, status: FinishedEvent['status'] = 'FAILED', stopReason: FinishedEvent['stopReason'] = 'error'): FinishedEvent {
@@ -237,7 +249,7 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
     if (req.resume && existsSync(attemptDir)) rmSync(attemptDir, { recursive: true, force: true })
     try {
       wd = await stages.pack.run(() => (deps.materialize ?? materializeWorkdir)({
-        attemptId, taskId: task.task_id, challengerId, pack: def, baseDir: attemptsDir,
+        attemptId, taskId: task.task_id, challengerId, sample: r, pack: def, baseDir: attemptsDir,
         skill: { name: def.manifest.skill.name, dir: skillDir },
         extraSkillDirs: ['.claude/skills'],
       }))
@@ -317,7 +329,8 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
   const truthDone = loopDone ? readStep(attemptDir, 'truth') : undefined
   const scoreDone = truthDone ? readStep(attemptDir, 'score') : undefined
   try {
-    const env = { ...process.env, TMPDIR: wd.tmpdir }
+    // E5/E8: the judge sees the pack's declared environment and the attempt's TMPDIR, never the host's credentials.
+    const env = commandEnv(def, { TMPDIR: wd.tmpdir })
     let truthValue: unknown
     if (truthDone) {
       row.truth = truthDone.truth
@@ -357,7 +370,7 @@ const NONE_SHA = sha256('')
 
 /** The lock-file environment fingerprint for this pack + loop (adoptions item 3). */
 export function envLockOf(def: PackDefinition, loop: string): EnvLock {
-  return envLock({ repoRoot: findRepoRoot(def.dir), packDir: def.dir, loops: [loop] })
+  return envLock({ repoRoot: findRepoRoot(def.dir), packDir: def.dir, packLocks: def.manifest.runtime?.locks ?? [], loops: [loop] })
 }
 
 /** Write `<runDir>/env-lock.json` (the lock inputs and sha) and return the lock. */
@@ -370,9 +383,11 @@ export function writeEnvLock(runDir: string, lock: EnvLock): EnvLock {
 /**
  * The champion as a challenger row: no patch, no parents, no optimizer; its
  * coordinates are the harness facts, the route + limits, the skill directory
- * and the task set, so the same deployment always lands on the same id.
+ * and the task set, so the same deployment always lands on the same id. The
+ * pack name is on it too: the ledger derives `eval_config_sha` from the first
+ * writer, and a row `run` recorded must be the one a round later opens on.
  */
-export function championProposal(def: PackDefinition, book: Book, req: RunRequest, deps: RunDeps, lock: EnvLock = envLockOf(def, req.loop)): ChallengerProposal {
+export function championProposal(def: PackDefinition, book: Book, req: RunRequest, deps: Pick<RunDeps, 'loops' | 'route' | 'championSkillDir'>, lock: EnvLock = envLockOf(def, req.loop)): ChallengerProposal {
   const provider = deps.loops.get(req.loop)
   const harness_sha = provider ? factsSha(provider.harnessFacts) : NONE_SHA
   const limits = { maxTurns: req.maxTurns, maxDurationMs: Math.round(req.maxMinutes * 60_000) }
@@ -402,6 +417,7 @@ export function championProposal(def: PackDefinition, book: Book, req: RunReques
     patch: { skill_ref: `skill:${skill_sha}` },
     intent: 'champion',
     prediction: { metric: '', direction: 'up' },
+    pack: def.name,
     scorer_version: String(def.manifest.tasks.version ?? 0),
     task_version: def.manifest.tasks.version ?? 0,
     truth_snapshot_id: book.tasksetSha(req.set),
@@ -456,7 +472,7 @@ export async function runSet(input: RunRequest, deps: RunDeps): Promise<RunResul
   const lock = writeEnvLock(req.out, envLockOf(def, req.loop))
   const proposal = deps.ledger ? championProposal(def, book, req, deps, lock) : undefined
   const challengerId = deps.challengerId ?? (deps.ledger && proposal ? await deps.ledger.propose(proposal) : undefined)
-  const tasks = book.tasks(req.set).slice(0, req.limit ?? undefined)
+  const tasks = selectTasks(book, req)
   const parallel = Math.max(1, Math.floor(req.parallel ?? 1))
   mkdirSync(resolve(req.out, 'attempts'), { recursive: true })
   const attemptsPath = resolve(req.out, 'attempts.jsonl')

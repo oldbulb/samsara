@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { canonicalJson } from '@oldbulb/samsara-loops'
 import { createEventMapper, finish, sha256 } from '../src/events.ts'
 import { createLimits } from '../src/limits.ts'
 
@@ -9,8 +10,10 @@ const ev = (type: string, time: number, data: unknown): AnyEvent => ({ type, seq
 const feed = (mapper: ReturnType<typeof createEventMapper>, events: AnyEvent[]) =>
   events.flatMap((e) => mapper.map(e as never))
 
+const CONFIG = { provider: 'p', model: 'm' }
+const schemas = (tools: string[]) => tools.map((name) => ({ name, description: '', parameters: {} }))
 const header = (system: string, tools: string[]) =>
-  ev('request/header', 1000, { header: { config: {}, system, tools: tools.map((name) => ({ name, description: '', parameters: {} })) }, reason: 'initial' })
+  ev('request/header', 1000, { header: { config: CONFIG, system, tools: schemas(tools) }, reason: 'initial' })
 const call = (callId: string, name: string, args: string, time = 2000) =>
   ev('tool/call', time, { turn: 1, step: 1, callId, name, arguments: args })
 const result = (callId: string, time = 2500, isError?: boolean, error?: { name: string; code: string }) =>
@@ -24,10 +27,16 @@ const assistant = (step: number, text: string, usage?: object, time = 3000) =>
 const turnEnd = (reason: object) => ev('turn/end', 4000, { turn: 1, reason })
 
 describe('event mapper', () => {
-  it('maps the first request/header to system_prompt (hash, bytes, tool names) and ignores later ones', () => {
+  it('maps the first request/header to an exact envelope (config, system, tools) and ignores later ones', () => {
     const m = createEventMapper({ submitToolName: 'submit_x' })
     const out = feed(m, [header('You are X', ['read', 'submit_x']), header('changed', ['read'])])
-    expect(out).toEqual([{ t: 'system_prompt', at: 1000, sha256: sha256('You are X'), bytes: 9, tools: ['read', 'submit_x'] }])
+    expect(out).toEqual([{
+      t: 'envelope',
+      at: 1000,
+      config: { sha256: sha256(canonicalJson(CONFIG)), provider: 'p', model: 'm' },
+      system: { sha256: sha256('You are X'), bytes: 9 },
+      tools: { sha256: sha256(canonicalJson(schemas(['read', 'submit_x']))), names: ['read', 'submit_x'] },
+    }])
   })
 
   it('maps tool/call → tool_call with argument hash and tool/result → tool_result with duration', () => {

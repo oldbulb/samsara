@@ -4,12 +4,11 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { connect } from 'node:net'
 import { join } from 'node:path'
-import { generateKeypair, sign, type Proof, type SignoffAction } from './proof.ts'
+import { generateKeypair, sign, PRIVATE_KEY_FILE, PUBLIC_KEY_FILE, type Proof, type SignoffAction } from './proof.ts'
 import type { SocketRequest, SocketResponse } from './protocol.ts'
 import type { ConsentRecord, PendingSignoff } from './index.ts'
 
-export const PRIVATE_KEY_FILE = 'signoff.key'
-export const PUBLIC_KEY_FILE = 'signoff.pub'
+export { PRIVATE_KEY_FILE, PUBLIC_KEY_FILE }
 
 export class SignoffClientError extends Error {
   constructor(message: string, readonly code: string) {
@@ -18,7 +17,7 @@ export class SignoffClientError extends Error {
   }
 }
 
-/** Write a fresh keypair into `dir`: private key 0600, public key beside it. */
+/** Write a fresh keypair into `dir` on the signer's side: private key 0600, public key beside it. The host gets a copy of the public key only (E2). */
 export async function keygen(dir: string): Promise<{ privateKeyPath: string; publicKeyPath: string }> {
   const { publicKey, privateKey } = generateKeypair()
   await mkdir(dir, { recursive: true })
@@ -74,7 +73,7 @@ export async function confirm(o: ConfirmOptions): Promise<ConsentRecord> {
   const entry = (await pending(o.socketPath)).find(p => p.rowId === o.rowId && p.action === o.action)
   if (!entry) throw new SignoffClientError(`no pending ${o.action} sign-off for row ${o.rowId}`, 'NOT_PENDING')
   const privateKey = await readFile(o.privateKeyPath, 'utf8')
-  const payload = { nonce: entry.nonce, rowId: o.rowId, action: o.action, who: o.who, issuedAt: new Date().toISOString() }
+  const payload = { nonce: entry.nonce, rowId: o.rowId, action: o.action, who: o.who, issuedAt: new Date().toISOString(), ...(entry.roundId !== undefined ? { roundId: entry.roundId } : {}) }
   const proof: Proof = { payload, signature: sign(privateKey, payload) }
   return unwrap<ConsentRecord>(await exchange(o.socketPath, { op: 'confirm', proof }))
 }

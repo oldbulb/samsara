@@ -1,0 +1,8 @@
+{"task_id":"f01/t1","entity_key":"f01","stratum":"s1","base_rate":0.602}
+{"task_id":"f01/t2","entity_key":"f01","stratum":"s1","base_rate":0.334}
+{"task_id":"f02/t1","entity_key":"f02","stratum":"s2","base_rate":0.505}
+{"task_id":"f02/t2","entity_key":"f02","stratum":"s2","base_rate":0.406}
+{"task_id":"f03/t1","entity_key":"f03","stratum":"s3","base_rate":0.605}
+{"task_id":"f03/t2","entity_key":"f03","stratum":"s3","base_rate":0.402}
+{"task_id":"f04/t1","entity_key":"f04","stratum":"s1","base_rate":0.36}
+{"task_id":"f04/t2","entity_key":"f04","stratum":"s1","base_rate":0.306}

@@ -29,7 +29,7 @@ export interface GatePolicy {
   bootstrap: { B: number; method: 'bca' }
   /** S2: minimum number of distinct entities with paired data. No default: the pack declares it. */
   nEffFloor: number
-  /** Pack-declared minimum effect; when absent only the noise-floor MDE applies. */
+  /** SESOI, the pack-declared smallest effect worth a promotion (`holdout.mde`). Rule 3 requires the design to be able to detect it; rule 7 requires the observed mean to reach it. Absent = 0: significance alone promotes. */
   mde?: number
   /** Smoke: output-valid rate floor (rule 2). */
   validityFloor: number
@@ -37,7 +37,7 @@ export interface GatePolicy {
   costBudget: { metric: 'cost_usd' | 'tokens'; maxRatio: number }
   /** S4: early stop is futility-only, on the named tier, when z < zStop. */
   futility: { tier: 'holdin'; zStop: number }
-  /** S7: holdout accounting (consumed by the book; carried here so the verdict row records it). */
+  /** S7: holdout accounting, carried so the verdict row records it; nothing consumes it (rotation is not implemented). */
   holdout: { rotateAfterPromotions: number; maxRounds: number }
 }
 
@@ -75,12 +75,17 @@ export interface Compare {
   mean: number
   /** [lower bound at the Holm-adjusted alpha, upper bound at 1 - alpha]; the lower bound is the one-sided test. */
   ci: [number, number]
-  method: 'bca'
+  /** How `ci` was computed: 'bca' for gate-default; another policy names its own interval method. */
+  method: string
   clusterKey: 'entity'
   /** Distinct entities with paired data. */
   nEff: number
-  /** (z_{1-a/2} + z_{1-b}) * sdPaired / sqrt(nEff), sdPaired from the noise floor. */
+  /** (z_{1-a/2} + z_{1-b}) * sdPaired / sqrt(nEff * replicates), sdPaired from the noise floor: what this design can detect. */
   mde: number
+  /** Paired samples per task in this comparison (paired / distinct tasks). */
+  replicates: number
+  /** The SESOI rule 7 applied (policy.mde, 0 when the pack declares none). */
+  minEffect: number
   holm: { adjustedAlpha: number }
   costRatio: number
   /** Ladder exposure: step = sd / sqrt(nEff); beatBest = mean > bestSoFar + step. */
@@ -100,7 +105,8 @@ export interface GateJudgement {
 export interface GatePolicyProvider {
   name: string
   version: string
-  judge(req: CompareRequest): GateJudgement
+  /** A pure policy answers synchronously; one that waits on a subprocess or the network returns a promise. */
+  judge(req: CompareRequest): GateJudgement | Promise<GateJudgement>
 }
 
 export const GATE_DEFAULTS = {

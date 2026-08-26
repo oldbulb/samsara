@@ -52,6 +52,15 @@ describe('scan: skill patches', () => {
     expect(codes(r)).toEqual(['TASK_LITERAL'])
   })
 
+  it('matches a literal only as a whole token: an entity key inside a longer word is not a task literal', () => {
+    const dir = skillDir({ 'SKILL.md': 'write an essay about the reaction, then say so; task-00421 is another task\n' })
+    const clean = scan({ surface: 'skill', skill_dir: dir, mount: 'skills/s' }, boundaries, taskIds, undefined, ['say', 'react'])
+    expect(codes(clean)).toEqual(['TASK_LITERAL'])
+    expect(clean.violations.map((v) => v.detail)).toEqual([expect.stringContaining('"say"')])
+    const none = scan({ surface: 'skill', skill_dir: skillDir({ 'SKILL.md': 'essay reaction task-00421\n' }), mount: 'skills/s' }, boundaries, taskIds, undefined, ['say', 'react'])
+    expect(codes(none)).toEqual([])
+  })
+
   it('rejects extra task literals (task file names)', () => {
     const dir = skillDir({ 'SKILL.md': 'see fixture_17.csv\n' })
     const r = scan({ surface: 'skill', skill_dir: dir, mount: 'skills/s' }, boundaries, taskIds, undefined, ['fixture_17.csv'])
@@ -107,6 +116,16 @@ describe('scan: config patches', () => {
   it('rejects a !!js expression node inside rows (E3)', () => {
     const r = scan({ surface: 'route', rows: [{ id: 'agent-default-model', config: { model: { __jsExpr: 'ctx.x' } } }] }, boundaries, taskIds)
     expect(codes(r)).toEqual(['JS_EXPR'])
+  })
+
+  it('rejects an inserted entry that injects a fixed point, its storage, or a service that writes them', () => {
+    for (const inject of [['ledger'], ['signoff'], ['gate'], ['storage-json'], ['lifecycle'], ['champion'], { ledger: true }, { book: { required: false } }]) {
+      const r = scan({ surface: 'tools', rows: [{ insert: [{ id: 'extra-tool', name: 'some-plugin', inject } as never] }] }, boundaries, taskIds)
+      expect(codes(r), JSON.stringify(inject)).toContain('ROW_FORBIDDEN')
+      expect(r.violations.find(v => v.code === 'ROW_FORBIDDEN')?.where).toBe('rows[0].insert[0].inject')
+    }
+    const ok = scan({ surface: 'tools', rows: [{ insert: [{ id: 'extra-tool', name: 'some-plugin', inject: ['logger', 'http'] }] }] }, boundaries, taskIds)
+    expect(ok.ok).toBe(true)
   })
 
   it('admits an insert only for a whole-row declared id', () => {

@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync, type Dirent } from 'node:fs'
 import { chmod, cp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { join, relative, resolve, sep } from 'node:path'
-import { runCommand, type PackDefinition } from '@oldbulb/samsara-pack'
+import { protectedPaths, runCommand, type PackDefinition } from '@oldbulb/samsara-pack'
 
 // ---------------------------------------------------------------- types
 
@@ -16,6 +16,8 @@ export interface MaterializeOptions {
   attemptId: string
   taskId: string
   challengerId: string
+  /** The attempt's replicate index; lands in the token so a pack's truth can pair on it. */
+  sample: number
   pack: PackDefinition
   skill: { name: string; dir: string }
   baseDir: string
@@ -23,10 +25,15 @@ export interface MaterializeOptions {
   extraSkillDirs?: string[]
 }
 
+/** `.task/token.json`: the pack-facing record of the attempt (docs/design/packs.md). */
 export interface AttemptToken {
   attemptId: string
   taskId: string
   challengerId: string
+  /** Replicate index of the attempt. */
+  sample: number
+  /** Workdir-relative posix path of the skill snapshot: `.agents/skills/<name>`. */
+  skill_path: string
   issuedAt: string
 }
 
@@ -48,8 +55,10 @@ export interface Workdir {
 export interface PolicyPaths {
   workdir: string
   packDir: string
-  /** Existing directories under `<packDir>/runtime/` (venvs, node_modules). */
+  /** The pack's declared runtime roots (`runtime.dirs` in pack.yaml) that exist, absolute. */
   runtimeDirs: string[]
+  /** What the manifest protects: the judge, the task sets, the contract (`protectedPaths`), pack-relative. */
+  packDenied: string[]
 }
 
 export interface WorkdirDiff {
@@ -68,7 +77,6 @@ export class WorkdirError extends Error {
 export const SKILLS_DIR = '.agents/skills'
 export const TOKEN_PATH = '.task/token.json'
 export const TMP_DIR = '.tmp'
-export const RUNTIME_DIR = 'runtime'
 
 // ---------------------------------------------------------------- hashing
 
@@ -123,20 +131,14 @@ export function snapshot(path: string): Baseline {
 
 // ---------------------------------------------------------------- policy paths
 
-/** The sandbox policy input for a workdir sealed from `pack`. */
-export function policyPaths(path: string, pack: Pick<PackDefinition, 'dir'>): PolicyPaths {
+/** The sandbox policy input for a workdir sealed from `pack`: what its manifest grants and what it protects. */
+export function policyPaths(path: string, pack: Pick<PackDefinition, 'dir' | 'manifest' | 'contractPath' | 'taskSets' | 'commands'>): PolicyPaths {
   const packDir = resolve(pack.dir)
-  const runtime = join(packDir, RUNTIME_DIR)
-  let runtimeDirs: string[] = []
-  try {
-    runtimeDirs = readdirSync(runtime, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => join(runtime, e.name))
-      .sort()
-  } catch {
-    // no runtime/ in this pack
-  }
-  return { workdir: resolve(path), packDir, runtimeDirs }
+  const runtimeDirs = (pack.manifest.runtime?.dirs ?? [])
+    .map((d) => resolve(packDir, d))
+    .filter((d) => existsSync(d) && statSync(d).isDirectory())
+    .sort()
+  return { workdir: resolve(path), packDir, runtimeDirs, packDenied: protectedPaths(pack) }
 }
 
 // ---------------------------------------------------------------- materialize
@@ -195,6 +197,8 @@ export async function materialize(opts: MaterializeOptions): Promise<Workdir> {
       attemptId: opts.attemptId,
       taskId: opts.taskId,
       challengerId: opts.challengerId,
+      sample: opts.sample,
+      skill_path: `${SKILLS_DIR}/${opts.skill.name}`,
       issuedAt: new Date().toISOString(),
     }
     await mkdir(join(path, '.task'), { recursive: true })
