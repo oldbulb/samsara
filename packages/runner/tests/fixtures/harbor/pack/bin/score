@@ -1,0 +1,11 @@
+#!/usr/bin/env node
+// Never run by the lifecycle tests (attempts go through a fake executor); present so the manifest loads.
+let buf = ''
+process.stdin.on('data', (d) => (buf += d))
+process.stdin.on('end', () => {
+  for (const raw of buf.split('\n')) {
+    if (!raw.trim()) continue
+    const { task_id } = JSON.parse(raw)
+    process.stdout.write(JSON.stringify({ task_id, metric: 'm', value: 0, kind: 'reality' }) + '\n')
+  }
+})

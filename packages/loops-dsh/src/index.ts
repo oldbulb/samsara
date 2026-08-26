@@ -83,6 +83,7 @@ export class DshLoopProvider implements LoopProvider {
     nativeSchema: 'tool' as const,
     toolFilter: true,
     nativeMaxTurns: false,
+    installed: false,
   }
 
   constructor(

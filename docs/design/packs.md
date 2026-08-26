@@ -5,7 +5,7 @@ scoring, the skill being optimized. The framework reaches all of it through
 `pack.yaml` and command stdout, never through an import, so a pack can be
 written in any language and can live outside this repo.
 
-Two packs are in tree: coding-tasks, the real one, and synthetic, the control.
+Three packs are in tree: coding-tasks, the real one; synthetic, the control; and harbor-hello, a Harbor task generated into a pack (§ Environments).
 
 ## packs/coding-tasks (public, immediate truth)
 
@@ -46,11 +46,11 @@ Nothing else about the attempt is contract — not the shape of the attempt id,
 not where the runner keeps its own step markers. A pack that needs more reads
 it from the token or the token grows a field.
 
-## Environments (planned)
+## Environments
 
-Today every attempt and every pack command runs on the host, in a sealed
+By default every attempt and every pack command runs on the host, in a sealed
 directory. The `environments` seam (`architecture.md` § Plugins) puts a
-provider between the two — `local` (today's directory, the default), `docker`,
+provider between the two — `local` (that directory, the default), `docker`,
 `modal`, and, planned, `harbor` — and a pack says what it needs of it:
 
 ```yaml
@@ -64,7 +64,9 @@ commands:
 ```
 
 A task row may carry an `environment` column that overrides the pack's default
-(a Harbor task has its own `environment/` directory). `materialize` still
+(a Harbor task has its own `environment/` directory) and a `workdir` column,
+where inside the attempt runs (the image's working directory, which a task's
+tests may assume; absent, the provider's default). `materialize` still
 renders the attempt's files locally; the framework then `put`s them — the skill
 snapshot at the same relative path, `.task/token.json`, the materialized task —
 into the environment's workdir, so `skill_path` in the token still resolves.
@@ -77,14 +79,18 @@ pack whose truth needs the container (`tests/test.sh` writing
 `/logs/verifier/reward.txt|json`) declares it; coding-tasks keeps running its
 commands on the host over a mounted runtime until it moves into an image.
 
-Planned with the seam, outside `packages/`: `tools/pack-from-harbor`, a
-generator that turns a Harbor dataset directory into a pack (one task row per
-task dir, `environment: { dockerfile: <task>/environment }`, `truth` in the
-environment, `score` = `reward` plus one metric per key of `reward.json`, the
-oracle `solution/solve.sh` as the pack's self-check); `samsara import harbor
-<jobs-dir>`, which turns a Harbor job's trials into `attempts` + `scores` rows
-so the gate judges two jobs with a noise floor from a repeated one; and, later,
-a rollout export in Harbor's format.
+Beside the seam, outside `packages/`: `tools/pack-from-harbor`, a generator
+that turns a Harbor dataset directory into a pack (one task row per task dir,
+`environment: { dockerfile: <task>/environment }` and `workdir`, `truth` in
+the environment on bash and coreutils alone — a Harbor image is arbitrary —
+`score` = `reward` plus one metric per key of `reward.json`, the oracle
+`solution/solve.sh` as the pack's self-check, run as the installed loop's
+command); `packs/harbor-hello` is its output for Harbor's hello-world example
+and `tests/harbor.e2e.test.ts` runs it for real on the docker provider (the
+oracle scores 1, a loop that does nothing 0). `samsara import harbor <jobDir>`
+(`packages/runner/README.md`) turns a Harbor job's trials into `attempts` +
+`scores` rows so the gate judges two jobs with a noise floor from a repeated
+one. Later, a rollout export in Harbor's format.
 
 ## What a second pack would need
 

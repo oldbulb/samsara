@@ -222,12 +222,15 @@ const HOST_PROVIDER = 'local'
  * `timeout_s`, else the attempt's wall-clock limit; the env is empty (E5: each
  * exec passes what it needs). The sealed workdir is put in, not mounted; the
  * pack dir is mounted read-only at its own path when a command runs inside,
- * so `sh -c <run>` resolves from it as it does on the host.
+ * so `sh -c <run>` resolves from it as it does on the host. A task row's
+ * `workdir` column is where the attempt runs inside (the image's working
+ * directory, which its tests may assume); absent, the provider's default.
  */
-export function environmentSpecOf(def: PackDefinition, block: PackEnvironment | undefined, attemptId: string, req: Pick<RunRequest, 'maxMinutes'>): EnvironmentSpec {
+export function environmentSpecOf(def: PackDefinition, block: PackEnvironment | undefined, attemptId: string, req: Pick<RunRequest, 'maxMinutes'>, workdir?: string): EnvironmentSpec {
   const resources = block?.resources
   return {
     attemptId,
+    ...(workdir !== undefined ? { workdir } : {}),
     ...(block?.image !== undefined ? { image: { ref: block.image } } : block?.dockerfile !== undefined ? { image: { dockerfileDir: resolve(def.dir, block.dockerfile) } } : {}),
     resources: {
       ...(resources?.cpus !== undefined ? { cpus: resources.cpus } : {}),
@@ -239,6 +242,19 @@ export function environmentSpecOf(def: PackDefinition, block: PackEnvironment | 
     env: {},
     mounts: Object.values(def.commandSpecs).some((c) => c?.inEnvironment) ? [{ from: def.dir, to: def.dir, readOnly: true }] : [],
   }
+}
+
+/**
+ * One deadline bounds the attempt, so the exec's clock and the environment's
+ * lifetime never disagree: the request's wall-clock cap (`--max-minutes`),
+ * tightened to the environment block's `timeout_s` when it declares a smaller
+ * one — the loop's `maxDurationMs`, the challenger's declared limits and its
+ * `runtime.timeout_s` all derive from it.
+ */
+export function attemptDeadlineMs(req: Pick<RunRequest, 'maxMinutes'>, block: PackEnvironment | undefined): number {
+  const wallMs = Math.round(req.maxMinutes * 60_000)
+  const declared = block?.resources?.timeout_s
+  return declared === undefined ? wallMs : Math.min(wallMs, declared * 1000)
 }
 
 /**
@@ -349,7 +365,7 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
     facts = readStep(attemptDir, 'materialize')?.environment
   } else if (deps.environments) {
     try {
-      const spec = environmentSpecOf(def, task.environment ?? def.manifest.environment, attemptId, req)
+      const spec = environmentSpecOf(def, task.environment ?? def.manifest.environment, attemptId, req, typeof task['workdir'] === 'string' ? task['workdir'] : undefined)
       environment = await deps.environments.open(req.env ?? HOST_PROVIDER, designed ? spec : { ...spec, workdir: attemptDir })
     } catch (e) {
       const row = emptyRow(attemptId, task, req.loop, provider ? factsSha(provider.harnessFacts) : '')
@@ -421,8 +437,10 @@ async function attempt(
       route: { ...deps.route },
       outputSchema: def.contractSchema,
       tools: { allow: req.allow ?? [], deny: def.denyPatterns, submitTool: { name: submitToolName(def), schema: def.contractSchema } },
-      limits: { maxTurns: req.maxTurns, maxDurationMs: Math.round(req.maxMinutes * 60_000) },
+      limits: { maxTurns: req.maxTurns, maxDurationMs: attemptDeadlineMs(req, task.environment ?? def.manifest.environment) },
       tmpdir: wd.tmpdir,
+      // The host copy of the workdir: where an installed loop lands what it fetches back (its transcript, the submit).
+      localWorkdir: wd.localPath,
       signal: controller.signal,
       // E9: the loop's subprocesses see the workdir, the pack's skill/ and loader/, and its runtimes; enforced on Linux only.
       sandbox: policyFor({ ...policyPaths(wd.path, def), homeDir: homedir() }),
@@ -544,7 +562,7 @@ export function writeEnvLock(runDir: string, lock: EnvLock): EnvLock {
 export function championProposal(def: PackDefinition, book: Book, req: RunRequest, deps: Pick<RunDeps, 'loops' | 'route' | 'championSkillDir'>, lock: EnvLock = envLockOf(def, req.loop)): ChallengerProposal {
   const provider = deps.loops.get(req.loop)
   const harness_sha = provider ? factsSha(provider.harnessFacts) : NONE_SHA
-  const limits = { maxTurns: req.maxTurns, maxDurationMs: Math.round(req.maxMinutes * 60_000) }
+  const limits = { maxTurns: req.maxTurns, maxDurationMs: attemptDeadlineMs(req, def.manifest.environment) }
   const effort = deps.route.reasoning?.['effort']
   const skill_sha = hashDir(req.skillDir ?? deps.championSkillDir ?? def.skillDir)
   const environment_sha = declaredEnvironmentSha(def, req)
@@ -579,7 +597,7 @@ export function championProposal(def: PackDefinition, book: Book, req: RunReques
     task_version: def.manifest.tasks.version ?? 0,
     truth_snapshot_id: book.tasksetSha(req.set),
     report_rule_version: '0',
-    runtime: { timeout_s: Math.round(req.maxMinutes * 60), step_cap: req.maxTurns },
+    runtime: { timeout_s: Math.round(limits.maxDurationMs / 1000), step_cap: req.maxTurns },
     tasksets: { smoke: book.tasksetSha('smoke'), holdin: book.tasksetSha('holdin'), holdout: book.tasksetSha('holdout') },
     budget: def.manifest.holdout?.budget ?? 0,
   }
@@ -624,6 +642,11 @@ export async function runSet(input: RunRequest, deps: RunDeps): Promise<RunResul
   const record = input.resume ? readRunRecord(input.out) : undefined
   const req: RunRequest = record ? { ...record.request, out: input.out, resume: true } : input
   if (req.env !== undefined && deps.environments === undefined) throw new Error(`environment provider ${req.env} was asked for but no environments registry is mounted`)
+  // A host-side loop runs the agent on this host: another provider's workdir is not a path here, so refuse before anything opens.
+  const loopProvider = deps.loops.get(req.loop)
+  if (loopProvider && !loopProvider.capabilities.installed && (req.env ?? HOST_PROVIDER) !== HOST_PROVIDER) {
+    throw new Error(`loop ${req.loop} runs on the host; --env ${req.env} needs an installed loop`)
+  }
   const def = loadPack(req.pack)
   const book = bookOf(def)
   const runId = record?.runId ?? deps.runId ?? newRunId()

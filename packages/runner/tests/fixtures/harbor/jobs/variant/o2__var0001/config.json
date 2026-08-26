@@ -1,0 +1,14 @@
+{
+    "task": {
+        "path": "/tasks/o2"
+    },
+    "trial_name": "o2__var0001",
+    "trials_dir": "/jobs/variant",
+    "agent": {
+        "name": "oracle",
+        "skills": [
+            "skills/terse"
+        ]
+    },
+    "job_id": "1671c071-5734-595f-b6d6-c40b9cb2ad2e"
+}

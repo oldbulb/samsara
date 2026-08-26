@@ -7,14 +7,14 @@
 // publication, and the skill snapshot the loop was handed is the one it hands
 // back.
 
-import { createHash } from 'node:crypto'
-import { readdirSync, readFileSync, type Dirent } from 'node:fs'
-import { join, relative, sep } from 'node:path'
+import { join } from 'node:path'
 import { Context, Service } from '@oldbulb/samsara-kernel'
+import { INSTALLED_DIR, treeSha } from './installed.ts'
 import type { AttemptSpec, FinishedEvent, LoopEvent, LoopProvider, LoopRun } from './types.ts'
 
 export * from './types.ts'
 export { NullLoopProvider, NULL_HARNESS_FACTS, type NullLoopOptions } from './null.ts'
+export { InstalledLoopProvider, harnessFactsOf as installedHarnessFactsOf, renderCommand, treeSha, INSTALLED_DIR, TOKEN_PATH, type InstalledLoopOptions, type InstalledLoopDeps } from './installed.ts'
 export { toSpans, toResourceSpans, OTEL_SCOPE_NAME } from './otel.ts'
 export type { AttemptMeta, OtlpSpan, OtlpAttribute, OtlpValue, OtlpResourceSpans } from './otel.ts'
 
@@ -62,44 +62,43 @@ export class LoopRegistry extends Service {
    * Start an attempt on the named provider. Rejects only if the provider
    * rejects before publication; afterwards every failure surfaces as a
    * synthesized `finished{status:'FAILED', stopReason:'error'}`. An attempt
-   * that finishes with `spec.skill.dir` changed did not run the configuration
+   * that finishes with its skill snapshot changed (on this host, or fetched
+   * back from an installed loop's environment) did not run the configuration
    * it was given: it finishes FAILED/error too, usage and cost kept.
    */
   async start(name: string, spec: AttemptSpec): Promise<LoopRun> {
     const provider = this.providers.get(name)
     if (!provider) throw new LoopRegistryError(`no loop provider named "${name}"`, 'UNKNOWN_PROVIDER')
-    const sealed = treeSha(spec.skill.dir)
+    const intact = skillIntact(provider, spec)
     const inner = await provider.start(spec)
-    return wrapRun(inner, spec.attemptId, () => treeSha(spec.skill.dir) === sealed)
+    return wrapRun(inner, spec.attemptId, intact)
   }
 }
 
 // ---------------------------------------------------------------- skill snapshot
 
-/** sha256 over the sorted (relative posix path, bytes) pairs under `dir`; a missing directory hashes as empty. Symlinks are not followed. */
-function treeSha(dir: string): string {
-  const files: string[] = []
-  const walk = (d: string) => {
-    let entries: Dirent[]
-    try {
-      entries = readdirSync(d, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const e of entries) {
-      const abs = join(d, e.name)
-      if (e.isDirectory()) walk(abs)
-      else if (e.isFile()) files.push(abs)
+/**
+ * The integrity check `start` seals before the run. On this host the snapshot
+ * is hashed in place, before and after. An installed loop whose workdir is
+ * elsewhere (`spec.workdir !== spec.localWorkdir`) has its snapshot inside the
+ * environment where the host path does not exist, so the after-image is
+ * fetched back and compared with the sealed sha the spec carries — and with
+ * nowhere to land it (no `localWorkdir`) the check is not claimed at all
+ * rather than vacuously passed.
+ */
+function skillIntact(provider: LoopProvider, spec: AttemptSpec): (() => boolean | Promise<boolean>) | undefined {
+  const environment = spec.environment
+  if (provider.capabilities.installed && environment !== undefined && spec.workdir !== spec.localWorkdir) {
+    const local = spec.localWorkdir
+    if (local === undefined) return undefined
+    return async () => {
+      const dest = join(local, INSTALLED_DIR, 'skill')
+      await environment.get(spec.skill.dir, dest).catch(() => {})
+      return treeSha(dest) === spec.skill.sha
     }
   }
-  walk(dir)
-  const h = createHash('sha256')
-  for (const abs of files.sort()) {
-    const rel = relative(dir, abs).split(sep).join('/')
-    const bytes = readFileSync(abs)
-    h.update(rel).update('\0').update(String(bytes.length)).update('\0').update(bytes)
-  }
-  return h.digest('hex')
+  const sealed = treeSha(spec.skill.dir)
+  return () => treeSha(spec.skill.dir) === sealed
 }
 
 // ---------------------------------------------------------------- run wrapping
@@ -155,17 +154,23 @@ class EventQueue implements AsyncIterable<LoopEvent> {
  * until the first 'finished' (drop anything after), and if the stream ends
  * or throws without one, synthesize FAILED/error. `result` settles from the
  * same stream so it agrees with `events` and never rejects. `intact`, checked
- * once at finish, downgrades the finished event to FAILED/error when false.
+ * once at finish (it may be async: an installed loop's after-image is fetched),
+ * downgrades the finished event to FAILED/error when false or throwing.
  */
-export function wrapRun(inner: LoopRun, id: string = inner.id, intact?: () => boolean): LoopRun {
+export function wrapRun(inner: LoopRun, id: string = inner.id, intact?: () => boolean | Promise<boolean>): LoopRun {
   const queue = new EventQueue()
   let finished: FinishedEvent | undefined
   let resolveResult!: (e: FinishedEvent) => void
   const result = new Promise<FinishedEvent>(resolve => { resolveResult = resolve })
 
-  const finish = (event: FinishedEvent) => {
+  const finish = async (event: FinishedEvent) => {
     if (finished) return
-    finished = intact && !intact() ? { ...event, status: 'FAILED', stopReason: 'error' } : event
+    let ok = true
+    if (intact) {
+      try { ok = await intact() } catch { ok = false }
+    }
+    if (finished) return
+    finished = ok ? event : { ...event, status: 'FAILED', stopReason: 'error' }
     queue.push(finished)
     queue.close()
     resolveResult(finished)
@@ -175,13 +180,13 @@ export function wrapRun(inner: LoopRun, id: string = inner.id, intact?: () => bo
     try {
       for await (const event of inner.events) {
         if (finished) break
-        if (event.t === 'finished') { finish(event); break }
+        if (event.t === 'finished') { await finish(event); break }
         queue.push(event)
       }
     } catch {
       // fall through: a throwing stream is a provider error after publication
     }
-    finish(failedEvent())
+    await finish(failedEvent())
   })()
   // The provider's own result is not consulted; swallow it so a rejection is not unhandled.
   inner.result.catch(() => {})

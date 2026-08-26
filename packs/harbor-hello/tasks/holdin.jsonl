@@ -1,0 +1,1 @@
+{"task_id":"harbor/hello-world","entity_key":"hello-world","stratum":"harbor-hello","dir":"harbor/hello-world","environment":{"dockerfile":"harbor/hello-world/environment","resources":{"cpus":1,"memory_mb":2048},"network":"public"},"workdir":"/app","verifier_timeout_s":120,"agent_timeout_s":120}

@@ -1,0 +1,13 @@
+name: harborpack
+truth_latency: immediate
+skill: { dir: skill/, name: harbor }
+contract: contract.schema.json
+tasks:
+  sets: { smoke: tasks/smoke.jsonl, holdin: tasks/holdin.jsonl, holdout: tasks/holdout.jsonl }
+  entity_key: entity_key
+holdout: { mde: 0.1, budget: 4 }
+surfaces:
+  skill: { globs: ["skill/**"] }
+commands:
+  truth: ./bin/truth
+  score: ./bin/score

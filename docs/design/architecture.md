@@ -21,7 +21,7 @@ samsara/
 │   ├── gate/            ctx.gate      pure statistics + verdict(tier, policy); rejects judge-kind scores by type
 │   ├── signoff/         ctx.signoff   consent channel unreachable from sandboxes (unix socket / signed nonce)
 │   ├── loops/           ctx.loops     seam: AttemptSpec / LoopRun / HarnessFacts + registry
-│   ├── loops-dsh/  loops-claude-code/  (later: loops-codex/  loops-pi/; planned: loops-installed/  loops-harbor/ — agents run inside the environment)
+│   ├── loops-dsh/  loops-claude-code/  (later: loops-codex/  loops-pi/); loops/installed — the agent runs inside the environment (planned: loops-harbor/)
 │   ├── workdir/         ctx.workdir   sealed per-attempt workspace: task token, skill snapshot, TMPDIR, pre-tool guard
 │   ├── environments/    ctx.environments  registry: where an attempt runs; providers local, docker, modal (planned: harbor)
 │   ├── submit/                        submit_<name> tool → <cwd>/<name>.json; host validates
@@ -135,8 +135,8 @@ runtime:                                         # optional; what the commands a
   dirs: [runtime/py, runtime/js]                 # granted read-only to the sandboxed subprocess
   locks: ["runtime/py/requirements.txt", "runtime/py/.venv/lib/*/site-packages/*.dist-info/METADATA", "runtime/js/pnpm-lock.yaml"]   # every match is hashed into env_sha (E3)
   env: [CODING_TASKS_PYTHON]                     # host environment names the commands may see beside PATH, HOME, the locale, TZ, TERM and TMPDIR (E5)
-environment:                                     # optional (planned seam `environments`); where the attempts run; absent → the host, provider `local`
-  image: <ref>                                   # or `dockerfile: <dir>` — one of the two; a task row may carry an `environment` column that overrides this default
+environment:                                     # optional (seam `environments`); where the attempts run; absent → the host, provider `local`
+  image: <ref>                                   # or `dockerfile: <dir>` — one of the two; a task row may carry an `environment` column that overrides this default, and a `workdir` column: where the attempt runs inside (the image's working directory)
   resources: { cpus: 2, memory_mb: 4096, timeout_s: 1800 }   # optional
   network: none                                  # optional: none | allowlist | public
 holdout:
@@ -150,7 +150,7 @@ commands:
   truth: ./bin/truth          # stdin: tasks.jsonl, args: --as-of <t>  → stdout jsonl {task_id, status: settled|pending, truth, truth_sha}
   score: ./bin/score          # stdin: {truth, outputs} jsonl           → stdout jsonl {task_id, metric, value, kind: mechanical|reality|judge, stratum?, side_info?}
                               # every pack must emit a cost metric (kind: mechanical) per task
-                              # a command may be written `{ run: ./bin/truth, in_environment: true }` (planned): it runs through the environment's `exec`
+                              # a command may be written `{ run: ./bin/truth, in_environment: true }`: it runs through the environment's `exec`
                               # inside the attempt's environment, with the same jsonl on stdin/stdout; the plain string form runs on the host
   data:  ./bin/data           # optional; runs INSIDE the sandbox; reads .task/token.json; never takes time args
   materialize: ./bin/materialize   # optional; pre-renders per-task files into the workdir (pack mode)
@@ -158,7 +158,7 @@ guards:
   deny_patterns: ["--cutoff", "--as-of"]         # pre-tool guard in the sandbox
 ```
 
-Rules: commands are subprocesses, never imported; stdout is validated against the contract above; `kind: judge` rows are stored, displayed, may carry structured `side_info` back to the proposer, and may steer smoke/holdin, but are rejected by the gate at the type level for any verdict; a scorer version bump happens only at a settlement boundary with sign-off and re-scores ancestors; a pack may vendor any code it likes behind its commands. The `environment` block (planned) is the pack's default and a task row's `environment` column overrides it (a Harbor task carries its own `environment/`); a pack whose truth needs the container (Harbor's `tests/test.sh`) marks the command `in_environment: true`, while a pack whose runtime is mounted keeps running its commands on the host — the protocol on stdio is the same either way. Planned beside it, outside `packages/`: `tools/pack-from-harbor` (a Harbor dataset directory → a pack with one row per task, `truth` in the environment reading `/logs/verifier/reward.*`, `score` = `reward`), `samsara import harbor <jobs-dir>` (a Harbor job's trials → `attempts` + `scores` rows so the gate judges Harbor's numbers) and a rollout export of ledger attempts + loop transcripts in Harbor's format.
+Rules: commands are subprocesses, never imported; stdout is validated against the contract above; `kind: judge` rows are stored, displayed, may carry structured `side_info` back to the proposer, and may steer smoke/holdin, but are rejected by the gate at the type level for any verdict; a scorer version bump happens only at a settlement boundary with sign-off and re-scores ancestors; a pack may vendor any code it likes behind its commands. The `environment` block is the pack's default and a task row's `environment` column overrides it (a Harbor task carries its own `environment/`), its `workdir` column says where inside the attempt runs; a pack whose truth needs the container (Harbor's `tests/test.sh`) marks the command `in_environment: true`, while a pack whose runtime is mounted keeps running its commands on the host — the protocol on stdio is the same either way. Beside it, outside `packages/`: `tools/pack-from-harbor` (a Harbor dataset directory → a pack with one row per task, `truth` in the environment reading `/logs/verifier/reward.*`, `score` = `reward`; packs/harbor-hello is its output for Harbor's hello-world example, run for real in `tests/harbor.e2e.test.ts`) and `samsara import harbor <jobDir>` (a Harbor job's trials → `attempts` + `scores` rows so the gate judges Harbor's numbers; packages/runner/README.md); planned, a rollout export of ledger attempts + loop transcripts in Harbor's format.
 
 ## Coordinates and comparability
 
@@ -176,7 +176,7 @@ A challenger row carries a coordinate tuple; its id is the sha of the tuple.
 | `skill_sha` | the skill served (= the patch when `surface = skill`, else inherited from the parent) | derived |
 | `harness_sha` | the harness **definition**: sha of the scope's composed loader entries after the patch | `scope.open` |
 | `env_sha` | the process environment lock | `scope.open` |
-| `environment_sha` | the environment the attempts run in: sha of the image digest (or ref), the resources and the network policy; absent for host-side attempts (the `local` provider), in which case the id formula below is unchanged | `environments.open` (planned with the seam) |
+| `environment_sha` | the environment the attempts run in: sha of the image digest (or ref), the resources and the network policy; absent for host-side attempts (the `local` provider), in which case the id formula below is unchanged | `environments.open` |
 | `route` | `{loop, loop_adapter_version, model_id, effort, model_pool_sha, base_url_kind}` | profile |
 | `runtime` | `{timeout_s, step_cap}` | profile |
 | `eval_config_sha` | the evaluation configuration (below) | book |

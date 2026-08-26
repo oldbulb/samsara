@@ -16,6 +16,9 @@ import {
   type LoopEvent,
 } from '../src/index.ts'
 import * as pluginNull from '../src/plugin-null.ts'
+import { InstalledLoopProvider } from '../src/installed.ts'
+import { capabilities as claudeCodeCapabilities } from '../../loops-claude-code/src/index.ts'
+import { DshLoopProvider } from '../../loops-dsh/src/index.ts'
 
 function spec(attemptId = 'att-1'): AttemptSpec {
   return {
@@ -43,7 +46,7 @@ function fakeProvider(name: string, events: () => AsyncIterable<LoopEvent>): Loo
   return {
     name,
     harnessFacts: { systemPromptMode: 'none', skillDelivery: 'prompt-inline', schemaEnforcement: 'permissive-tool', permission: 'none', reasoning: {}, envelope: { config: 'absent', system: 'absent', tools: 'absent' }, version: { loop: 'fake' } },
-    capabilities: { perAttemptBaseUrl: false, perAttemptEnv: false, nativeSchema: 'none', toolFilter: false, nativeMaxTurns: false },
+    capabilities: { perAttemptBaseUrl: false, perAttemptEnv: false, nativeSchema: 'none', toolFilter: false, nativeMaxTurns: false, installed: false },
     async start(s): Promise<LoopRun> {
       let rejectResult!: (e: unknown) => void
       const result = new Promise<never>((_, reject) => { rejectResult = reject })
@@ -136,6 +139,13 @@ describe('NullLoopProvider', () => {
     await configured.plugin(pluginNull, { submit: { answer: 'y' } })
     await collectEvents(await configured.loops.start('null', { ...spec(), workdir }))
     expect(readSubmit(workdir, 'submit')?.value).toEqual({ answer: 'y' })
+  })
+
+  it('every built-in provider says where it runs: only the installed loop runs inside the environment', () => {
+    expect(new NullLoopProvider().capabilities.installed).toBe(false)
+    expect(new DshLoopProvider(new Context(), {}).capabilities.installed).toBe(false)
+    expect(claudeCodeCapabilities.installed).toBe(false)
+    expect(new InstalledLoopProvider({ command: ['true'] }).capabilities.installed).toBe(true)
   })
 
   it('has stable harness facts', () => {

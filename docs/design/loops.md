@@ -22,6 +22,8 @@ interface AttemptSpec {
   env?: Record<string, string>           // explicit credential/route injection (E5); never inherited wholesale
   tmpdir: string                         // per-attempt TMPDIR (E6)
   signal: AbortSignal
+  environment?: Environment              // where the attempt runs (`environments` seam); every path above is inside it
+  localWorkdir?: string                  // the host copy of workdir: where an installed loop lands what it fetches back
 }
 
 type LoopEvent =
@@ -53,7 +55,7 @@ interface LoopRun {
 interface LoopProvider {
   readonly name: string                  // 'dsh' | 'claude-code' | 'codex' | 'pi'
   readonly harnessFacts: HarnessFacts    // static; stored per attempt as facts_sha — rows with different facts are not A/B-comparable
-  readonly capabilities: { perAttemptBaseUrl: boolean; perAttemptEnv: boolean; nativeSchema: 'none' | 'tool' | 'validator'; toolFilter: boolean; nativeMaxTurns: boolean }
+  readonly capabilities: { perAttemptBaseUrl: boolean; perAttemptEnv: boolean; nativeSchema: 'none' | 'tool' | 'validator'; toolFilter: boolean; nativeMaxTurns: boolean; installed: boolean }   // installed: the agent runs inside the environment (§ Host-side and installed loops)
   start(spec: AttemptSpec): Promise<LoopRun>   // rejects only before publication, after cleaning partial resources
 }
 
@@ -65,6 +67,7 @@ interface HarnessFacts {
   reasoning: Record<string, unknown>
   envelope: { config: Fidelity; system: Fidelity; tools: Fidelity }   // how faithfully this loop reports each envelope field; static, so part of facts_sha
   version: { loop: string; sdk?: string }   // dsh pin / claude-agent-sdk version / codex version
+  sandbox?: 'landlock' | 'none' | 'environment'   // what confines the agent's subprocesses: the host policy, nothing, or the environment it runs in
 }
 
 type Fidelity = 'exact' | 'proxy' | 'absent'
@@ -96,13 +99,14 @@ Fidelity is part of `facts_sha`, so it is a ledger coordinate the gate already h
 
 A proxy is only as good as its stand-in. The SDK version is in the hash because a preset changes between versions; a loop whose stand-in can drift without a version change must say so in `harnessFacts` rather than report `proxy`.
 
-## Host-side and installed loops (planned)
+## Host-side and installed loops
 
-With the `environments` seam (`architecture.md` § Plugins) `AttemptSpec` gains
-`environment: Environment`, and loops split by where the agent runs:
+With the `environments` seam (`architecture.md` § Plugins) `AttemptSpec` carries
+`environment: Environment`, and loops split by where the agent runs, declared
+by `capabilities.installed`:
 
-- **host-side loops** — the in-process dsh agent (`loops-dsh`) and the Claude Agent SDK on the host (`loops-claude-code`) — run the agent on the host against the workdir and require the `local` provider; an in-process dsh loop cannot run inside a remote environment.
-- **installed loops** run the agent inside the environment: `loops-installed` invokes `dsh` headless, `claude`, `codex`, … through `Environment.exec` and reads the transcript and usage back with `get`. `loops-harbor` is an installed loop that delegates to Harbor's `BaseInstalledAgent` implementations through the Harbor shim, so every agent Harbor supports is a samsara loop and `certify` compares a skill across all of them.
+- **host-side loops** (`installed: false`) — the null loop, the in-process dsh agent (`loops-dsh`) and the Claude Agent SDK on the host (`loops-claude-code`) — run the agent on the host against the workdir and require the `local` provider; the runner refuses them on any other provider before anything opens, since an in-process dsh loop cannot run inside a remote environment.
+- **installed loops** (`installed: true`) run the agent inside the environment. `installed` (row `loops-installed`, `packages/loops/src/installed.ts`) execs a configured command there — `dsh` headless, `claude`, `codex`, a Harbor task's oracle — with `{workdir}`, `{skill}` and `{attempt}` filled in per attempt, and reads the transcript and the submit back with `get` into `localWorkdir`; one exec is the attempt (exit 0 `COMPLETED`, the deadline `TRUNCATED`), usage is unknown, `sandbox` is `environment`. Planned: `loops-harbor`, an installed loop that delegates to Harbor's `BaseInstalledAgent` implementations through the Harbor shim, so every agent Harbor supports is a samsara loop and `certify` compares a skill across all of them.
 
 Under both, the loop reports the same events with the same `HarnessFacts`, and the environment's own facts (provider@version, image digest, resources, network) join the attempt's `facts_sha`. For a dsh loop in a remote environment, `dsh` headless is installed in the image — the same shape as Harbor's installed agents.
 

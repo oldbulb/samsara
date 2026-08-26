@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# bin/oracle <workdir>/.task/token.json: Harbor's oracle agent for the attempt
+# the token names — the task's solution/ copied to /solution and `bash
+# /solution/solve.sh` run from the working directory under the task.toml agent
+# timeout, its output on stdout, its exit code this one's. Runs in the
+# environment on bash and coreutils alone; not a pack command but the pack's
+# self-check: the installed loop's command `[bash, <pack>/bin/oracle,
+# '{attempt}']`, on which truth must give the full reward.
+set -euo pipefail
+. "$(dirname "$0")/lib.sh"
+
+token=${1:?usage: oracle <workdir>/.task/token.json}
+workdir=$(cd "$(dirname "$token")/.." && pwd)
+task_id=$(json_string "$(tr -d '\n' < "$token")" taskId)
+row=$(task_row "$task_id")
+code=0
+run_script "$PACK/$(json_string "$row" dir)/solution" "$SOLUTION_DIR" solve.sh "$workdir" "$(json_number "$row" agent_timeout_s)" "DEBIAN_FRONTEND=noninteractive
+$(json_env "$row" solution_env)" "" || code=$?
+exit "$code"

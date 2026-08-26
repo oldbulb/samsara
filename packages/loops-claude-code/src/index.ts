@@ -51,6 +51,7 @@ export const capabilities: LoopCapabilities = {
   nativeSchema: 'none',
   toolFilter: true,
   nativeMaxTurns: true,
+  installed: false,
 }
 
 type ProviderContext = Pick<Context, 'effect' | 'subprocess' | 'credentials'>

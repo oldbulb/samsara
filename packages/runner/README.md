@@ -35,9 +35,13 @@ Every attempt runs in one environment opened on `ctx.environments` (`@oldbulb/sa
 `--env` names (`local` by default: a directory on this host; `docker` where the row is enabled). The spec comes from
 the pack's `environment` block (a task row's `environment` column overrides it): image ref or dockerfile dir, resources
 (`timeout_s` else `--max-minutes`), network (`none` unless declared). The sealed workdir is put into it, the loop gets it
-as `AttemptSpec.environment` (host-side loops need `local`), the pack's `in_environment` commands run through its `exec`,
-the submit file is handed back with `get`, and the environment is disposed with the attempt — and with the challenger's
-scope (E4). The provider's facts land on the attempt row (`environment`) and in its `facts_sha`; on a provider other than
+as `AttemptSpec.environment` (with `localWorkdir`, the host copy of the attempt dir), the pack's `in_environment` commands
+run through its `exec`, the submit file is handed back with `get`, and the environment is disposed with the attempt — and
+with the challenger's scope (E4). Loops split by where the agent runs (`LoopCapabilities.installed`; packages/loops/README.md):
+a host-side loop (`null`, `dsh`, `claude-code`) needs `local`, and `runSet` refuses it on any other provider before anything
+opens (`loop <name> runs on the host; --env <p> needs an installed loop`); an installed loop (`installed`, row
+`loops-installed`: the agent in the image, run through `exec`) runs on any provider, its transcript and submit fetched
+back into the attempt dir. The provider's facts land on the attempt row (`environment`) and in its `facts_sha`; on a provider other than
 `local` the champion and challenger rows carry `environment_sha` (rule 0) computed from the declared image ref, not from
 a probe open. `--env` is on `run`, `challenge`, `round`, `certify`, `calibrate`, `campaign`, `control` (and `propose`,
 where nothing runs).
@@ -192,6 +196,61 @@ then `lifecycle.decide` on the row's open round (`--round <id>` names it): the s
 candidate — the largest lower CI bound among its promote verdicts — which must be this row, writes the serving row
 and supersedes the other promotes. `demote <id> --reason …` needs a `demote` consent the same way (`--wait`), then
 `lifecycle.demote`.
+
+```
+dsh --profile host import harbor <jobDir> --pack <dir> --as <champion|challenger|noise-floor> --metric <name>
+                                 [--set <smoke|holdin|holdout>] [--intent <text>] [--allow-subset] [--champion <id>] [--n-eff-floor n] [--out <dir>]
+```
+
+`import harbor` (`src/import-harbor.ts`, `src/harbor.ts`; docs/design/notes/environments-harbor-modal § 3): a Harbor job
+directory — `<job>/<trial>/{config.json, result.json, verifier/reward.txt|json}`, as Harbor 0.22.0 writes it — into the
+ledger without running anything. `readHarborJob` reads every trial (result.json, its embedded config or config.json, the
+reward file when the result carries no `verifier_result`; unknown fields ignored, a subdirectory without result.json
+skipped) and refuses a job that mixes agents or environment types. `harborAttempts` maps each trial to one `attempts`
+row — `task_id` = the task name, `sample` = the trial's index among its task's trials in creation order,
+`loop = harbor:<agent name>@<version>`, `COMPLETED` unless `exception_info` (`FAILED`, the exception type as the stop
+reason), tokens and cost from the agent context (cache tokens kept, wall time from `agent_execution`), `facts_sha` over
+the agent info + environment type + task checksum, the trial directory as its artifact, the output valid when a reward
+exists — and one `scores` row per reward key (`reward` from reward.txt, each key of reward.json; kind `reality`; the
+task's checksum as the truth snapshot, so S6 pairs on the task Harbor verified). The job's task names must be the task ids
+of `--set` (default `holdin`); `--allow-subset` accepts a job that ran only some of them, never one that ran others.
+
+The job's coordinates (`harborChampion`): the agent/model as the route (`model_id` from `agent_info.model_info`, else
+the configured model name), its identity as `harness_sha`, the environment type/kwargs/resources and agent kwargs as
+`env_sha`, the declared skill sources (`agent.skills`) as `skill_sha`, the sorted task checksums as `truth_snapshot_id`,
+sha256 of the job id as `optimizer_config_sha`. Rule 0 is the service's: two jobs judge against each other only when they
+share agent, environment, task set and pack — the gate compares patches (a skill variant run twice), not agents; a job of
+another agent is `NOT_COMPARABLE` on `harness_sha`.
+
+- `--as champion`: the champion row of the job (`ledger.propose`, idempotent) and its trials as attempts + scores on the tier.
+- `--as noise-floor`: the same, plus a `noise_floors` row for a job with >= 3 trials per task, measured as `calibrate`
+  measures it (per entity the mean over its tasks per rerun = sample, the paired difference between every two reruns).
+  Rounds find the floor by champion row, so calibrate with the champion job itself (its id names the row).
+- `--as challenger`: the whole `challenge` chain through `ctx.lifecycle` — `openRound` on the champion with the job's
+  coordinates (the latest such row on the ledger, or `--champion <id>`) → `propose` (the job as a challenger of it,
+  `--intent` on the row) → `open` (the scope opens on an empty skill directory under `--out`: the import carries no
+  snapshot) → `run` on `--set` → `judge` → `decide`. Nothing runs: the plugin mounts `HarborReplay` as `ctx.executor` for
+  this command, which records the imported rows for the challenger the service asks it to run and nothing for any other
+  row, so a champion without a pair on every (task, sample) the job ran leaves the row invalid on the run invariant
+  (`coordinates:facts`) and closes the round. A holdout judgement needs the champion's noise floor on the ledger first.
+
+The output names the job, the rows recorded, the champion / challenger / round ids, and the verdict (or the floor).
+`tests/fixtures/harbor/gen.py` writes the fixture jobs from Harbor's own models (a Harbor venv is needed only to
+regenerate them; the JSON is committed): `oracle` (3 tasks × 3 trials, the champion and its floor), `variant` (the same
+agent with a skill declared, 3 × 2, the challenger) and `other` (another agent on a subset, one failed trial).
+
+The other direction — Harbor's tasks run *by* samsara — is a pack `tools/pack-from-harbor` generates (packs/harbor-hello
+is Harbor's own example task so generated; docs/design/packs.md § Environments), with the task's own image on the
+docker provider and the installed loop as the agent. A job of those tasks imported, and the same tasks run here:
+
+```
+dsh --profile host import harbor <jobDir> --pack packs/harbor-hello --as champion --metric reward
+dsh --profile host run --pack packs/harbor-hello --loop installed --env docker --set smoke
+```
+
+The `run` needs the profile's `environments-docker` row on and `loops-installed` configured with the agent's command
+(`[bash, <abs pack dir>/bin/oracle, '{attempt}']` is Harbor's oracle: every attempt must score `reward` 1);
+`tests/harbor.e2e.test.ts` drives exactly that through `runSet` wherever a docker daemon is.
 
 ```
 dsh --profile host gate bench --attempts <attempts.jsonl> --tasks <tasks.jsonl> --metric <name>

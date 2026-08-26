@@ -106,6 +106,21 @@
         baseUrl: ''
         credentialRef: ''
 
+    # An agent installed in the environment's image, run there through the
+    # environment's exec: the loop `--env docker|modal|…` needs (the loops
+    # above run on this host and need `local`; packages/loops/README.md).
+    # `command` takes `{workdir}`, `{skill}` and `{attempt}` (the token file)
+    # as paths inside the environment; `transcript` / `submit` name paths
+    # inside it fetched back as the transcript artifact and the submit file.
+    # Off by default: the image must carry the agent. The example is the
+    # oracle of a Harbor-style task — its own solution script.
+    - id: loops-installed
+      name: '@oldbulb/samsara-loops/plugin-installed'
+      inject: [loops]
+      disabled: true
+      config:
+        command: [bash, /solution/solve.sh]
+
     # ctx.environments: the registry every environment provider registers on
     # (where an attempt runs; docs/design/notes/environments-harbor-modal-2026-08-26.md).
     - id: environments

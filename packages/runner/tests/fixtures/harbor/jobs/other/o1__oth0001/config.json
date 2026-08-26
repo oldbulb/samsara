@@ -1,0 +1,15 @@
+{
+    "task": {
+        "path": "/tasks/o1"
+    },
+    "trial_name": "o1__oth0001",
+    "trials_dir": "/jobs/other",
+    "agent": {
+        "name": "other",
+        "model_name": "prov/model-x",
+        "kwargs": {
+            "max_turns": 5
+        }
+    },
+    "job_id": "3d7d682a-0d11-510f-9de4-a38a76aae321"
+}

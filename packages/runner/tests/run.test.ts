@@ -30,7 +30,7 @@ function finished(over: Partial<FinishedEvent> = {}): FinishedEvent {
 function fakeLoops(opts: { submit?: unknown; finish?: FinishedEvent; reject?: boolean; onSpec?: (s: AttemptSpec) => void } = {}): Loops & { disposed: number } {
   const provider: LoopProvider = {
     name: 'fake', harnessFacts: FACTS,
-    capabilities: { perAttemptBaseUrl: false, perAttemptEnv: false, nativeSchema: 'none', toolFilter: false, nativeMaxTurns: false },
+    capabilities: { perAttemptBaseUrl: false, perAttemptEnv: false, nativeSchema: 'none', toolFilter: false, nativeMaxTurns: false, installed: false },
     async start(spec) {
       opts.onSpec?.(spec)
       if (opts.reject) throw new Error('provider exploded before publication')

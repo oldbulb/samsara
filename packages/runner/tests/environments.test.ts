@@ -11,7 +11,7 @@ import { dirname, resolve } from 'node:path'
 import type { Environment, EnvironmentFacts, EnvironmentSpec, ExecOptions } from '@oldbulb/samsara-environments'
 import { attemptRowSchema, challengerId, type AttemptRow as LedgerAttemptRow } from '@oldbulb/samsara-ledger'
 import { factsSha, type AttemptSpec, type FinishedEvent, type HarnessFacts, type LoopEvent, type LoopProvider, type LoopRun } from '@oldbulb/samsara-loops'
-import { declaredEnvironmentSha, environmentCommandEnv, environmentSpecOf, resumableLoop, runSet, championProposal, bookOf, type LedgerSink, type Loops, type RunDeps } from '../src/run.ts'
+import { attemptDeadlineMs, declaredEnvironmentSha, environmentCommandEnv, environmentSpecOf, resumableLoop, runSet, championProposal, bookOf, type LedgerSink, type Loops, type RunDeps } from '../src/run.ts'
 import { readStep, stepPath, writeStep } from '../src/steps.ts'
 import { loadPack } from '@oldbulb/samsara-pack'
 
@@ -83,10 +83,11 @@ function fakeRegistry(packDir: string, fail = false) {
   return registry
 }
 
-function fakeLoops(onSpec: (s: AttemptSpec) => void): Loops {
+/** A loop that writes into `spec.workdir`, the environment's workdir — installed there, as far as the runner can tell — unless `installed` says otherwise. */
+function fakeLoops(onSpec: (s: AttemptSpec) => void, installed = true): Loops {
   const provider: LoopProvider = {
     name: 'fake', harnessFacts: FACTS,
-    capabilities: { perAttemptBaseUrl: false, perAttemptEnv: false, nativeSchema: 'none', toolFilter: false, nativeMaxTurns: false },
+    capabilities: { perAttemptBaseUrl: false, perAttemptEnv: false, nativeSchema: 'none', toolFilter: false, nativeMaxTurns: false, installed },
     async start(spec) {
       onSpec(spec)
       writeFileSync(resolve(spec.workdir, `${spec.tools.submitTool.name}.json`), JSON.stringify({ summary: 'done' }))
@@ -135,6 +136,7 @@ describe('runSet with an environments registry', () => {
     expect(specs[0]!.workdir).toBe(env.workdir)
     expect(specs[0]!.tmpdir).toBe(resolve(env.workdir, '.tmp'))
     expect(specs[0]!.environment).toBe(env)
+    expect(specs[0]!.localWorkdir).toBe(localPath)
     expect(existsSync(resolve(env.workdir, '.agents', 'skills', 'mini', 'SKILL.md'))).toBe(true)
     // the submit came back to the host copy and validated
     expect(env.gets).toEqual([['submit_mini.json', resolve(localPath, 'submit_mini.json')]])
@@ -236,6 +238,7 @@ describe('runSet with an environments registry', () => {
       expect(env.workdir).toBe(attemptDir)
       expect(specs[0]!.workdir).toBe(attemptDir)
       expect(specs[0]!.tmpdir).toBe(resolve(attemptDir, '.tmp'))
+      expect(specs[0]!.localWorkdir).toBe(attemptDir)
       expect(specs[0]!.sandbox?.readWrite).toContain(attemptDir)
       expect(env.puts).toEqual([])
       expect(env.gets).toEqual([])
@@ -280,6 +283,22 @@ describe('runSet with an environments registry', () => {
     const out = mkdtempSync(resolve(tmpdir(), 'runner-env-'))
     await expect(runSet({ pack: MINI, loop: 'fake', set: 'smoke', repeat: 1, out, maxTurns: 5, maxMinutes: 1, env: 'docker' }, { loops: fakeLoops(() => {}), route: ROUTE })).rejects.toThrow(/no environments registry/)
   })
+
+  it('refuses a host-side loop on a provider other than local before anything opens; local and an installed loop are fine', async () => {
+    const out = mkdtempSync(resolve(tmpdir(), 'runner-env-'))
+    const environments = fakeRegistry(MINI)
+    let started = 0
+    const hostSide = fakeLoops(() => started++, false)
+    await expect(runSet({ pack: MINI, loop: 'fake', set: 'smoke', repeat: 1, out, maxTurns: 5, maxMinutes: 1, env: 'docker' }, { loops: hostSide, route: ROUTE, runId: 'run-H', environments }))
+      .rejects.toThrow('loop fake runs on the host; --env docker needs an installed loop')
+    expect(environments.opened).toHaveLength(0)
+    expect(started).toBe(0)
+    expect(existsSync(resolve(out, 'run.json'))).toBe(false)
+    await runSet({ pack: MINI, loop: 'fake', set: 'smoke', repeat: 1, out, maxTurns: 5, maxMinutes: 1, env: 'local' }, { loops: hostSide, route: ROUTE, runId: 'run-H', environments })
+    expect(started).toBe(1)
+    await runSet({ pack: MINI, loop: 'fake', set: 'smoke', repeat: 1, out: mkdtempSync(resolve(tmpdir(), 'runner-env-')), maxTurns: 5, maxMinutes: 1, env: 'docker' }, { loops: fakeLoops(() => started++), route: ROUTE, runId: 'run-I', environments })
+    expect(started).toBe(2)
+  })
 })
 
 describe('environment coordinates', () => {
@@ -292,6 +311,29 @@ describe('environment coordinates', () => {
     // every command on the host: nothing of the pack goes in
     const host = loadPack(MINI)
     expect(environmentSpecOf(host, { image: 'example/image:1' }, 'c', { maxMinutes: 1 })).toEqual({ attemptId: 'c', image: { ref: 'example/image:1' }, resources: { timeoutS: 60 }, network: 'none', env: {}, mounts: [] })
+  })
+
+  it('attemptDeadlineMs: one clock bounds the attempt — the block\'s timeout_s tightens the wall-clock cap and reaches the loop, the declared limits and runtime.timeout_s', async () => {
+    // the helper: min of the two clocks when the block declares one, the wall-clock cap otherwise
+    expect(attemptDeadlineMs({ maxMinutes: 30 }, { resources: { timeout_s: 60 } })).toBe(60_000)
+    expect(attemptDeadlineMs({ maxMinutes: 1 }, { resources: { timeout_s: 3600 } })).toBe(60_000)
+    expect(attemptDeadlineMs({ maxMinutes: 1 }, undefined)).toBe(60_000)
+    expect(attemptDeadlineMs({ maxMinutes: 1 }, { image: 'example/image:1' })).toBe(60_000)
+    // the loop's deadline never outlives the environment's declared lifetime (timeout_s: 30 in the fixture)
+    const pack = packWithEnvironment()
+    const out = mkdtempSync(resolve(tmpdir(), 'runner-env-'))
+    const specs: AttemptSpec[] = []
+    process.env['MINIPACK_MODE'] = 'ok'
+    try {
+      await runSet({ pack, loop: 'fake', set: 'smoke', repeat: 1, out, maxTurns: 5, maxMinutes: 30, env: 'fake' }, { loops: fakeLoops((s) => specs.push(s)), route: ROUTE, runId: 'run-D', environments: fakeRegistry(pack) })
+    } finally {
+      delete process.env['MINIPACK_MODE']
+    }
+    expect(specs[0]!.limits).toEqual({ maxTurns: 5, maxDurationMs: 30_000 })
+    // the champion row declares the same number in both places
+    const def = loadPack(pack)
+    const proposal = championProposal(def, bookOf(def), { pack, loop: 'fake', set: 'smoke', repeat: 1, out, maxTurns: 5, maxMinutes: 30 }, { loops: fakeLoops(() => {}), route: ROUTE })
+    expect(proposal.runtime.timeout_s).toBe(30)
   })
 
   it('declaredEnvironmentSha: absent on local, the declared block elsewhere; the champion row carries it', () => {

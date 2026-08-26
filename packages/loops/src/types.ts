@@ -28,6 +28,13 @@ export interface AttemptSpec {
    * an installed loop runs the agent inside it through `exec`.
    */
   environment?: Environment
+  /**
+   * The host copy of `workdir` (the attempt dir on this host): where an
+   * installed loop lands what it brings back from the environment with `get`
+   * (its transcript, the submit). The same path as `workdir` on the `local`
+   * provider; absent when the host runs the attempt with no environment.
+   */
+  localWorkdir?: string
 }
 
 /**
@@ -109,8 +116,8 @@ export interface HarnessFacts {
   /** Fidelity of each `envelope` field this loop reports. Static per provider, so it is part of facts_sha: rows whose envelopes were seen differently are not A/B-comparable. */
   envelope: { config: EnvelopeFidelity; system: EnvelopeFidelity; tools: EnvelopeFidelity }
   version: { loop: string; sdk?: string }
-  /** Filesystem enforcement the provider's processes ran under on this host. */
-  sandbox?: 'landlock' | 'none'
+  /** Filesystem enforcement the provider's processes ran under: on this host, or the environment's own for an installed loop. */
+  sandbox?: 'landlock' | 'none' | 'environment'
   /** What the attempt ran in, as its provider reported it; set per attempt by the host, so rows from different environments never pool. */
   environment?: EnvironmentFacts
 }
@@ -121,6 +128,12 @@ export interface LoopCapabilities {
   nativeSchema: 'none' | 'tool' | 'validator'
   toolFilter: boolean
   nativeMaxTurns: boolean
+  /**
+   * Where the agent runs: true — inside `AttemptSpec.environment`, through its
+   * `exec`/`get`, on any provider; false — on this host (in this process or as
+   * a child of it), which needs the `local` provider.
+   */
+  installed: boolean
 }
 
 export interface LoopProvider {

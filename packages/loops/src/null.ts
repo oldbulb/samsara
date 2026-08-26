@@ -34,6 +34,7 @@ export class NullLoopProvider implements LoopProvider {
     nativeSchema: 'none',
     toolFilter: false,
     nativeMaxTurns: false,
+    installed: false,
   }
 
   constructor(private readonly options: NullLoopOptions = {}) {}

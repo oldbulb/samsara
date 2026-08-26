@@ -2,8 +2,8 @@
 // into work. It waits for the loader so every loop provider has registered,
 // resolves the route from agentDefaultModel + this plugin's config, dispatches
 // on the command (run / challenge / round / certify / propose / calibrate /
-// control / campaign / experiment new / status / promote / demote / serve /
-// export / gate bench / gate change), prints a summary, and exits through
+// control / campaign / experiment new / import harbor / status / promote /
+// demote / serve / export / gate bench / gate change), prints a summary, and exits through
 // ctx.appExit. It mounts `runSet` as ctx.executor, the attempt executor
 // ctx.lifecycle runs attempts through; every command that changes a
 // challenger or a round calls the service and performs no transition itself.
@@ -34,6 +34,7 @@ import { control, formatControl } from './control.ts'
 import { experimentNew, formatExperiment } from './experiment.ts'
 import { formatStatus } from './status.ts'
 import { campaign, formatCampaign } from './campaign.ts'
+import { HarborReplay, importHarbor, formatImportHarbor } from './import-harbor.ts'
 import { SAMSARA_RUN_SERVICE, type DemoteRequest, type GateChangeRequest, type LedgerBackupRequest, type PromoteRequest, type SamsaraRunValues } from './startup.ts'
 import { createAdapter as createCommandAdapter } from '@oldbulb/samsara-proposers/plugin-command'
 
@@ -92,6 +93,10 @@ export type { CertifyRequest, CertifyDeps, CertifyResult, CertifyRow, CrossCheck
 export { summarize, formatSummary } from './summary.ts'
 export { exportRun, findEventFiles, readEvents, formatExport } from './export.ts'
 export type { ExportRequest, ExportResult, ExportFormat } from './export.ts'
+export { readHarborJob, harborAttempts, harborChampion, harborChallenger, harborLoop, harborFactsSha, trialResultSchema, trialConfigSchema } from './harbor.ts'
+export type { HarborJob, HarborTrial, HarborRows, HarborMapOptions, TrialResult, TrialConfig } from './harbor.ts'
+export { importHarbor, formatImportHarbor, HarborReplay, IMPORT_AS } from './import-harbor.ts'
+export type { ImportAs, ImportHarborRequest, ImportHarborDeps, ImportHarborResult } from './import-harbor.ts'
 
 export interface Io {
   stdout: { write(chunk: string): unknown }
@@ -291,7 +296,7 @@ export function resolveResume(values: SamsaraRunValues): ResolvedValues {
   return values as ResolvedValues
 }
 
-async function run(ctx: Context, config: Config, io: Io): Promise<void> {
+async function run(ctx: Context, config: Config, io: Io, replay: HarborReplay | undefined): Promise<void> {
   // Loader siblings mount concurrently; wait for the whole tree so every loop
   // provider has registered before the first start().
   await ctx.get('loader')?.await()
@@ -311,6 +316,13 @@ async function run(ctx: Context, config: Config, io: Io): Promise<void> {
   if (req.command === 'gate-change') { await gateChange(ctx, req, io); io.exit(0); return }
   if (req.command === 'ledger-backup') { await ledgerBackup(req, io); io.exit(0); return }
   if (req.command === 'status') { io.stdout.write(formatStatus(lifecycle.status()) + '\n'); io.exit(0); return }
+  if (req.command === 'import-harbor') {
+    if (replay === undefined) throw new Error('import harbor: the replay executor was not mounted')
+    const result = await importHarbor({ ...req, out: resolve(req.out) }, { ledger, lifecycle, replay, log: (line) => io.stderr.write(line + '\n') })
+    io.stdout.write(formatImportHarbor(result) + '\n')
+    io.exit(0)
+    return
+  }
   if (req.command === 'experiment-new') {
     io.stdout.write(formatExperiment(await experimentNew(req, { lifecycle, gate: need(ctx, 'gate') })) + '\n')
     io.exit(0)
@@ -407,7 +419,10 @@ export function apply(ctx: Context, config: Config): void {
   const appExit = ctx.get('appExit')
   if (appExit === undefined) throw new Error('samsara-runner: the launcher must provide ctx.appExit before the tree mounts')
   // The attempt executor ctx.lifecycle runs attempts through (run / calibrate / campaign).
-  ctx.provide('executor', { runSet })
+  // `import harbor` mounts the replay instead: the imported trials are the attempts, and nothing runs.
+  const parsed = ctx.get(SAMSARA_RUN_SERVICE) as SamsaraRunValues | undefined
+  const replay = parsed?.command === 'import-harbor' ? new HarborReplay() : undefined
+  ctx.provide('executor', replay ?? { runSet })
   let exitCode: number | undefined
   // A fast one-shot can request exit while the launcher is still opening its
   // patch-file watchers; a watcher opened after the tree disposed keeps the
@@ -423,7 +438,7 @@ export function apply(ctx: Context, config: Config): void {
     appExit(code)
   }
   const io: Io = { stdout: internals.stdout, stderr: internals.stderr, exit }
-  void run(ctx, config, io).catch((error: unknown) => {
+  void run(ctx, config, io, replay).catch((error: unknown) => {
     io.stderr.write(`samsara-runner: ${error instanceof Error ? error.message : String(error)}\n`)
     io.exit(1)
   })

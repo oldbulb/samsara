@@ -16,6 +16,7 @@ import type { CalibrateRequest } from './calibrate.ts'
 import type { ControlKind, ControlRequest } from './control.ts'
 import type { ExperimentNewRequest } from './experiment.ts'
 import type { CampaignRequest } from './campaign.ts'
+import { IMPORT_AS, type ImportAs, type ImportHarborRequest } from './import-harbor.ts'
 
 export const name = 'samsara-run-startup'
 export const inject = ['cmdlineArgs']
@@ -68,6 +69,7 @@ export type SamsaraRunValues =
   | ({ command: 'experiment-new' } & ExperimentNewRequest)
   | ({ command: 'campaign' } & CampaignRequest)
   | ({ command: 'control' } & ControlRequest)
+  | ({ command: 'import-harbor' } & ImportHarborRequest)
   | { command: 'status' }
   | { command: 'serve' }
 
@@ -106,6 +108,11 @@ function direction(v: string): 'up' | 'down' {
 function controlKind(v: string): ControlKind {
   if (v !== 'aa' && v !== 'inject') throw new Error(`control takes aa or inject, got ${v}`)
   return v
+}
+
+function importAs(v: string): ImportAs {
+  if (!(IMPORT_AS as readonly string[]).includes(v)) throw new Error(`--as must be one of ${IMPORT_AS.join('|')}, got ${v}`)
+  return v as ImportAs
 }
 
 /** Commander hands parsers `(value, previous)`, so the flag is bound here rather than passed. */
@@ -451,6 +458,44 @@ Examples:
         ...(opts['skillDir'] !== undefined ? { skillDir: opts['skillDir'] as string } : {}),
         ...(opts['experiment'] !== undefined ? { experiment: opts['experiment'] as string } : {}),
         ...(opts['shadowGates'] !== undefined ? { shadowGates: opts['shadowGates'] as string[] } : {}),
+      })
+    })
+
+  const importCmd = program
+    .command('import')
+    .description('import evidence produced outside samsara into the ledger')
+  importCmd
+    .command('harbor')
+    .description('a Harbor job directory (one trial directory per attempt) as attempts + scores: the champion row of its agent, a challenger judged against that champion, or a noise floor; nothing runs')
+    .argument('<jobDir>', 'the Harbor job directory (<job>/<trial>/{config.json,result.json,verifier/})')
+    .requiredOption('--pack <dir>', 'pack directory containing pack.yaml; the job\'s task names must be the set\'s task ids')
+    .requiredOption('--as <champion|challenger|noise-floor>', 'what the job is on the ledger', importAs)
+    .requiredOption('--metric <name>', 'primary metric of kind reality: reward (reward.txt) or a key of reward.json')
+    .option('--set <smoke|holdin|holdout>', 'the task set the job ran', set, 'holdin')
+    .option('--intent <text>', 'challenger: what the job changed (default: the job id)')
+    .option('--allow-subset', 'accept a job that ran only some of the set\'s tasks', false)
+    .option('--champion <id>', 'challenger: the champion row to judge against (default: the latest champion on the ledger with the job\'s coordinates)')
+    .option('--n-eff-floor <n>', 'minimum distinct entities with paired data (S2)', int('--n-eff-floor'), DEFAULTS.nEffFloor)
+    .option('--out <dir>', 'output directory (the challenger\'s round directory goes under it)', DEFAULTS.out)
+    .addHelpText('after', `
+Examples:
+  dsh --profile host import harbor jobs/agent-a --pack packs/<name> --set holdout --as champion --metric reward
+  dsh --profile host import harbor jobs/agent-a --pack packs/<name> --set holdout --as noise-floor --metric reward   # >= 3 trials per task
+  dsh --profile host import harbor jobs/agent-a-skill --pack packs/<name> --set holdout --as challenger --metric reward --intent "terse skill"
+`)
+    .action((jobDir: string, opts: Record<string, unknown>) => {
+      onRun({
+        command: 'import-harbor',
+        jobDir,
+        pack: opts['pack'] as string,
+        as: opts['as'] as ImportAs,
+        metric: opts['metric'] as string,
+        set: opts['set'] as TaskSet,
+        allowSubset: opts['allowSubset'] as boolean,
+        nEffFloor: opts['nEffFloor'] as number,
+        out: opts['out'] as string,
+        ...(opts['intent'] !== undefined ? { intent: opts['intent'] as string } : {}),
+        ...(opts['champion'] !== undefined ? { champion: opts['champion'] as string } : {}),
       })
     })
 

@@ -1,0 +1,21 @@
+name: harbor-hello
+truth_latency: immediate
+skill: { dir: skill/, name: instructions }
+contract: contract.schema.json
+tasks:
+  sets: { smoke: tasks/smoke.jsonl, holdin: tasks/holdin.jsonl, holdout: tasks/holdout.jsonl }
+  entity_key: entity_key
+  version: 1
+  stratum_key: stratum
+metrics:
+  primary: { name: reward, direction: up }
+surfaces:
+  skill: { globs: ["skill/**"] }
+# Every task row carries its own `environment` (the Harbor task's
+# environment/Dockerfile, resources and network policy) and `workdir`, the
+# image's working directory; truth runs inside it as Harbor's verifier does,
+# on bash and coreutils alone (a Harbor image carries no node).
+commands:
+  truth: { run: ./bin/truth, in_environment: true }
+  score: ./bin/score.mjs
+  materialize: ./bin/materialize.mjs

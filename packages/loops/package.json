@@ -34,6 +34,14 @@
     "./plugin-null": {
       "types": "./lib/types/plugin-null.d.ts",
       "default": "./lib/plugin-null.js"
+    },
+    "./installed": {
+      "types": "./lib/types/installed.d.ts",
+      "default": "./lib/installed.js"
+    },
+    "./plugin-installed": {
+      "types": "./lib/types/plugin-installed.d.ts",
+      "default": "./lib/plugin-installed.js"
     }
   },
   "files": [

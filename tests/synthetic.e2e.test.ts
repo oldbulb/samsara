@@ -564,7 +564,8 @@ describe('calibrate → experiment → campaign: the loop closed on the null loo
     expect(proposer.seen).toEqual([[]])
     const [line] = campaignHistory(host.ledger.experiment(experiment.id)!, host.ledger)
     expect(line).toEqual({ round_id: round!.roundId, challenger_id: id, tier: 'holdout', verdict: 'promote', mean: holdinOf(id)!.mean, ci: holdinOf(id)!.ci, n_eff: 24, mde: holdinOf(id)!.mde })
-    expect(line!.mean).not.toBe(c.mean)
+    // the held-in row, not the held-out one: its entity count, which the two tiers can never share
+    expect(line!.n_eff).not.toBe(c.n_eff)
   })
 })
 

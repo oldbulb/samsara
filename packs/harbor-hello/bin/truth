@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# stdin {task_id, workdir} -> stdout {task_id, status:"settled", truth:{reward}|{rewards}, truth_sha}.
+#
+# Runs in the environment (`in_environment: true`) on bash and coreutils
+# alone: the task's tests/ is copied to /tests, `bash /tests/test.sh` runs
+# from the attempt's working directory under the task.toml verifier timeout
+# with its output in /logs/verifier/test-stdout.txt, and the reward is read
+# back the way Harbor's verifier reads it — /logs/verifier/reward.json (one
+# number per key, checked by score on the host) first, else reward.txt (one
+# number). Neither present is an error. truth_sha is the sha256 of the task's
+# tests/ directory.
+set -euo pipefail
+. "$(dirname "$0")/lib.sh"
+
+read_reward() {
+  local reward
+  if [ -f "$VERIFIER_LOGS/reward.json" ]; then
+    printf '{"rewards":%s}' "$(tr -d '\n' < "$VERIFIER_LOGS/reward.json")"
+  elif [ -f "$VERIFIER_LOGS/reward.txt" ]; then
+    reward=$(tr -d '[:space:]' < "$VERIFIER_LOGS/reward.txt")
+    # Harbor reads this with float(), which takes spellings JSON does not:
+    # normalize a leading + or . and a trailing ., then insist on a JSON number
+    reward=${reward#+}
+    case "$reward" in
+      .[0-9]*) reward=0$reward ;;
+      -.[0-9]*) reward=-0${reward#-} ;;
+    esac
+    case "$reward" in
+      *[0-9].) reward=${reward}0 ;;
+    esac
+    if ! [[ $reward =~ ^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$ ]]; then
+      echo "$VERIFIER_LOGS/reward.txt: not a number: $reward" >&2
+      return 1
+    fi
+    printf '{"reward":%s}' "$reward"
+  else
+    echo "no reward file at $VERIFIER_LOGS/reward.txt or reward.json" >&2
+    return 1
+  fi
+}
+
+while IFS= read -r line || [ -n "$line" ]; do
+  [ -n "${line// /}" ] || continue
+  task_id=$(json_string "$line" task_id)
+  workdir=$(json_string "$line" workdir)
+  row=$(task_row "$task_id")
+  tests_dir="$PACK/$(json_string "$row" dir)/tests"
+  rm -f "$VERIFIER_LOGS/reward.json" "$VERIFIER_LOGS/reward.txt"
+  # the script's exit status is not the verdict: the reward files are, as for Harbor
+  run_script "$tests_dir" "$TESTS_DIR" test.sh "$workdir" "$(json_number "$row" verifier_timeout_s)" "$(json_env "$row" verifier_env)" "$VERIFIER_LOGS/test-stdout.txt" || true
+  truth=$(read_reward)
+  printf '{"task_id":"%s","status":"settled","truth":%s,"truth_sha":"%s"}\n' "$task_id" "$truth" "$(hash_dir "$tests_dir")"
+done

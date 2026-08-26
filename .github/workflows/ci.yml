@@ -50,6 +50,12 @@ jobs:
       - name: synthetic pack in docker
         run: pnpm vitest run tests/synthetic.e2e.test.ts -t docker
 
+      # A Harbor task as a pack, for real: hello-world's own image built by
+      # the docker provider, the installed loop running its oracle, truth
+      # (tests/test.sh) inside — reward 1; a loop that does nothing — reward 0.
+      - name: harbor hello-world under docker
+        run: pnpm vitest run tests/harbor.e2e.test.ts
+
   leak-scan:
     # Boundary discipline 1: packages/ must not know the domain.
     runs-on: ubuntu-latest
