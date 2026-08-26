@@ -5,6 +5,7 @@
 // package never imports the runner (runner → lifecycle would be a cycle).
 
 import type { TaskSet } from '@oldbulb/samsara-book'
+import type { Environment, EnvironmentSpec } from '@oldbulb/samsara-environments'
 import type { AttemptStatus, Ledger } from '@oldbulb/samsara-ledger'
 import type { AttemptSpec, LoopProvider, LoopRun } from '@oldbulb/samsara-loops'
 
@@ -32,6 +33,8 @@ export interface RunRequest {
   /** Skill directory to run instead of the pack's (a challenger's snapshot). */
   skillDir?: string
   parallel?: number
+  /** The environment provider the attempts run in (as registered on ctx.environments); default `local`. */
+  env?: string
 }
 
 export interface RunDeps {
@@ -48,6 +51,10 @@ export interface RunDeps {
   signal?: AbortSignal
   runId?: string
   log?: (line: string) => void
+  /** `ctx.environments`, when the host mounts it: one environment per attempt is opened on `req.env`. */
+  environments?: { open(name: string, spec: EnvironmentSpec): Promise<Environment> }
+  /** E4: registers an environment's dispose on the challenger's scope; returns the unregister. */
+  track?: (dispose: () => Promise<void>) => () => void
 }
 
 export interface RunResultRow {

@@ -5,6 +5,7 @@
   "references": [
     { "path": "../kernel" },
     { "path": "../book" },
+    { "path": "../environments" },
     { "path": "../ledger" },
     { "path": "../gate" },
     { "path": "../loops" },

@@ -7,6 +7,7 @@
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import type { EnvironmentFacts } from '@oldbulb/samsara-environments'
 import type { FinishedEvent } from '@oldbulb/samsara-loops'
 import type { AttemptRow, RunRequest, ScoreLine, SubmitRead } from './run.ts'
 
@@ -24,8 +25,8 @@ export interface StepMarker {
 
 /** What each step keeps beside the marker: the minimum the later steps need to run without it. */
 export interface StepData {
-  /** `tmpdir` is relative to the attempt dir so a moved run directory still resumes. */
-  materialize: { tmpdir: string; skillSha: string }
+  /** `tmpdir` is relative to the attempt dir so a moved run directory still resumes; `environment` is what the attempt ran in, kept for the row a resume records. */
+  materialize: { tmpdir: string; skillSha: string; environment?: EnvironmentFacts }
   loop: { finished: FinishedEvent; error?: string }
   submit: SubmitRead
   truth: { truth: AttemptRow['truth']; value?: unknown }

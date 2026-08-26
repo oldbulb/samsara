@@ -264,7 +264,7 @@ export class FakeExecutor implements Executor {
   calls: { req: RunRequest; challengerId: string | undefined; runId: string | undefined }[] = []
   values = new Map<string, number>()
   value: (challengerId: string, taskId: string, sample: number) => number = (id) => this.values.get(id) ?? 0.5
-  facts: (challengerId: string) => string = () => sha('facts')
+  facts: (challengerId: string, taskId: string) => string = () => sha('facts')
   async runSet(req: RunRequest, deps: RunDeps): Promise<RunResult> {
     const def = loadPack(req.pack)
     const challengerId = deps.challengerId ?? 'champion'
@@ -278,10 +278,10 @@ export class FakeExecutor implements Executor {
         const value = this.value(challengerId, task.task_id, r)
         await deps.ledger?.recordAttempt({
           id, challenger_id: challengerId, task_id: task.task_id, sample: r, loop: req.loop, tier: req.set, status: 'COMPLETED', stop_reason: 'completed',
-          facts_sha: this.facts(challengerId), usage: { input_tokens: 1, output_tokens: 1 }, cost: { usd: 0.01, tokens: 2 }, output: { source: 'file', valid: true }, artifacts: [],
+          facts_sha: this.facts(challengerId, task.task_id), usage: { input_tokens: 1, output_tokens: 1 }, cost: { usd: 0.01, tokens: 2 }, output: { source: 'file', valid: true }, artifacts: [],
         })
         await deps.ledger?.appendScores([{ attempt_id: id, scorer_version: '0', truth_snapshot_id: sha('t'), metric: 'm', value, kind: 'reality' }])
-        rows.push({ attemptId: id, task_id: task.task_id, loop: req.loop, facts_sha: this.facts(challengerId), status: 'COMPLETED', cost: { usd: 0.01 }, scores: [{ task_id: task.task_id, metric: 'm', value, kind: 'reality' }] })
+        rows.push({ attemptId: id, task_id: task.task_id, loop: req.loop, facts_sha: this.facts(challengerId, task.task_id), status: 'COMPLETED', cost: { usd: 0.01 }, scores: [{ task_id: task.task_id, metric: 'm', value, kind: 'reality' }] })
       }
     }
     return { runId, pack: def.name, set: req.set, tasksetSha: sha(req.set), challengerId, rows, attemptsPath: resolve(req.out, 'attempts.jsonl') }

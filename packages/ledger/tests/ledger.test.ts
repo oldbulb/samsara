@@ -91,7 +91,7 @@ function proposal(over: Partial<ChallengerProposal> = {}): ChallengerProposal {
 function attempt(id: string, challenger_id: string, tier: AttemptRow['tier'], status: AttemptRow['status'] = 'COMPLETED'): AttemptRow {
   return {
     id, challenger_id, task_id: `task-${id}`, sample: 0, loop: 'l', tier, status, stop_reason: 'submitted',
-    facts_sha: sha('f'), usage: { input_tokens: 1, output_tokens: 1 }, cost: { tokens: 2 },
+    facts_sha: sha('f'), usage: { input_tokens: 1, output_tokens: 1 }, cost: { tokens: 2, wall_s: 1.5, compute_usd: 0.002 },
     output: { source: 'submit', valid: true }, artifacts: [],
   }
 }
@@ -117,6 +117,17 @@ describe('challengerId', () => {
     expect(challengerId(a)).toMatch(/^[0-9a-f]{64}$/)
     expect(challengerId(a)).toBe(challengerId(b))
     expect(challengerId({ ...a, patch_sha: sha('p2') })).not.toBe(challengerId(a))
+  })
+
+  it('environment_sha joins the tuple only when present: a row without it keeps the id it always had', () => {
+    // Pinned before the coordinate existed; a change here would re-key every recorded row.
+    expect(challengerId(proposal())).toBe('ced2f0310ca20b48f156b02d1edcb383511cfefe83129600d25947ab5228d7b1')
+    expect(challengerId({ ...proposal(), environment_sha: undefined })).toBe(challengerId(proposal()))
+    const withEnv = challengerId({ ...proposal(), environment_sha: sha('env') })
+    expect(withEnv).toMatch(/^[0-9a-f]{64}$/)
+    expect(withEnv).not.toBe(challengerId(proposal()))
+    expect(withEnv).not.toBe(challengerId({ ...proposal(), environment_sha: sha('env2') }))
+    expect(() => challengerId({ ...proposal(), environment_sha: 'not-a-sha' })).toThrow()
   })
 })
 
@@ -233,6 +244,26 @@ describe('Ledger', () => {
     expect(h.ledger.attemptsOf(b)).toEqual([])
     await h.ledger.recordAttempt(attempt('a1', a, 'holdin', 'FAILED'))
     expect(h.ledger.attemptsOf(a)).toMatchObject([{ id: 'a1', status: 'FAILED' }])
+    await h.close()
+  })
+
+  it('a row proposed with environment_sha keeps it, and an attempt records the environment it ran in', async () => {
+    const h = await open(freshRoot())
+    const plain = await h.ledger.propose(proposal())
+    const c = await h.ledger.propose(proposal({ environment_sha: sha('env') }))
+    expect(c).not.toBe(plain)
+    expect(h.ledger.challenger(c)).toMatchObject({ environment_sha: sha('env') })
+    expect(h.ledger.challenger(plain)?.environment_sha).toBeUndefined()
+    const environment = {
+      provider: 'docker', version: '1', image: { ref: 'img:1', digest: 'sha256:abc' },
+      resources: { cpus: 2, memoryMb: 1024, timeoutS: 60 }, network: 'allowlist' as const, allowedHosts: ['example.test'],
+    }
+    await h.ledger.recordAttempt({ ...attempt('a1', c, 'holdin'), environment })
+    expect(h.ledger.attemptsOf(c)).toMatchObject([{ id: 'a1', environment }])
+    await h.ledger.recordAttempt(attempt('a2', c, 'holdin'))
+    expect(h.ledger.attemptsOf(c).find((r) => r.id === 'a2')?.environment).toBeUndefined()
+    await expect(h.ledger.recordAttempt({ ...attempt('a3', c, 'holdin'), environment: { ...environment, network: 'lan' } as never })).rejects.toThrow()
+    await expect(h.ledger.recordAttempt({ ...attempt('a3', c, 'holdin'), environment: { ...environment, resources: {} } as never })).rejects.toThrow()
     await h.close()
   })
 

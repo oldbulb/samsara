@@ -29,6 +29,17 @@ describe('comparable (rule 0)', () => {
     expect(comparable(row({ env_sha: sha('x'), route: { ...champion.route, model_id: 'other' } }), champion)).toEqual({ ok: false, coordinate: 'env_sha' })
   })
 
+  it('environment_sha must be equal: absent on both is equal, absent on one or different is not', () => {
+    expect(comparable(row({ environment_sha: sha('env') }), champion)).toEqual({ ok: false, coordinate: 'environment_sha' })
+    expect(comparable(champion, row({ environment_sha: sha('env') }))).toEqual({ ok: false, coordinate: 'environment_sha' })
+    const inEnv = row({ id: sha('in-env'), environment_sha: sha('env') })
+    expect(comparable(row({ environment_sha: sha('env'), patch_sha: sha('p') }), inEnv)).toEqual({ ok: true })
+    expect(comparable(row({ environment_sha: sha('other') }), inEnv)).toEqual({ ok: false, coordinate: 'environment_sha' })
+    // Reported after env_sha, before taskset_sha.
+    expect(comparable(row({ env_sha: sha('x'), environment_sha: sha('env') }), champion)).toEqual({ ok: false, coordinate: 'env_sha' })
+    expect(comparable(row({ environment_sha: sha('env'), taskset_sha: sha('x') }), champion)).toEqual({ ok: false, coordinate: 'environment_sha' })
+  })
+
   it('skill_sha may differ only on the skill surface', () => {
     const tools = row({ surface: 'tools' })
     expect(comparable(row({ surface: 'tools', skill_sha: sha('x') }), tools)).toEqual({ ok: false, coordinate: 'skill_sha' })

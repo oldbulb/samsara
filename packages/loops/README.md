@@ -1,4 +1,15 @@
 
+## Environments (`AttemptSpec.environment`)
+
+The host opens one environment per attempt on `ctx.environments` (`@oldbulb/samsara-environments`; `local` by default) and hands it to the loop as `AttemptSpec.environment`, with `workdir` naming its workdir. Loops split by where the agent runs:
+
+| kind | loops | what they do with it |
+|---|---|---|
+| host-side | `null`, `loops-dsh` (in-process dsh), `loops-claude-code` (the SDK as a child of this process) | ignore it; the agent runs on this host in `workdir`, so they need the `local` provider — another provider's workdir is not a path on this host |
+| installed | none yet (`loops-installed`, `loops-harbor` in the design note) | run the agent inside it through `exec`, read the transcript and usage back with `get` |
+
+`HarnessFacts.environment` is what actually ran, as the provider reported it (image digest, resources, network); the host sets it per attempt before hashing `facts_sha`, so attempts from different environments never pool.
+
 ## The null loop (`null.ts`, row `loops-null`)
 
 Finishes at once, calls no model. Its row takes `config: { submit: <object> }` to leave that value as every attempt's submission (`<workdir>/<submitTool>.json`, the @oldbulb/samsara-submit convention); the default `null` submits nothing, so attempts are `valid: false` and smoke drops them on validity. A pack whose truth needs a submission but does not read the answer runs the whole challenger path through it.

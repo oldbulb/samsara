@@ -100,6 +100,13 @@ describe('read-only tools', () => {
     expect(r['rounds'][0].link).toBe(`http://127.0.0.1:8080/samsara/rounds/${round.id}`)
   })
 
+  it('samsara_status: names the environment provider the attempts run in (local unless the row says)', async () => {
+    const h = openHarness()
+    expect((await call(h, 'samsara_status', {}))['onboarding'].environment).toBe('local')
+    h.settings.env = 'docker'
+    expect((await call(h, 'samsara_status', {}))['onboarding'].environment).toBe('docker')
+  })
+
   it('samsara_status: without a pack, loop and metric the onboarding is a note', async () => {
     const h = openHarness()
     delete (h.settings as { pack?: string }).pack
@@ -225,6 +232,15 @@ describe('spending tools', () => {
   })
 
   describe('samsara_calibrate', () => {
+    it('runs on the environment provider the row configures', async () => {
+      const h = openHarness()
+      h.settings.env = 'docker'
+      const r = await call(h, 'samsara_calibrate', { set: 'holdin', reruns: 3 })
+      await h.jobs.started[0]!.hooks.done
+      expect(r['job_id']).toBe('samsara-calibrate-1')
+      expect(h.lifecycle.calibrated[0]!.run.env).toBe('docker')
+    })
+
     it('quotes the cost, asks the person, and runs the calibration as a job the agent owns', async () => {
       const h = openHarness()
       const c = champion(h, 'holdin')
@@ -241,6 +257,7 @@ describe('spending tools', () => {
       expect(job.hooks.readOutput!()).toBe('calibrating\n')
       expect(job.hooks.readOutput!()).toBe('')
       expect(h.lifecycle.calibrated[0]).toMatchObject({ pack: PACK, metric: 'm', set: 'holdin', reruns: 3, run: { maxTurns: 50, maxMinutes: 20, route: ROUTE } })
+      expect(h.lifecycle.calibrated[0]!.run.env).toBeUndefined()
       // the settled outcome (the sd the agent reports) is on the notebook, bound to the session and the quote; the tag is gone with the job
       expect(h.ledger.notebook).toHaveLength(1)
       const row = h.ledger.notebook[0]!

@@ -26,6 +26,9 @@ importers:
       vitest:
         specifier: ^4.1.11
         version: 4.1.11(@types/node@26.2.0)(vite@8.2.2(@types/node@26.2.0)(yaml@2.9.0))
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
 
   packages/book: {}
 
@@ -80,6 +83,15 @@ importers:
       yaml:
         specifier: 2.9.0
         version: 2.9.0
+
+  packages/environments:
+    dependencies:
+      '@oldbulb/samsara-kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@oldbulb/samsara-sandbox':
+        specifier: workspace:*
+        version: link:../sandbox
 
   packages/gate:
     dependencies:
@@ -192,6 +204,9 @@ importers:
       '@oldbulb/samsara-champion':
         specifier: workspace:*
         version: link:../champion
+      '@oldbulb/samsara-environments':
+        specifier: workspace:*
+        version: link:../environments
       '@oldbulb/samsara-gate':
         specifier: workspace:*
         version: link:../gate
@@ -213,6 +228,9 @@ importers:
 
   packages/loops:
     dependencies:
+      '@oldbulb/samsara-environments':
+        specifier: workspace:*
+        version: link:../environments
       '@oldbulb/samsara-kernel':
         specifier: workspace:*
         version: link:../kernel
@@ -289,6 +307,9 @@ importers:
       '@oldbulb/samsara-champion':
         specifier: workspace:*
         version: link:../champion
+      '@oldbulb/samsara-environments':
+        specifier: workspace:*
+        version: link:../environments
       '@oldbulb/samsara-gate':
         specifier: workspace:*
         version: link:../gate
@@ -427,6 +448,9 @@ importers:
 
   packages/workdir:
     dependencies:
+      '@oldbulb/samsara-environments':
+        specifier: workspace:*
+        version: link:../environments
       '@oldbulb/samsara-pack':
         specifier: workspace:*
         version: link:../pack

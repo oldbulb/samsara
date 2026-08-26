@@ -23,7 +23,7 @@
 一个 challenger 只触一个 surface（v1）；surface 分类以 architecture.md 的 13 项表为准。
 
 ## 词汇（公开、领域中性）
-book · task · settlement · champion · challenger · surface · scope · attempt · loop · tier(smoke/holdin/holdout/live) · gate · sign-off · ledger · pack · experiment · round · campaign · operator · notebook。不用 case/cutoff 等前身系统时代的词汇。
+book · task · settlement · champion · challenger · surface · scope · attempt · loop · environment · tier(smoke/holdin/holdout/live) · gate · sign-off · ledger · pack · experiment · round · campaign · operator · notebook。不用 case/cutoff 等前身系统时代的词汇。
 
 ## 工作方式
 - 按 `architecture.md` 的启动序走，每步有可观测门；做完一步与用户同步再继续

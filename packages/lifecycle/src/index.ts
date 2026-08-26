@@ -20,6 +20,7 @@ import { basename, resolve } from 'node:path'
 import { createBook, HoldoutBudgetExhausted, type Book, type Task, type TaskSet } from '@oldbulb/samsara-book'
 import { compareRowOf, stateSha, type Champion, type ChampionState, type CompareCoords, type RescoreEvent, type SettledEvent } from '@oldbulb/samsara-champion'
 import { gateMethodOf, sd, GATE_DEFAULT_NAME, GATE_DEFAULT_VERSION, type CompareRequest, type GatePolicy, type GatePolicyProvider, type GateRegistry, type GateVerdictRow } from '@oldbulb/samsara-gate'
+import type {} from '@oldbulb/samsara-environments'
 import { Context, Service } from '@oldbulb/samsara-kernel'
 import type { PatchOptions } from '@oldbulb/samsara-kernel'
 import {
@@ -52,7 +53,7 @@ import { latestAttempts, scoredAttemptsOf } from './attempts.ts'
 import { runCampaign, type CampaignEvent, type CampaignHooks, type CampaignInput, type CampaignResult } from './campaign.ts'
 import { comparable, evalConfigShaOf, gateRefOf, policySha, refMethod, roundPolicy } from './comparable.ts'
 import { runControl, type ControlHooks, type ControlInput, type ControlResult } from './controls.ts'
-import type { Executor, RouteConfig, RunResult } from './executor.ts'
+import type { Executor, RouteConfig, RunDeps, RunResult } from './executor.ts'
 
 export * from './executor.ts'
 export * from './comparable.ts'
@@ -140,6 +141,8 @@ export interface RunOptions {
   parallel?: number
   limit?: number
   stratum?: string[]
+  /** The environment provider the attempts run in (as registered on ctx.environments); default `local`. */
+  env?: string
   route: RouteConfig
   /** Run the champion on the same tasks in this call instead of reusing its ledger attempts. */
   withChampion?: boolean
@@ -269,9 +272,29 @@ function selectTasks(book: Book, set: TaskSet, opts: { limit?: number; stratum?:
   return chosen.slice(0, opts.limit ?? undefined)
 }
 
-/** The harness facts behind the latest attempts on these tasks for one loop: one sha when they were all run under the same harness. */
-function factsOf(rows: readonly AttemptRow[], loop: string, tasks: ReadonlyMap<string, string>): Set<string> {
-  return new Set(latestAttempts(rows.filter((a) => a.loop === loop), tasks).map((a) => a.facts_sha))
+/** The harness facts behind the latest attempt on each (task, sample) pair of these tasks for one loop. */
+function factsOf(rows: readonly AttemptRow[], loop: string, tasks: ReadonlyMap<string, string>): Map<string, string> {
+  return new Map(latestAttempts(rows.filter((a) => a.loop === loop), tasks).map((a) => [`${a.task_id}\0${a.sample}`, a.facts_sha]))
+}
+
+/**
+ * The run invariant, pair by pair: on every (task, sample) the challenger
+ * ran, the champion ran too and under the same facts. An attempt's
+ * environment is in its facts, and a pack whose task rows bring their own
+ * environments has one per task, so the arms are held to agree per pair, not
+ * to one sha per loop. A champion with no attempt on these tasks has nothing
+ * to pair on.
+ */
+function factsAgree(champion: ReadonlyMap<string, string>, challenger: ReadonlyMap<string, string>): boolean {
+  if (champion.size === 0) return false
+  for (const [pair, sha] of challenger) if (champion.get(pair) !== sha) return false
+  return true
+}
+
+/** The one sha behind every pair, when there is one (the gate's own rule 0 runs on it). */
+function oneFacts(facts: ReadonlyMap<string, string>): string | undefined {
+  const shas = new Set(facts.values())
+  return shas.size === 1 ? [...shas][0] : undefined
 }
 
 /** The pack's book; a held-out set sharing an entity with the visible sets is refused here (S2/S7: `HoldoutNotDisjoint`). */
@@ -347,6 +370,19 @@ export class Lifecycle extends Service {
     const executor = this.ctx.get('executor') as Executor | undefined
     if (!executor) throw new LifecycleError('BAD_TRANSITION', 'no attempt executor is mounted on ctx.executor (the runner provides it)')
     return executor
+  }
+
+  /** The environments registry the executor opens attempts on, when the host mounts one (read per run: it is no injection of this service). */
+  private environmentDeps(): Pick<RunDeps, 'environments'> {
+    const environments = this.ctx.get('environments')
+    return environments !== undefined ? { environments } : {}
+  }
+
+  /** E4: an environment the executor opens for this challenger is disposed with its scope, through the scope's own context. */
+  private trackOn(scope: Scope | undefined): Pick<RunDeps, 'track'> {
+    const ctx = scope?.ctx
+    if (ctx === undefined) return {}
+    return { track: (dispose) => ctx.effect(() => () => dispose(), 'lifecycle.environment') }
   }
 
   on<K extends keyof LifecycleEvents>(event: K, listener: (...args: LifecycleEvents[K]) => void): () => void {
@@ -571,12 +607,14 @@ export class Lifecycle extends Service {
       ...(opts.parallel !== undefined ? { parallel: opts.parallel } : {}),
       ...(opts.limit !== undefined ? { limit: opts.limit } : {}),
       ...(opts.stratum !== undefined ? { stratum: opts.stratum } : {}),
+      ...(opts.env !== undefined ? { env: opts.env } : {}),
     }
-    const deps = {
+    const deps: RunDeps = {
       loops: this.ctx.loops, route: opts.route, ledger: this.ledger,
       ...(opts.championSkillDir !== undefined ? { championSkillDir: opts.championSkillDir } : {}),
       ...(opts.signal !== undefined ? { signal: opts.signal } : {}),
       ...(opts.log !== undefined ? { log: opts.log } : {}),
+      ...this.environmentDeps(),
     }
 
     let champion: RunResult | undefined
@@ -586,7 +624,8 @@ export class Lifecycle extends Service {
     const haveChampion = tasks.every((t) => samples.every((r) => have.has(`${t.task_id}\0${r}`)))
     // The run id names the row so two siblings started in the same second never share an attempt id.
     const runs = { champion: `${runId}-champion-${championId.slice(0, 12)}`, challenger: `${runId}-challenger-${id.slice(0, 12)}` }
-    const skillDir = this.open_.get(id)?.skillDir ?? (row.surface === 'skill' ? row.patch.skill_ref : undefined)
+    const scope = this.open_.get(id)
+    const skillDir = scope?.skillDir ?? (row.surface === 'skill' ? row.patch.skill_ref : undefined)
     const runChampion = opts.withChampion || !haveChampion
     // The executor reports lines, not counts: progress is one event per finished run.
     const total = tasks.length * opts.repeat
@@ -599,7 +638,7 @@ export class Lifecycle extends Service {
       await this.setStatus(id, 'running', { tier_reached: tier }, round.id)
       challenger = await executor.runSet(
         { ...request, out: resolve(opts.out, 'challenger'), ...(skillDir !== undefined ? { skillDir } : {}) },
-        { ...deps, challengerId: id, runId: runs.challenger },
+        { ...deps, challengerId: id, runId: runs.challenger, ...this.trackOn(scope) },
       )
       this.emit({ kind: 'attempt/progress', challengerId: id, roundId: round.id, tier, done: challenger.rows.length, total })
     } finally {
@@ -607,11 +646,11 @@ export class Lifecycle extends Service {
       if (experiment) await this.recordSpend(experiment.id, tier, [...(runChampion ? [[championId, runs.champion] as const] : []), [id, runs.challenger] as const], reveal)
     }
 
-    // The run invariant: every attempt's facts_sha equals the champion's for the same loop, else no statistic is computed.
+    // The run invariant: every attempt's facts_sha equals the champion's on the same (task, sample) for the same loop, else no statistic is computed.
     const championFacts = factsOf(this.ledger.attemptsOf(championId), row.route.loop, entityOf)
     const challengerFacts = factsOf(this.ledger.attemptsOf(id), row.route.loop, entityOf)
     const summary: RunSummary = { challengerId: id, championId, tier, challenger, ...(champion ? { champion } : {}) }
-    if (championFacts.size !== 1 || [...challengerFacts].some((f) => !championFacts.has(f))) {
+    if (!factsAgree(championFacts, challengerFacts)) {
       await this.setStatus(id, 'judged', { tier_reached: tier, verdict: { value: 'invalid', by: BY_LIFECYCLE, rule: 'coordinates:facts', round_id: round.id } }, round.id)
       await this.disposeScope(id)
       summary.invalid = 'coordinates:facts'
@@ -661,7 +700,9 @@ export class Lifecycle extends Service {
     // The run invariant again on the rows as they are now: no statistic across two harnesses, whatever run left them.
     const championFacts = factsOf(this.ledger.attemptsOf(champion.id), row.route.loop, entityOf)
     const challengerFacts = factsOf(this.ledger.attemptsOf(id), row.route.loop, entityOf)
-    if (championFacts.size !== 1 || [...challengerFacts].some((f) => !championFacts.has(f))) {
+    const oneChallengerFacts = oneFacts(challengerFacts)
+    const oneChampionFacts = oneFacts(championFacts)
+    if (!factsAgree(championFacts, challengerFacts)) {
       await invalid('coordinates:facts')
       throw new LifecycleError('NOT_COMPARABLE', `NOT_COMPARABLE:facts: the attempts of challenger ${id} and champion ${champion.id} ran under different harnesses`, { coordinate: 'facts' })
     }
@@ -677,8 +718,8 @@ export class Lifecycle extends Service {
       champion: scoredAttemptsOf(this.ledger.attemptsOf(champion.id), scores, entityOf, metric),
       tier,
       primaryMetric: metric,
-      // The gate's own rule 0 stays live on the same facts.
-      ...(challengerFacts.size === 1 ? { factsSha: { challenger: [...challengerFacts][0]!, champion: [...championFacts][0]! } } : {}),
+      // The gate's own rule 0 stays live on the same facts, when one sha stands behind every pair.
+      ...(oneChallengerFacts !== undefined && oneChampionFacts !== undefined ? { factsSha: { challenger: oneChallengerFacts, champion: oneChampionFacts } } : {}),
       // Without a rerun study the noise floor is unknown: the MDE from it is 0 and only nEffFloor / the pack mde bind.
       noiseFloor: floor ? { sdPaired: floor.sd_paired, nReruns: floor.n_reruns } : { sdPaired: 0, nReruns: 0 },
       policy: rc.policy,
@@ -852,12 +893,14 @@ export class Lifecycle extends Service {
           ...(opts.parallel !== undefined ? { parallel: opts.parallel } : {}),
           ...(opts.limit !== undefined ? { limit: opts.limit } : {}),
           ...(opts.stratum !== undefined ? { stratum: opts.stratum } : {}),
+          ...(opts.env !== undefined ? { env: opts.env } : {}),
         },
         {
           loops: this.ctx.loops, route: opts.route, ledger: this.ledger, challengerId: championId, runId: `${runId}-calibrate-${r}`,
           ...(opts.championSkillDir !== undefined ? { championSkillDir: opts.championSkillDir } : {}),
           ...(opts.signal !== undefined ? { signal: opts.signal } : {}),
           ...(opts.log !== undefined ? { log: opts.log } : {}),
+          ...this.environmentDeps(),
         },
       )
       reruns.push(new Set(result.rows.map((row) => row.attemptId)))

@@ -16,17 +16,31 @@ champion row for the coordinates, the gate `--gate-policy` names, the run option
 | plugin | entry | inject | does |
 |---|---|---|---|
 | `samsara-run-startup` | `@oldbulb/samsara-runner/startup` | `cmdlineArgs` | parses the `run` command with commander and `ctx.provide('samsaraRun', values)`; nothing is provided on `--help` or a usage error (modelled on `@deepseek-ai/dsh-headless/startup`) |
-| `samsara-runner` | `@oldbulb/samsara-runner` | `samsaraRun`, `loops`, `agentDefaultModel`, `ledger`, `lifecycle` | waits for the loader, mounts `ctx.executor`, runs the set through a bounded pool (`--parallel`), prints a summary table, exits through `ctx.appExit`; SIGINT cancels in-flight attempts and still writes their rows |
+| `samsara-runner` | `@oldbulb/samsara-runner` | `samsaraRun`, `loops`, `agentDefaultModel`, `ledger`, `lifecycle`, `subprocess`, `environments` | waits for the loader, mounts `ctx.executor`, runs the set through a bounded pool (`--parallel`), one environment per attempt on the provider `--env` names, prints a summary table, exits through `ctx.appExit`; SIGINT cancels in-flight attempts and still writes their rows |
 | `gate-presets` | `@oldbulb/samsara-runner/gate-presets` | `gate` | mounts the `--gate-policy` presets (`fast`, `permissive`) and catalog rules named in `config.policies` on `ctx.gate`, in order; optional — without it only `default` resolves |
 
 ```
 dsh --profile host run --pack <dir> --loop <name> --set <smoke|holdin|holdout>
                        [--limit n] [--stratum s,...] [--repeat r] [--parallel n] [--out dir] [--max-turns n] [--max-minutes m] [--allow tools,...]
+                       [--env provider]                  # environment provider the attempts run in (ctx.environments; default local)
                        [--skill-dir dir]                 # run this skill instead of the pack's / the champion's (a baseline to measure against)
 dsh --profile host run --resume <runDir>        # re-enter the run recorded in <runDir>/run.json; no other option is read
 ```
 
 Defaults: `--repeat 1`, `--parallel 1`, `--out data/runs`, `--max-turns 50`, `--max-minutes 20`; no `--allow` means the provider's default tool set (`tools.allow: []`).
+
+### Environments (`--env`; docs/design/notes/environments-harbor-modal-2026-08-26.md)
+
+Every attempt runs in one environment opened on `ctx.environments` (`@oldbulb/samsara-environments`) by the provider
+`--env` names (`local` by default: a directory on this host; `docker` where the row is enabled). The spec comes from
+the pack's `environment` block (a task row's `environment` column overrides it): image ref or dockerfile dir, resources
+(`timeout_s` else `--max-minutes`), network (`none` unless declared). The sealed workdir is put into it, the loop gets it
+as `AttemptSpec.environment` (host-side loops need `local`), the pack's `in_environment` commands run through its `exec`,
+the submit file is handed back with `get`, and the environment is disposed with the attempt — and with the challenger's
+scope (E4). The provider's facts land on the attempt row (`environment`) and in its `facts_sha`; on a provider other than
+`local` the champion and challenger rows carry `environment_sha` (rule 0) computed from the declared image ref, not from
+a probe open. `--env` is on `run`, `challenge`, `round`, `certify`, `calibrate`, `campaign`, `control` (and `propose`,
+where nothing runs).
 
 ### Durable steps and `--resume` (`src/steps.ts`; docs/design/adoptions.md item 1)
 

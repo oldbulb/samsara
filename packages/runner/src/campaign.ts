@@ -53,11 +53,12 @@ export interface CampaignDeps extends Pick<ChallengeDeps, 'loops' | 'route' | 'c
 }
 
 /** The per-attempt limits and route every tier of a campaign (or a control) runs under. */
-export function campaignRunOf(req: Pick<RunRequest, 'maxTurns' | 'maxMinutes' | 'allow' | 'parallel'>, deps: Pick<ChallengeDeps, 'route'>): CampaignRunOptions {
+export function campaignRunOf(req: Pick<RunRequest, 'maxTurns' | 'maxMinutes' | 'allow' | 'parallel' | 'env'>, deps: Pick<ChallengeDeps, 'route'>): CampaignRunOptions {
   return {
     maxTurns: req.maxTurns, maxMinutes: req.maxMinutes, route: deps.route,
     ...(req.allow !== undefined ? { allow: req.allow } : {}),
     ...(req.parallel !== undefined ? { parallel: req.parallel } : {}),
+    ...(req.env !== undefined ? { env: req.env } : {}),
   }
 }
 

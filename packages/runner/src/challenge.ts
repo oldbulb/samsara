@@ -209,6 +209,7 @@ export function runOptionsOf(req: RunRequest & { withChampion: boolean }, deps: 
     ...(req.parallel !== undefined ? { parallel: req.parallel } : {}),
     ...(req.limit !== undefined ? { limit: req.limit } : {}),
     ...(req.stratum !== undefined ? { stratum: req.stratum } : {}),
+    ...(req.env !== undefined ? { env: req.env } : {}),
     ...(deps.championSkillDir !== undefined ? { championSkillDir: deps.championSkillDir } : {}),
     ...(deps.signal !== undefined ? { signal: deps.signal } : {}),
     ...(deps.log !== undefined ? { log: deps.log } : {}),

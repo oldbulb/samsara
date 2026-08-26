@@ -4,6 +4,7 @@
 // never talks to a loop except through these shapes.
 
 import { createHash } from 'node:crypto'
+import type { Environment, EnvironmentFacts } from '@oldbulb/samsara-environments'
 
 export interface AttemptSpec {
   attemptId: string
@@ -20,6 +21,13 @@ export interface AttemptSpec {
   signal: AbortSignal
   /** Filesystem policy for the loop's subprocesses (composed by @oldbulb/samsara-sandbox); absent = unconfined. */
   sandbox?: { readOnly: string[]; readWrite: string[]; denied: string[] }
+  /**
+   * Where the attempt runs (`workdir` is its workdir). A host-side loop (one
+   * that runs the agent in this process or as a child of it: the null loop,
+   * loops-dsh, loops-claude-code) ignores it and needs the `local` provider;
+   * an installed loop runs the agent inside it through `exec`.
+   */
+  environment?: Environment
 }
 
 /**
@@ -103,6 +111,8 @@ export interface HarnessFacts {
   version: { loop: string; sdk?: string }
   /** Filesystem enforcement the provider's processes ran under on this host. */
   sandbox?: 'landlock' | 'none'
+  /** What the attempt ran in, as its provider reported it; set per attempt by the host, so rows from different environments never pool. */
+  environment?: EnvironmentFacts
 }
 
 export interface LoopCapabilities {

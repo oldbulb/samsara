@@ -46,10 +46,51 @@ Nothing else about the attempt is contract — not the shape of the attempt id,
 not where the runner keeps its own step markers. A pack that needs more reads
 it from the token or the token grows a field.
 
+## Environments (planned)
+
+Today every attempt and every pack command runs on the host, in a sealed
+directory. The `environments` seam (`architecture.md` § Plugins) puts a
+provider between the two — `local` (today's directory, the default), `docker`,
+and, planned, `modal` and `harbor` — and a pack says what it needs of it:
+
+```yaml
+environment:                    # the pack's default; absent → the host (`local`)
+  image: <ref>                  # or `dockerfile: <dir>` — one of the two
+  resources: { cpus: 2, memory_mb: 4096, timeout_s: 1800 }   # optional
+  network: none                 # optional: none | allowlist | public
+commands:
+  truth: { run: ./bin/truth, in_environment: true }   # runs through `exec` inside the attempt's environment
+  score: ./bin/score                                  # the plain string form runs on the host, as today
+```
+
+A task row may carry an `environment` column that overrides the pack's default
+(a Harbor task has its own `environment/` directory). `materialize` still
+renders the attempt's files locally; the framework then `put`s them — the skill
+snapshot at the same relative path, `.task/token.json`, the materialized task —
+into the environment's workdir, so `skill_path` in the token still resolves.
+When any command is `in_environment`, the pack directory is mounted read-only
+at its own absolute path and the command runs from there, so `./bin/truth`
+and the pack's own files resolve as they do on the host.
+An `in_environment` command reads the same jsonl on stdin and writes the same
+jsonl on stdout; the protocol does not change, only where the process runs. A
+pack whose truth needs the container (`tests/test.sh` writing
+`/logs/verifier/reward.txt|json`) declares it; coding-tasks keeps running its
+commands on the host over a mounted runtime until it moves into an image.
+
+Planned with the seam, outside `packages/`: `tools/pack-from-harbor`, a
+generator that turns a Harbor dataset directory into a pack (one task row per
+task dir, `environment: { dockerfile: <task>/environment }`, `truth` in the
+environment, `score` = `reward` plus one metric per key of `reward.json`, the
+oracle `solution/solve.sh` as the pack's self-check); `samsara import harbor
+<jobs-dir>`, which turns a Harbor job's trials into `attempts` + `scores` rows
+so the gate judges two jobs with a noise floor from a repeated one; and, later,
+a rollout export in Harbor's format.
+
 ## What a second pack would need
 
 `pack.yaml` (with `metrics.primary` and, if the tasks are presented in a particular way, `tasks.protocol`), a skill dir, a contract schema, task sets with an `entity_key`, and
-two executables (`truth`, `score`). If it needs in-sandbox data access, a `data`
+two executables (`truth`, `score`); if its attempts need a container, an
+`environment` block. If it needs in-sandbox data access, a `data`
 executable that reads `.task/token.json`; if its truth arrives late, `truth`
 answers `status: pending` until it settles and the framework re-scores on the
 settlement event.

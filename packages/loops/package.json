@@ -47,6 +47,7 @@
     "test": "vitest run --root ../.. packages/loops/tests"
   },
   "dependencies": {
+    "@oldbulb/samsara-environments": "workspace:*",
     "@oldbulb/samsara-kernel": "workspace:*",
     "@oldbulb/samsara-submit": "workspace:*"
   }

@@ -1,7 +1,9 @@
 // Rule 0, pure (architecture.md § Comparability): two rows are comparable iff
 // their coordinate tuples are equal on every coordinate except `parent_ids`,
 // `patch_sha`, `skill_sha` (when the surface is the skill) and
-// `optimizer_config_sha`. The gate's own facts check covers the attempts.
+// `optimizer_config_sha`. `environment_sha` is one of the strict ones: absent
+// on both rows is equal, absent on one is not. The gate's own facts check
+// covers the attempts.
 // Also here: the gate reference a round pins (name, version, policy sha).
 
 import { gatePolicy, type GatePolicy } from '@oldbulb/samsara-gate'
@@ -10,7 +12,7 @@ import { canonicalJson, evalConfigSha, sha256, type ChallengerRow, type GateRef 
 export type Comparable = { ok: true } | { ok: false; coordinate: string }
 
 /** The coordinates that must be equal whatever the surface, in the order a difference is reported. */
-const STRICT = ['harness_sha', 'env_sha', 'taskset_sha', 'route', 'surface', 'runtime'] as const
+const STRICT = ['harness_sha', 'env_sha', 'environment_sha', 'taskset_sha', 'route', 'surface', 'runtime'] as const
 
 /** The row's evaluation configuration sha; recomputed for a row recorded before the field existed. */
 export function evalConfigShaOf(row: ChallengerRow): string {

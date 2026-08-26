@@ -44,6 +44,12 @@ jobs:
       - name: A/A gate (20 seeds)
         run: SAMSARA_E2E_AA_ROUNDS=20 pnpm vitest run tests/synthetic.e2e.test.ts
 
+      # The pack's environment block for real: three smoke attempts in
+      # node:22-slim through the docker provider, truth inside the container.
+      # ubuntu-latest ships a daemon; the describe skips wherever one is missing.
+      - name: synthetic pack in docker
+        run: pnpm vitest run tests/synthetic.e2e.test.ts -t docker
+
   leak-scan:
     # Boundary discipline 1: packages/ must not know the domain.
     runs-on: ubuntu-latest

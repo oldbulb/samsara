@@ -1,5 +1,13 @@
-// The runner core: tasks × repeat → materialize → loops.start → drain events →
-// read/validate submit → pack truth → pack score → one attempts.jsonl row.
+// The runner core: tasks × repeat → open an environment → materialize →
+// loops.start → drain events → read/validate submit → pack truth → pack score
+// → one attempts.jsonl row. An attempt runs in one environment opened on
+// `deps.environments` (`req.env`, `local` by default): the sealed workdir is
+// put into it, the loop and the pack's `in_environment` commands run there,
+// its facts land on the row, and it is disposed with the attempt (E4). The
+// `local` provider is opened on the attempt dir itself (`<out>/attempts/<id>`),
+// so on this host the layout, the sandbox roots and what a run leaves behind
+// are what they were before the seam. Without the registry (the tests) the
+// attempt runs in the host workdir.
 // Attempts run through a bounded pool (`parallel`); pack subprocess stages
 // (materialize / truth / score) share a smaller semaphore; every row goes
 // through one serialized writer (attempts.jsonl + ledger) in completion order
@@ -11,15 +19,16 @@ import { createWriteStream, mkdirSync, readFileSync, appendFileSync, existsSync,
 import { homedir } from 'node:os'
 import { relative, resolve } from 'node:path'
 import { createBook, type Book, type Task, type TaskSet } from '@oldbulb/samsara-book'
+import { environmentSha, type Environment, type EnvironmentFacts, type EnvironmentSpec, type Environments } from '@oldbulb/samsara-environments'
 import { attemptRowOf, sha256, canonicalJson, type ChallengerProposal, type Ledger, type Tier } from '@oldbulb/samsara-ledger'
 import { factsSha, type AttemptSpec, type FinishedEvent, type LoopEvent, type LoopProvider, type LoopRun, type TokenUsage } from '@oldbulb/samsara-loops'
-import { commandEnv, loadPack, runCommand, validateSubmit, PackError, type PackDefinition, type TaskLine } from '@oldbulb/samsara-pack'
+import { commandEnv, loadPack, runCommand, validateSubmit, PackError, type CommandExec, type PackDefinition, type PackEnvironment, type TaskLine } from '@oldbulb/samsara-pack'
 import { envLock, findRepoRoot, type EnvLock } from '@oldbulb/samsara-scope'
 import { policyFor } from '@oldbulb/samsara-sandbox'
 import { submitPath } from '@oldbulb/samsara-submit'
 import { materialize as materializeWorkdir, hashDir, policyPaths, SKILLS_DIR, TMP_DIR, type MaterializeOptions, type Workdir } from '@oldbulb/samsara-workdir'
 import { Semaphore, WriterQueue, runPool } from './pool.ts'
-import { isComplete, readRunRecord, readStep, stepPath, writeRunRecord, writeStep } from './steps.ts'
+import { isComplete, readRunRecord, readStep, stepPath, writeRunRecord, writeStep, type StepData, type StepMarker } from './steps.ts'
 
 /** The slice of `ctx.loops` the runner needs (structural, so tests pass a fake). */
 export interface Loops {
@@ -48,6 +57,8 @@ export interface RunRequest {
   skillDir?: string
   /** Attempts in flight at once (default 1); pack subprocess stages are capped at min(parallel, PACK_STAGE_CAP). */
   parallel?: number
+  /** The environment provider the attempts run in (as registered on ctx.environments); default `local`. */
+  env?: string
   /**
    * Re-enter the run recorded in `<out>/run.json` (same run id; every other
    * field of this request is replaced by the recorded one) and skip the steps
@@ -94,6 +105,10 @@ export interface RunDeps {
   log?: (line: string) => void
   /** Heartbeat period while attempts are in flight; tests shorten it. */
   heartbeatMs?: number
+  /** `ctx.environments`: one environment per attempt is opened on `req.env`. Absent, attempts run in the host workdir with no environment (the tests). */
+  environments?: Pick<Environments, 'open'>
+  /** E4: registers an environment's dispose on the challenger's scope so a disposed scope kills what it opened; returns the unregister. */
+  track?: (dispose: () => Promise<void>) => () => void
 }
 
 export interface ScoreLine {
@@ -112,15 +127,18 @@ export interface AttemptRow {
   status: FinishedEvent['status']
   stopReason: FinishedEvent['stopReason'] | 'host_error'
   usage: TokenUsage
-  cost: FinishedEvent['cost']
+  /** The loop's cost, plus the agent's wall time in its environment (sealed workdir → loop finished; S8): the ledger keeps it as `wall_s`. */
+  cost: FinishedEvent['cost'] & { wallMs?: number }
   toolCalls: number
   /** From the loop's finished event: 'inline' or the read fraction; absent when the loop did not report. */
   skillUtilization?: number | 'inline'
   output: { valid: boolean; file?: string; error?: string }
   truth: { status: 'settled' | 'pending' | 'error'; truth_sha?: string; error?: string }
   scores: ScoreLine[]
-  /** Set when the host itself failed around the loop (materialize, truth, score); the loop's own failure is `status: FAILED`. */
+  /** Set when the host itself failed around the loop (environment, materialize, truth, score); the loop's own failure is `status: FAILED`. */
   error?: string
+  /** What the attempt ran in, as its provider reported it; absent without an environment. */
+  environment?: EnvironmentFacts
 }
 
 export interface RunResult {
@@ -193,6 +211,88 @@ export function bookOf(def: PackDefinition): Book {
   return book
 }
 
+/** The default when the pack declares no network policy: nothing reaches out unless a pack says so. */
+const DEFAULT_NETWORK: EnvironmentSpec['network'] = 'none'
+/** The provider that is this host: no design choice (rule 0), opened on the attempt dir itself, the default. */
+const HOST_PROVIDER = 'local'
+
+/**
+ * The environment an attempt asks for: the pack's `environment` block (a task
+ * row's overrides it) in the seam's terms. The lifetime is the block's
+ * `timeout_s`, else the attempt's wall-clock limit; the env is empty (E5: each
+ * exec passes what it needs). The sealed workdir is put in, not mounted; the
+ * pack dir is mounted read-only at its own path when a command runs inside,
+ * so `sh -c <run>` resolves from it as it does on the host.
+ */
+export function environmentSpecOf(def: PackDefinition, block: PackEnvironment | undefined, attemptId: string, req: Pick<RunRequest, 'maxMinutes'>): EnvironmentSpec {
+  const resources = block?.resources
+  return {
+    attemptId,
+    ...(block?.image !== undefined ? { image: { ref: block.image } } : block?.dockerfile !== undefined ? { image: { dockerfileDir: resolve(def.dir, block.dockerfile) } } : {}),
+    resources: {
+      ...(resources?.cpus !== undefined ? { cpus: resources.cpus } : {}),
+      ...(resources?.memory_mb !== undefined ? { memoryMb: resources.memory_mb } : {}),
+      timeoutS: resources?.timeout_s ?? Math.round(req.maxMinutes * 60),
+    },
+    network: block?.network ?? DEFAULT_NETWORK,
+    ...(block?.allowed_hosts !== undefined ? { allowedHosts: block.allowed_hosts } : {}),
+    env: {},
+    mounts: Object.values(def.commandSpecs).some((c) => c?.inEnvironment) ? [{ from: def.dir, to: def.dir, readOnly: true }] : [],
+  }
+}
+
+/**
+ * The environment coordinate (rule 0) a request declares: absent on the local
+ * provider (the host is no design choice), else the pack's block as the
+ * provider would report it — computed from the declaration, not from a probe
+ * open: a row must exist before any image is built or pulled. A `ref` is
+ * declared as written (a tag re-pulled to another digest is caught after the
+ * run by the attempt facts); a `dockerfile` build has no digest before it is
+ * built, so the content hash of its build context stands in — two Dockerfiles
+ * are two designs. What actually ran is on every attempt row.
+ */
+export function declaredEnvironmentSha(def: PackDefinition, req: Pick<RunRequest, 'env' | 'maxMinutes'>): string | undefined {
+  const provider = req.env ?? HOST_PROVIDER
+  if (provider === HOST_PROVIDER) return undefined
+  const spec = environmentSpecOf(def, def.manifest.environment, '', req)
+  return environmentSha({
+    provider, version: '',
+    ...(spec.image?.ref !== undefined ? { image: { ref: spec.image.ref } } : spec.image?.dockerfileDir !== undefined ? { image: { digest: hashDir(spec.image.dockerfileDir) } } : {}),
+    resources: spec.resources, network: spec.network,
+    ...(spec.allowedHosts !== undefined ? { allowedHosts: spec.allowedHosts } : {}),
+  })
+}
+
+/**
+ * What an `in_environment` command gets on top of the image's own environment
+ * (E5): the names the pack declares in `runtime.env`, read from the host, and
+ * the attempt's TMPDIR — none of the host's PATH, HOME or shell.
+ */
+export function environmentCommandEnv(def: Pick<PackDefinition, 'manifest'>, tmpdir: string, source: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const name of def.manifest.runtime?.env ?? []) {
+    const value = source[name]
+    if (value !== undefined) env[name] = value
+  }
+  return { ...env, TMPDIR: tmpdir }
+}
+
+/**
+ * The finished loop a resume re-enters, when what the later steps need is
+ * still on disk. In the host workdir (no environment, or the host provider's,
+ * which is the attempt dir) everything is; in another environment the agent's
+ * workdir went with its dispose, so the loop is re-entered only past the truth
+ * marker (and past the score marker when score runs inside too) — otherwise
+ * the attempt starts from scratch, as a cancelled one does.
+ */
+export function resumableLoop(def: PackDefinition, attemptDir: string): (StepMarker & StepData['loop']) | undefined {
+  const loop = readStep(attemptDir, 'loop')
+  if (!loop || (readStep(attemptDir, 'materialize')?.environment?.provider ?? HOST_PROVIDER) === HOST_PROVIDER) return loop
+  if (!readStep(attemptDir, 'truth')) return undefined
+  if (def.commandSpecs.score?.inEnvironment && !readStep(attemptDir, 'score')) return undefined
+  return loop
+}
+
 function failedFinish(at: number, status: FinishedEvent['status'] = 'FAILED', stopReason: FinishedEvent['stopReason'] = 'error'): FinishedEvent {
   return { t: 'finished', at, status, stopReason, usage: { inputTokens: 0, outputTokens: 0 }, cost: { source: 'unknown' }, turns: 0, toolCalls: 0, artifacts: [] }
 }
@@ -229,31 +329,72 @@ function emptyRow(attemptId: string, task: TaskLine, loop: string, facts_sha: st
 
 async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRequest, deps: RunDeps, runId: string, stages: Stages): Promise<AttemptRow> {
   const attemptId = `${runId}-${sanitizeId(task.task_id)}-${r}`
+  const attemptDir = resolve(req.out, 'attempts', attemptId)
+  const provider = deps.loops.get(req.loop)
+  // Durable steps: on resume a step whose marker exists is skipped. A finished
+  // loop is re-run only when its environment took the agent's work with it
+  // (resumableLoop); an attempt without a loop marker starts from scratch.
+  const loopDone = req.resume ? resumableLoop(def, attemptDir) : undefined
+  // An attempt re-entered from scratch starts from an empty attempt dir, whatever a killed host left in it.
+  if (!loopDone && req.resume && existsSync(attemptDir)) rmSync(attemptDir, { recursive: true, force: true })
+
+  // The environment's facts join the harness facts on a provider that is a design choice: rows from different
+  // environments never pool, and host-side rows (`local`, the default) keep the sha they had before the seam.
+  const designed = (req.env ?? HOST_PROVIDER) !== HOST_PROVIDER
+  // A finished loop keeps the facts its materialize step recorded (its environment is gone); a fresh attempt opens one —
+  // the host provider on the attempt dir itself, so the loop's tree is where it was before the seam and stays after.
+  let environment: Environment | undefined
+  let facts: EnvironmentFacts | undefined
+  if (loopDone) {
+    facts = readStep(attemptDir, 'materialize')?.environment
+  } else if (deps.environments) {
+    try {
+      const spec = environmentSpecOf(def, task.environment ?? def.manifest.environment, attemptId, req)
+      environment = await deps.environments.open(req.env ?? HOST_PROVIDER, designed ? spec : { ...spec, workdir: attemptDir })
+    } catch (e) {
+      const row = emptyRow(attemptId, task, req.loop, provider ? factsSha(provider.harnessFacts) : '')
+      row.error = `environment: ${msg(e)}`
+      return row
+    }
+    facts = environment.facts()
+  }
+  const facts_sha = provider ? factsSha(facts && designed ? { ...provider.harnessFacts, environment: facts } : provider.harnessFacts) : ''
+  const row = emptyRow(attemptId, task, req.loop, facts_sha)
+  if (facts) row.environment = facts
+  // E4: the challenger's scope reaches the environment too, so a disposed scope kills what it opened.
+  const untrack = environment && deps.track ? deps.track(() => environment.dispose()) : undefined
+  try {
+    return await attempt(def, task, r, req, deps, stages, { attemptId, attemptDir, row, loopDone, environment })
+  } finally {
+    await environment?.dispose().catch(() => {})
+    untrack?.()
+  }
+}
+
+/** One attempt's pipeline inside its environment (or the host workdir): materialize → loop → submit → truth → score. */
+async function attempt(
+  def: PackDefinition, task: TaskLine, r: number, req: RunRequest, deps: RunDeps, stages: Stages,
+  at: { attemptId: string; attemptDir: string; row: AttemptRow; loopDone: (StepMarker & StepData['loop']) | undefined; environment: Environment | undefined },
+): Promise<AttemptRow> {
+  const { attemptId, attemptDir, row, loopDone, environment } = at
   const attemptsDir = resolve(req.out, 'attempts')
   const skillDir = req.skillDir ?? deps.championSkillDir ?? def.skillDir
   const challengerId = deps.challengerId ?? 'champion'
-  const provider = deps.loops.get(req.loop)
-  const facts_sha = provider ? factsSha(provider.harnessFacts) : ''
-  const row = emptyRow(attemptId, task, req.loop, facts_sha)
   const signal = stages.signal
-  const attemptDir = resolve(attemptsDir, attemptId)
-  // Durable steps: on resume a step whose marker exists is skipped. A finished
-  // loop is never re-run; an attempt without a loop marker starts from scratch.
-  const loopDone = req.resume ? readStep(attemptDir, 'loop') : undefined
 
-  let wd: Pick<Workdir, 'path' | 'tmpdir' | 'skillSha'>
+  let wd: Pick<Workdir, 'path' | 'localPath' | 'tmpdir' | 'skillSha'>
   if (loopDone) {
     const mat = readStep(attemptDir, 'materialize')
-    wd = { path: attemptDir, tmpdir: resolve(attemptDir, mat?.tmpdir ?? TMP_DIR), skillSha: mat?.skillSha ?? '' }
+    wd = { path: attemptDir, localPath: attemptDir, tmpdir: resolve(attemptDir, mat?.tmpdir ?? TMP_DIR), skillSha: mat?.skillSha ?? '' }
   } else {
-    if (req.resume && existsSync(attemptDir)) rmSync(attemptDir, { recursive: true, force: true })
     try {
       wd = await stages.pack.run(() => (deps.materialize ?? materializeWorkdir)({
         attemptId, taskId: task.task_id, challengerId, sample: r, pack: def, baseDir: attemptsDir,
         skill: { name: def.manifest.skill.name, dir: skillDir },
         extraSkillDirs: ['.claude/skills'],
+        ...(environment ? { environment } : {}),
       }))
-      writeStep(attemptDir, attemptId, 'materialize', { tmpdir: relative(wd.path, wd.tmpdir), skillSha: wd.skillSha })
+      writeStep(attemptDir, attemptId, 'materialize', { tmpdir: relative(wd.path, wd.tmpdir), skillSha: wd.skillSha, ...(row.environment ? { environment: row.environment } : {}) })
     } catch (e) {
       row.error = `materialize: ${msg(e)}`
       return row
@@ -285,6 +426,7 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
       signal: controller.signal,
       // E9: the loop's subprocesses see the workdir, the pack's skill/ and loader/, and its runtimes; enforced on Linux only.
       sandbox: policyFor({ ...policyPaths(wd.path, def), homeDir: homedir() }),
+      ...(environment ? { environment } : {}),
     }
 
     try {
@@ -310,12 +452,20 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
   row.status = finished.status
   row.stopReason = finished.stopReason
   row.usage = finished.usage
-  row.cost = finished.cost
+  // S8: the agent's wall time in its environment, from the markers so a resumed row carries it too.
+  const materialized = readStep(attemptDir, 'materialize')
+  const looped = loopDone ?? readStep(attemptDir, 'loop')
+  row.cost = materialized && looped ? { ...finished.cost, wallMs: Date.parse(looped.at) - Date.parse(materialized.at) } : finished.cost
   row.toolCalls = finished.toolCalls
   if (finished.skillUtilization !== undefined) row.skillUtilization = finished.skillUtilization
 
   const submitDone = loopDone ? readStep(attemptDir, 'submit') : undefined
-  const sub: SubmitRead = submitDone ?? readSubmit(def, wd.path)
+  // The submit is read from the host copy; an environment elsewhere hands its file back first (nothing there is not a submit).
+  if (!submitDone && environment && wd.path !== wd.localPath) {
+    const file = relative(wd.localPath, submitPath(wd.localPath, submitToolName(def)))
+    await environment.get(file, resolve(wd.localPath, file)).catch(() => {})
+  }
+  const sub: SubmitRead = submitDone ?? readSubmit(def, wd.localPath)
   if (!submitDone && !signal?.aborted) {
     writeStep(attemptDir, attemptId, 'submit', { valid: sub.valid, ...(sub.file !== undefined ? { file: sub.file } : {}), ...(sub.submit !== undefined ? { submit: sub.submit } : {}), ...(sub.error !== undefined ? { error: sub.error } : {}) })
   }
@@ -329,14 +479,18 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
   const truthDone = loopDone ? readStep(attemptDir, 'truth') : undefined
   const scoreDone = truthDone ? readStep(attemptDir, 'score') : undefined
   try {
-    // E5/E8: the judge sees the pack's declared environment and the attempt's TMPDIR, never the host's credentials.
+    // E5/E8: the host-side judge sees the pack's declared environment and the attempt's TMPDIR, never the host's credentials.
     const env = commandEnv(def, { TMPDIR: wd.tmpdir })
+    // A command the pack marks `in_environment` runs through the attempt's environment over the same line protocol, from
+    // the pack dir (mounted there), on the image's own environment plus environmentCommandEnv — not the host env above (E5).
+    const exec: CommandExec | undefined = environment ? (argv, stdin, o) => environment.exec(argv, { cwd: def.dir, ...o, env: environmentCommandEnv(def, wd.tmpdir), stdin }) : undefined
+    const command = { env, ...(exec ? { exec } : {}) }
     let truthValue: unknown
     if (truthDone) {
       row.truth = truthDone.truth
       truthValue = truthDone.value
     } else {
-      const [truth] = await stages.pack.run(() => runCommand(def, 'truth', [{ task_id: task.task_id, workdir: wd.path }], { env }))
+      const [truth] = await stages.pack.run(() => runCommand(def, 'truth', [{ task_id: task.task_id, workdir: wd.path }], command))
       if (!truth) throw new Error('truth returned no line')
       row.truth = { status: truth['status'] as 'settled' | 'pending', truth_sha: truth['truth_sha'] as string }
       truthValue = truth['truth']
@@ -354,7 +508,7 @@ async function runOne(def: PackDefinition, task: TaskLine, r: number, req: RunRe
           valid: sub.valid,
           status: finished.status,
         }
-        const scores = await stages.pack.run(() => runCommand(def, 'score', [{ task_id: task.task_id, truth: truthValue, output }], { env }))
+        const scores = await stages.pack.run(() => runCommand(def, 'score', [{ task_id: task.task_id, truth: truthValue, output }], command))
         row.scores = scores as unknown as ScoreLine[]
       }
       writeStep(attemptDir, attemptId, 'score', { scores: row.scores })
@@ -393,6 +547,7 @@ export function championProposal(def: PackDefinition, book: Book, req: RunReques
   const limits = { maxTurns: req.maxTurns, maxDurationMs: Math.round(req.maxMinutes * 60_000) }
   const effort = deps.route.reasoning?.['effort']
   const skill_sha = hashDir(req.skillDir ?? deps.championSkillDir ?? def.skillDir)
+  const environment_sha = declaredEnvironmentSha(def, req)
   return {
     parent_ids: [],
     patch_sha: NONE_SHA,
@@ -401,6 +556,8 @@ export function championProposal(def: PackDefinition, book: Book, req: RunReques
     // under. `baseUrlKind` is only how the route is labelled in the ledger, so
     // it stays out: relabelling must not make earlier rows incomparable.
     env_sha: sha256(canonicalJson({ env_lock: lock.sha, route: envRoute(deps.route), limits })),
+    // Rule 0 over where the attempts run: absent on the local provider, so earlier rows keep their ids.
+    ...(environment_sha !== undefined ? { environment_sha } : {}),
     skill_sha,
     taskset_sha: book.tasksetSha(req.set),
     route: {
@@ -432,6 +589,7 @@ async function recordInLedger(ledger: LedgerSink, row: AttemptRow, challengerId:
   await ledger.recordAttempt({
     ...attemptRowOf(row, { challengerId, loop: row.loop, tier, scorerVersion }),
     ...(row.skillUtilization !== undefined ? { skill_utilization: { value: row.skillUtilization } } : {}),
+    ...(row.environment !== undefined ? { environment: row.environment } : {}),
   })
   const truth_snapshot_id = row.truth.truth_sha ?? 'unsettled'
   await ledger.appendScores(row.scores.map((s) => ({
@@ -465,6 +623,7 @@ export async function runSet(input: RunRequest, deps: RunDeps): Promise<RunResul
   // --resume: the recorded request and run id win over the caller's; only `out` comes from the caller.
   const record = input.resume ? readRunRecord(input.out) : undefined
   const req: RunRequest = record ? { ...record.request, out: input.out, resume: true } : input
+  if (req.env !== undefined && deps.environments === undefined) throw new Error(`environment provider ${req.env} was asked for but no environments registry is mounted`)
   const def = loadPack(req.pack)
   const book = bookOf(def)
   const runId = record?.runId ?? deps.runId ?? newRunId()
@@ -484,6 +643,7 @@ export async function runSet(input: RunRequest, deps: RunDeps): Promise<RunResul
     writeRunRecord(req.out, { runId, at: new Date().toISOString(), request, tasks: tasks.map((t) => t.task_id) })
   }
   log(`${runId}: ${record ? 'resume ' : ''}pack ${def.name} set ${req.set} (${tasks.length} tasks × ${req.repeat}) via loop ${req.loop} skill ${req.skillDir ?? deps.championSkillDir ?? def.skillDir} parallel ${parallel}`)
+  if (deps.environments) log(`  environments: one per attempt on provider ${req.env ?? 'local'}`)
 
   // The work list in task × sample order; `slots[i]` receives row i so the result is ordered whatever finishes first.
   const items: { task: TaskLine; r: number }[] = []

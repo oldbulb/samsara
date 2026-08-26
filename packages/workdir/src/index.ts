@@ -2,12 +2,17 @@
 //
 // materialize() builds <baseDir>/<attemptId>/ from the pack's `materialize`
 // command, a content-addressed skill snapshot, a read-only attempt token and a
-// private TMPDIR (E6). Nothing here knows what the pack or the skill contain.
+// private TMPDIR (E6). Given an environment, the sealed files are then `put`
+// into its workdir and `path` names that side; the host copy stays as
+// `localPath`. An environment opened on the attempt dir itself (the local
+// provider) is sealed in place: nothing is put, `path` is `localPath`.
+// Nothing here knows what the pack or the skill contain.
 
 import { createHash } from 'node:crypto'
-import { existsSync, readdirSync, readFileSync, statSync, type Dirent } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync, type Dirent } from 'node:fs'
 import { chmod, cp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { join, relative, resolve, sep } from 'node:path'
+import type { Environment } from '@oldbulb/samsara-environments'
 import { protectedPaths, runCommand, type PackDefinition } from '@oldbulb/samsara-pack'
 
 // ---------------------------------------------------------------- types
@@ -23,6 +28,8 @@ export interface MaterializeOptions {
   baseDir: string
   /** Extra relative dirs (inside the workdir) that also receive the skill. */
   extraSkillDirs?: string[]
+  /** Where the attempt runs: the sealed files are `put` into its workdir and `path` names that side; absent, or opened on the attempt dir itself, the host copy is the workdir. */
+  environment?: Environment
 }
 
 /** `.task/token.json`: the pack-facing record of the attempt (docs/design/packs.md). */
@@ -41,7 +48,10 @@ export interface AttemptToken {
 export type Baseline = Map<string, string>
 
 export interface Workdir {
+  /** Where the attempt runs: the environment's workdir when one was given, else `localPath`. */
   path: string
+  /** The host copy the files were sealed in (the same as `path` without an environment, or with one opened in place). */
+  localPath: string
   tmpdir: string
   skillSha: string
   tokenPath: string
@@ -164,9 +174,11 @@ export async function materialize(opts: MaterializeOptions): Promise<Workdir> {
 
   const base = resolve(opts.baseDir)
   const path = join(base, opts.attemptId)
-  if (existsSync(path)) throw new WorkdirError(`attempt dir already exists: ${path}`)
+  // In place: the environment was opened on the attempt dir itself, still empty; its files are sealed there and nothing is put.
+  const inPlace = opts.environment !== undefined && existsSync(path) && realpathSync(opts.environment.workdir) === realpathSync(path) && readdirSync(path).length === 0
+  if (existsSync(path) && !inPlace) throw new WorkdirError(`attempt dir already exists: ${path}`)
   await mkdir(base, { recursive: true })
-  await mkdir(path)
+  if (!inPlace) await mkdir(path)
 
   const dispose = async () => {
     await rm(path, { recursive: true, force: true })
@@ -206,10 +218,16 @@ export async function materialize(opts: MaterializeOptions): Promise<Workdir> {
     await chmod(tokenPath, 0o400)
 
     // 4. private TMPDIR (E6)
-    const tmpdir = join(path, TMP_DIR)
-    await mkdir(tmpdir)
+    await mkdir(join(path, TMP_DIR))
 
-    return { path, tmpdir, skillSha, tokenPath, baseline: snapshot(path), policyPaths: policyPaths(path, opts.pack), dispose }
+    // 5. into the environment: every top-level entry at the same relative path
+    const environment = inPlace ? undefined : opts.environment
+    if (environment) {
+      for (const entry of readdirSync(path).sort()) await environment.put(join(path, entry), entry)
+    }
+    const workPath = environment ? environment.workdir : path
+
+    return { path: workPath, localPath: path, tmpdir: join(workPath, TMP_DIR), skillSha, tokenPath, baseline: snapshot(path), policyPaths: policyPaths(workPath, opts.pack), dispose }
   } catch (e) {
     await dispose()
     throw e

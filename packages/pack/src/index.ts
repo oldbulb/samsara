@@ -21,10 +21,30 @@ export interface SurfaceBoundary {
   config_keys: string[]
 }
 
+/** Where attempts and `in_environment` commands run, as pack.yaml (and a task row's `environment` column) writes it. */
+export interface PackEnvironment {
+  image?: string
+  dockerfile?: string
+  resources?: { cpus?: number; memory_mb?: number; timeout_s?: number }
+  network?: 'none' | 'allowlist' | 'public'
+  allowed_hosts?: string[]
+}
+
+/** A command as pack.yaml writes it: a shell line, or `{ run, in_environment }`. */
+export type CommandDeclaration = string | { run: string; in_environment?: boolean }
+
+/** A command as the loader normalizes it. */
+export interface CommandSpec {
+  run: string
+  inEnvironment: boolean
+}
+
 export interface TaskLine {
   task_id: string
   entity_key: string
   stratum?: string
+  /** Overrides the pack's `environment` for this task; passed through untouched. */
+  environment?: PackEnvironment
   [k: string]: unknown
 }
 
@@ -46,7 +66,9 @@ export interface PackManifest {
   runtime?: { dirs?: string[]; locks?: string[]; env?: string[] }
   holdout?: { mde?: number; budget?: number; retention_tolerance?: number; auto_demote?: boolean }
   surfaces?: Record<string, { globs?: string[]; config_keys?: string[] }>
-  commands: Partial<Record<CommandName, string>> & { truth: string; score: string }
+  /** The pack's default environment; undeclared, the provider's default (local: the host). */
+  environment?: PackEnvironment
+  commands: Partial<Record<CommandName, CommandDeclaration>> & { truth: CommandDeclaration; score: CommandDeclaration }
   guards?: { deny_patterns?: string[] }
 }
 
@@ -60,16 +82,28 @@ export interface PackDefinition {
   contractPath: string
   contractSchema: Record<string, unknown>
   taskSets: Record<Tier, { path: string; tasks: TaskLine[] }>
+  /** Each command's shell line, whichever form the manifest used. */
   commands: Partial<Record<CommandName, string>>
+  /** Each command normalized: its line and whether it runs inside the environment. */
+  commandSpecs: Partial<Record<CommandName, CommandSpec>>
   surfaces: Record<string, SurfaceBoundary>
   denyPatterns: string[]
 }
+
+/** How an `in_environment` command reaches its environment: the caller binds `Environment.exec` here. */
+export type CommandExec = (
+  argv: string[],
+  stdin: string,
+  opts: { cwd?: string; env: Record<string, string>; timeoutMs: number },
+) => Promise<{ code: number | null; signal?: string; stdout: string; stderr: string }>
 
 export interface RunOptions {
   cwd?: string
   env?: NodeJS.ProcessEnv
   timeoutMs?: number
   args?: string[]
+  /** Runs an `in_environment` command; without it such a command is refused (`spawn`). Commands not so marked always run on the host. */
+  exec?: CommandExec
 }
 
 export type PackErrorCode =
@@ -228,13 +262,20 @@ export function loadPack(dir: string): PackDefinition {
       if (typeof row['task_id'] !== 'string' || row['task_id'] === '') throw bad('task_id must be a non-empty string')
       if (typeof row['entity_key'] !== 'string' || row['entity_key'] === '') throw bad('entity_key must be a non-empty string')
       if (row['stratum'] !== undefined && typeof row['stratum'] !== 'string') throw bad('stratum must be a string when present')
+      if (row['environment'] !== undefined && !isRecord(row['environment'])) throw bad('environment must be an object when present')
       tasks.push(row as TaskLine)
     })
     taskSets[tier] = { path, tasks }
   }
 
   const commands: Partial<Record<CommandName, string>> = {}
-  for (const [k, v] of Object.entries(m.commands)) if (typeof v === 'string') commands[k as CommandName] = v
+  const commandSpecs: Partial<Record<CommandName, CommandSpec>> = {}
+  for (const [k, v] of Object.entries(m.commands) as [CommandName, CommandDeclaration | undefined][]) {
+    if (v === undefined) continue
+    const spec = typeof v === 'string' ? { run: v, inEnvironment: false } : { run: v.run, inEnvironment: v.in_environment ?? false }
+    commands[k] = spec.run
+    commandSpecs[k] = spec
+  }
 
   return {
     dir: packDir,
@@ -246,6 +287,7 @@ export function loadPack(dir: string): PackDefinition {
     contractSchema,
     taskSets,
     commands,
+    commandSpecs,
     surfaces: surfaceBoundariesOf(m),
     denyPatterns: m.guards?.deny_patterns ?? [],
   }
@@ -347,9 +389,39 @@ function outputValidator(name: string): (line: Record<string, unknown>) => strin
   return () => undefined
 }
 
+/** Bounds an `in_environment` command when neither the caller nor the pack's `environment.resources.timeout_s` says. */
+const IN_ENVIRONMENT_TIMEOUT_MS = 60 * 60 * 1000
+
+/** Parse and validate a finished command's stdout; the exit code is already known to be zero. */
+function settle(
+  name: CommandName,
+  stdout: string,
+  stderr: string,
+  validate: (line: Record<string, unknown>) => string | undefined,
+): Record<string, unknown>[] {
+  const rows = parseJsonl(
+    stdout,
+    (lineNo, line, why) =>
+      new PackError('invalid-line', `${name}: stdout line ${lineNo} ${why}`, { command: name, exitCode: 0, lineNo, line, stderr }),
+  )
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!
+    const why = validate(row)
+    if (why) {
+      throw new PackError('invalid-line', `${name}: stdout line ${i + 1} invalid: ${why}`, {
+        command: name, exitCode: 0, lineNo: i + 1, line: JSON.stringify(row), stderr,
+      })
+    }
+  }
+  return rows
+}
+
 /**
- * Run a pack command as a subprocess: `lines` go to stdin as jsonl, stdout is
- * parsed as jsonl and every line is validated against the schema for `name`.
+ * Run a pack command: `lines` go to stdin as jsonl, stdout is parsed as jsonl
+ * and every line is validated against the schema for `name`. A command the
+ * manifest marks `in_environment` runs through `opts.exec` (the attempt's
+ * environment) with the same protocol; every other command is a subprocess
+ * on the host.
  */
 export function runCommand(
   def: PackDefinition,
@@ -357,16 +429,79 @@ export function runCommand(
   lines: object[],
   opts: RunOptions = {},
 ): Promise<Record<string, unknown>[]> {
-  const cmd = def.commands[name]
-  if (!cmd) {
+  const spec = def.commandSpecs[name]
+  if (!spec) {
     return Promise.reject(new PackError('command-missing', `pack ${def.name} declares no "${name}" command`, { command: name }))
   }
-  const cwd = opts.cwd ?? def.dir
   const validate = outputValidator(name)
   const input = lines.map((l) => JSON.stringify(l)).join('\n') + (lines.length ? '\n' : '')
+  if (spec.inEnvironment) {
+    if (!opts.exec) {
+      const where = def.manifest.environment?.image ?? def.manifest.environment?.dockerfile ?? "the provider's default"
+      return Promise.reject(new PackError('spawn', `${name}: runs in the pack's environment (${where}) but none was given`, { command: name }))
+    }
+    return runInEnvironment(spec, name, input, opts.exec, opts, def.manifest.environment, validate)
+  }
+  return runOnHost(spec, name, input, def, opts, validate)
+}
+
+/**
+ * The line protocol over an environment's `exec`: the command line and its
+ * args go through the environment's shell, the cwd is the environment's own
+ * unless given, and the env is what the caller passes on top of the
+ * environment's (E5: never the host's). A null exit code is the time limit.
+ */
+async function runInEnvironment(
+  spec: CommandSpec,
+  name: CommandName,
+  input: string,
+  exec: CommandExec,
+  opts: RunOptions,
+  environment: PackEnvironment | undefined,
+  validate: (line: Record<string, unknown>) => string | undefined,
+): Promise<Record<string, unknown>[]> {
+  const timeoutMs = opts.timeoutMs ?? (environment?.resources?.timeout_s !== undefined ? environment.resources.timeout_s * 1000 : IN_ENVIRONMENT_TIMEOUT_MS)
+  const env: Record<string, string> = {}
+  for (const [k, v] of Object.entries(opts.env ?? {})) if (v !== undefined) env[k] = v
+  let result: Awaited<ReturnType<CommandExec>>
+  try {
+    result = await exec(['sh', '-c', [spec.run, ...(opts.args ?? [])].join(' ')], input, {
+      ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
+      env,
+      timeoutMs,
+    })
+  } catch (e) {
+    throw new PackError('spawn', `${name}: ${(e as Error).message}`, { command: name })
+  }
+  if (result.code === null) {
+    const signal = result.signal as NodeJS.Signals | undefined
+    const timedOut = signal === undefined || signal === 'SIGKILL'
+    throw new PackError(
+      timedOut ? 'timeout' : 'exit',
+      `${name}: ${timedOut ? `timed out after ${timeoutMs}ms` : `killed by ${signal}`}`,
+      { command: name, exitCode: null, signal: signal ?? null, stderr: result.stderr },
+    )
+  }
+  if (result.code !== 0) {
+    throw new PackError('exit', `${name}: exited with code ${result.code}${result.stderr ? `: ${result.stderr.trim()}` : ''}`, {
+      command: name, exitCode: result.code, signal: null, stderr: result.stderr,
+    })
+  }
+  return settle(name, result.stdout, result.stderr, validate)
+}
+
+function runOnHost(
+  spec: CommandSpec,
+  name: CommandName,
+  input: string,
+  def: PackDefinition,
+  opts: RunOptions,
+  validate: (line: Record<string, unknown>) => string | undefined,
+): Promise<Record<string, unknown>[]> {
+  const cwd = opts.cwd ?? def.dir
 
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(cmd, opts.args ?? [], {
+    const child = spawn(spec.run, opts.args ?? [], {
       cwd,
       env: opts.env ?? commandEnv(def),
       shell: true,
@@ -413,30 +548,11 @@ export function runCommand(
         }))
         return
       }
-      let rows: Record<string, unknown>[]
       try {
-        rows = parseJsonl(
-          Buffer.concat(out).toString('utf8'),
-          (lineNo, line, why) =>
-            new PackError('invalid-line', `${name}: stdout line ${lineNo} ${why}`, { command: name, exitCode, lineNo, line, stderr }),
-        )
+        resolvePromise(settle(name, Buffer.concat(out).toString('utf8'), stderr, validate))
       } catch (e) {
         reject(e)
-        return
       }
-      for (let i = 0; i < rows.length; i++) {
-        const row = rows[i]!
-        const why = validate(row)
-        if (why) {
-          reject(
-            new PackError('invalid-line', `${name}: stdout line ${i + 1} invalid: ${why}`, {
-              command: name, exitCode, lineNo: i + 1, line: JSON.stringify(row), stderr,
-            }),
-          )
-          return
-        }
-      }
-      resolvePromise(rows)
     }
     child.stdin.end(input)
   })

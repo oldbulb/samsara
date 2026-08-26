@@ -106,6 +106,26 @@
         baseUrl: ''
         credentialRef: ''
 
+    # ctx.environments: the registry every environment provider registers on
+    # (where an attempt runs; docs/design/notes/environments-harbor-modal-2026-08-26.md).
+    - id: environments
+      name: '@oldbulb/samsara-environments'
+
+    # A directory on this host, children through the kernel's subprocess seam
+    # under the sandbox policy: today's behaviour behind the seam, the default.
+    - id: environments-local
+      name: '@oldbulb/samsara-environments/plugin-local'
+      inject: [environments, subprocess]
+
+    # A container per environment through the docker CLI. Off by default: it
+    # needs a docker daemon reachable from the host; flip the row where one is.
+    - id: environments-docker
+      name: '@oldbulb/samsara-environments/plugin-docker'
+      inject: [environments, subprocess]
+      disabled: true
+      config:
+        docker: docker
+
     # ctx.proposers: the registry every proposer adapter registers on.
     - id: proposers
       name: '@oldbulb/samsara-proposers'
@@ -199,10 +219,11 @@
     # Runs the set; waits on the samsaraRun service instead of reading config.
     # Mounts runSet as ctx.executor; every transition goes through ctx.lifecycle.
     # subprocess: `propose --proposer ./command` spawns the proposer from this
-    # row's context (a registered proposer row brings its own).
+    # row's context (a registered proposer row brings its own). environments:
+    # one environment per attempt on the provider `--env` names (local by default).
     - id: samsara-runner
       name: '@oldbulb/samsara-runner'
-      inject: [samsaraRun, ledger, lifecycle, subprocess]
+      inject: [samsaraRun, ledger, lifecycle, subprocess, environments]
       config:
         baseUrl: ''
         credentialRef: ''

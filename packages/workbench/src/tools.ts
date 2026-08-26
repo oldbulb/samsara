@@ -69,6 +69,8 @@ export interface Config {
   maxMinutes?: number
   parallel?: number
   allow?: string[]
+  /** The environment provider the attempts run in (as registered on ctx.environments); default local. */
+  env?: string
   /** The attempt route: provider and model default to the host's agentDefaultModel selection; the rest as on the runner row. */
   provider?: string
   model?: string
@@ -90,6 +92,7 @@ export const Config: Schema<Config> = Schema.object({
   maxMinutes: Schema.number().default(20),
   parallel: Schema.number(),
   allow: Schema.array(Schema.string()),
+  env: Schema.string(),
   provider: Schema.string(),
   model: Schema.string(),
   baseUrl: Schema.string(),
@@ -111,6 +114,7 @@ export interface Settings {
   maxMinutes: number
   parallel?: number
   allow?: string[]
+  env?: string
 }
 
 export function settingsOf(config: Config): Settings {
@@ -126,6 +130,7 @@ export function settingsOf(config: Config): Settings {
     ...(config.metric !== undefined ? { metric: config.metric } : {}),
     ...(config.parallel !== undefined ? { parallel: config.parallel } : {}),
     ...(config.allow?.length ? { allow: config.allow } : {}),
+    ...(config.env !== undefined ? { env: config.env } : {}),
   }
 }
 
@@ -372,6 +377,7 @@ export function createTools(deps: ToolDeps, settings: Settings): ToolDefinition[
     pack: def.dir, loop, set, repeat, out, maxTurns: settings.maxTurns, maxMinutes: settings.maxMinutes,
     ...(settings.allow !== undefined ? { allow: settings.allow } : {}),
     ...(settings.parallel !== undefined ? { parallel: settings.parallel } : {}),
+    ...(settings.env !== undefined ? { env: settings.env } : {}),
   })
   const skillDirOf = (def: PackDefinition): string => deps.championSkillDir?.() ?? def.skillDir
   /** The champion row for these coordinates, as the runner's commands compute it (its id is the same in every process). */
@@ -580,7 +586,7 @@ export function createTools(deps: ToolDeps, settings: Settings): ToolDefinition[
           const calibrate = calibrateQuote(def, loop, championId)
           if (!floor) notes.push(`no noise floor for ${def.name}/${loop} on ${metric}: nothing is judged at holdout until one is measured (${calibrate})`)
           if (!aa) notes.push(`no A/A control was run on champion ${championId}: samsara_control { kind: "aa" } reads the gate on a known null`)
-          onboarding = { pack: def.name, loop, metric, champion_id: championId, noise_floor: floor?.id ?? null, aa_control: aa, calibrate }
+          onboarding = { pack: def.name, loop, metric, environment: settings.env ?? 'local', champion_id: championId, noise_floor: floor?.id ?? null, aa_control: aa, calibrate }
         } else {
           notes.push('no pack, loop or metric to check a noise floor for: pass them, or configure defaults on the workbench-tools row')
         }

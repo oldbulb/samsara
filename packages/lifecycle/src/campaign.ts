@@ -42,7 +42,7 @@ export interface CampaignProposer {
   propose(input: { viewDir: string; workDir: string; signal: AbortSignal; parent: string }): Promise<CampaignProposal>
 }
 
-export type CampaignRunOptions = Pick<RunOptions, 'maxTurns' | 'maxMinutes' | 'allow' | 'parallel' | 'route'>
+export type CampaignRunOptions = Pick<RunOptions, 'maxTurns' | 'maxMinutes' | 'allow' | 'parallel' | 'env' | 'route'>
 
 export interface CampaignInput {
   experimentId: string

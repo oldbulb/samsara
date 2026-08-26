@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { resolve } from 'node:path'
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { dirname } from 'node:path'
+import type { Environment } from '@oldbulb/samsara-environments'
 import { loadPack, protectedPaths } from '@oldbulb/samsara-pack'
 import { materialize, policyPaths, workdirDiff, denyGuard, hashDir, WorkdirError, type Workdir } from '../src/index.ts'
 
@@ -71,6 +73,58 @@ describe('materialize', () => {
     await w.dispose()
     expect(existsSync(w.path)).toBe(false)
     await w.dispose()
+  })
+  it('with an environment: the sealed files are put into its workdir, path names that side, the host copy stays as localPath', async () => {
+    const remote = mkdtempSync(resolve(tmpdir(), 'workdir-env-'))
+    const puts: [string, string][] = []
+    const environment = {
+      id: 'e1', provider: 'fake', workdir: remote,
+      async put(localPath: string, remotePath: string) {
+        puts.push([localPath, remotePath])
+        mkdirSync(dirname(resolve(remote, remotePath)), { recursive: true })
+        cpSync(localPath, resolve(remote, remotePath), { recursive: true })
+      },
+    } as unknown as Environment
+    try {
+      const w = await make('a1', { extraSkillDirs: ['.claude/skills'], environment })
+      expect(w.path).toBe(remote)
+      expect(w.localPath).toBe(resolve(baseDir, 'a1'))
+      expect(w.tmpdir).toBe(resolve(remote, '.tmp'))
+      expect(puts.map(([local, rel]) => [local, rel])).toEqual(['.agents', '.claude', '.task', '.tmp'].map((e) => [resolve(w.localPath, e), e]))
+      expect(readFileSync(resolve(remote, '.agents/skills/mini/SKILL.md'), 'utf8')).toBe(readFileSync(resolve(MINI, 'skill/SKILL.md'), 'utf8'))
+      expect(JSON.parse(readFileSync(resolve(remote, '.task/token.json'), 'utf8'))).toMatchObject({ attemptId: 'a1', skill_path: '.agents/skills/mini' })
+      expect(statSync(resolve(remote, '.tmp')).isDirectory()).toBe(true)
+      expect(w.tokenPath).toBe(resolve(w.localPath, '.task/token.json'))
+      expect(w.skillSha).toBe(hashDir(pack.skillDir))
+      expect(w.baseline.has('.task/token.json')).toBe(true)
+      expect(w.policyPaths.workdir).toBe(remote)
+      await w.dispose()
+      expect(existsSync(w.localPath)).toBe(false)
+      expect(existsSync(remote)).toBe(true)
+    } finally {
+      rmSync(remote, { recursive: true, force: true })
+    }
+  })
+
+  it('with an environment opened on the attempt dir itself (the local provider): sealed in place, nothing is put, path is localPath; a dir with content in it is still refused', async () => {
+    baseDir ??= mkdtempSync(resolve(tmpdir(), 'workdir-'))
+    const puts: string[] = []
+    const inPlace = (attemptId: string) => {
+      const workdir = resolve(baseDir, attemptId)
+      mkdirSync(workdir, { recursive: true })
+      return { id: attemptId, provider: 'local', workdir, async put(_local: string, remotePath: string) { puts.push(remotePath) } } as unknown as Environment
+    }
+    const w = await make('a2', { extraSkillDirs: ['.claude/skills'], environment: inPlace('a2') })
+    expect(w.path).toBe(resolve(baseDir, 'a2'))
+    expect(w.localPath).toBe(w.path)
+    expect(w.tmpdir).toBe(resolve(w.path, '.tmp'))
+    expect(puts).toEqual([])
+    expect(existsSync(resolve(w.path, '.agents/skills/mini/SKILL.md'))).toBe(true)
+    expect(w.policyPaths.workdir).toBe(w.path)
+    // what a host left behind is not sealed over
+    const left = inPlace('a3')
+    writeFileSync(resolve(left.workdir, 'stale'), 'x')
+    await expect(make('a3', { environment: left })).rejects.toThrow(/attempt dir already exists/)
   })
 })
 

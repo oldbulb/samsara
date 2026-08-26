@@ -3,6 +3,7 @@
   "private": true,
   "dependencies": {
     "@oldbulb/samsara-champion": "link:../../packages/champion",
+    "@oldbulb/samsara-environments": "link:../../packages/environments",
     "@oldbulb/samsara-gate": "link:../../packages/gate",
     "@oldbulb/samsara-ledger": "link:../../packages/ledger",
     "@oldbulb/samsara-lifecycle": "link:../../packages/lifecycle",

@@ -5,22 +5,25 @@
 // lifecycle: calibrate → experiment → campaign, where the null diff must never
 // promote and the injected effect must, with the consent from a fake sign-off.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { Context, DomainFacility, Storage, storageBackendServiceKey, type KvUnit, type StorageBackend } from '../packages/kernel/src/index.ts'
 import { createBook, type Task, type TaskSet } from '../packages/book/src/index.ts'
+import { DockerEnvironmentProvider, Environments, LocalEnvironmentProvider, environmentSha, type Environment } from '../packages/environments/src/index.ts'
+import { realSpawn } from '../packages/environments/tests/fixtures/real-spawn.ts'
 import { gateDefault, GATE_DEFAULT_NAME, GATE_DEFAULT_VERSION, type CompareRequest, type GatePolicyProvider } from '../packages/gate/src/index.ts'
 import { Ledger, sha256, type ConsentRow, type ExperimentRow, type NoiseFloorRow } from '../packages/ledger/src/index.ts'
 import { Lifecycle, campaignHistory, gateRefOf, roundPolicy, type CampaignEvent, type CampaignHooks, type CampaignInput, type CampaignProposer, type HistoryLine } from '../packages/lifecycle/src/index.ts'
 import { FakeChampion, FakeGate, FakeScopes, type FakeLedger } from '../packages/lifecycle/tests/fakes.ts'
 import { LoopRegistry, NullLoopProvider } from '../packages/loops/src/index.ts'
 import * as pluginNull from '../packages/loops/src/plugin-null.ts'
-import { loadPack, runCommand, PackError, type PackDefinition } from '../packages/pack/src/index.ts'
+import { loadPack, runCommand as runPackCommand, PackError, type CommandExec, type PackDefinition } from '../packages/pack/src/index.ts'
 import { challenge, type ChallengeDeps, type ChallengeRequest } from '../packages/runner/src/challenge.ts'
 import { renderView, viewEnvironmentOf } from '../packages/runner/src/round.ts'
-import { bookOf, championProposal, runSet, type Loops, type RunRequest } from '../packages/runner/src/run.ts'
+import { bookOf, championProposal, environmentSpecOf, runSet, type Loops, type RunRequest } from '../packages/runner/src/run.ts'
 import { hashDir } from '../packages/workdir/src/index.ts'
 
 const PACK_DIR = resolve(import.meta.dirname, '..', 'packs', 'synthetic')
@@ -48,6 +51,18 @@ const HOLDOUT_REPEAT = 6
  */
 const SPEC_AA_ROUNDS = 20
 const AA_ROUNDS = Number(process.env['SAMSARA_E2E_AA_ROUNDS'] ?? 3)
+
+/**
+ * The pack's `truth` is `in_environment`: under the `local` provider (the
+ * default) that is a host subprocess from the pack dir, which is the binding
+ * given to `runCommand` here, so the contract tests run as `--env local` runs
+ * them. Commands not so marked spawn on the host whatever is bound.
+ */
+const hostExec = (def: PackDefinition): CommandExec => async (argv, stdin, o) => {
+  const r = spawnSync(argv[0]!, argv.slice(1), { cwd: o.cwd ?? def.dir, input: stdin, env: { ...process.env, ...o.env }, encoding: 'utf8', timeout: o.timeoutMs })
+  return { code: r.status, ...(r.signal ? { signal: r.signal } : {}), stdout: r.stdout, stderr: r.stderr }
+}
+const runCommand: typeof runPackCommand = (def, name, lines, opts = {}) => runPackCommand(def, name, lines, { exec: hostExec(def), ...opts })
 
 let def: PackDefinition
 const roots: string[] = []
@@ -245,7 +260,7 @@ function memoryBackend(): StorageBackend {
 /**
  * The host as the runner's commands see it: a real Ledger on an in-memory
  * storage backend, a real Lifecycle over it with this repository's runSet as
- * the executor and gate-default mounted, and the lifecycle package's fakes for
+ * the executor, gate-default and the local environment provider mounted, and the lifecycle package's fakes for
  * the champion (state in memory, no profile) and the scopes (no diff scan) —
  * the pieces this test is not about.
  */
@@ -272,13 +287,16 @@ async function openHost(loops: Loops): Promise<Host> {
   ctx.provide('loops', loops)
   ctx.provide('champion', champion)
   ctx.provide('executor', { runSet })
+  // One local environment per attempt, what the CLI's default provider gives: the pack's truth is `in_environment`.
+  await ctx.plugin(Environments)
+  ctx.environments.register(new LocalEnvironmentProvider({ spawn: realSpawn, baseDir: join(root, 'environments') }))
   await ctx.plugin(Lifecycle)
   const lifecycle = ctx.lifecycle
   const gateDep: ChallengeDeps['gate'] = { current: () => gate.current(), list: () => gate.list(), judge: (req) => ({ ...provider.judge(req), gateMethod: GATE }) }
   const host: Host = {
     root, loops, ledger, champion, lifecycle,
     request: () => request,
-    deps: (over = {}) => ({ loops, route: ROUTE, ledger, gate: gateDep, lifecycle, ...over }),
+    deps: (over = {}) => ({ loops, route: ROUTE, ledger, gate: gateDep, lifecycle, environments: ctx.environments, ...over }),
     close: async () => { await fiber.dispose(); await backend.close() },
   }
   hosts.push(host)
@@ -544,6 +562,110 @@ describe('calibrate → experiment → campaign: the loop closed on the null loo
     const [line] = campaignHistory(host.ledger.experiment(experiment.id)!, host.ledger)
     expect(line).toEqual({ round_id: round!.roundId, challenger_id: id, tier: 'holdout', verdict: 'promote', mean: holdinOf(id)!.mean, ci: holdinOf(id)!.ci, n_eff: 24, mde: holdinOf(id)!.mde })
     expect(line!.mean).not.toBe(c.mean)
+  })
+})
+
+// ----------------------------------------------------------------- docker
+
+function dockerAvailable(): boolean {
+  try {
+    execFileSync('docker', ['info'], { stdio: 'ignore', timeout: 20_000 })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The pack's `environment` block for real: three smoke attempts, each in its
+ * own `node:22-slim` container opened by the docker provider on the spec the
+ * runner composes — materialize on the host, the sealed workdir put in, truth
+ * (`in_environment`) through `exec` from the pack dir mounted read-only at
+ * its own path, score on the host. CI runs this describe on ubuntu
+ * (`-t docker`); anywhere without a daemon it skips.
+ */
+describe.skipIf(!dockerAvailable())('in a docker environment (skipped: docker is not on PATH or the daemon is down)', () => {
+  const skillPath = () => `.agents/skills/${def.manifest.skill.name}`
+  /** Sealed on the host the way @oldbulb/samsara-workdir seals: the token names the attempt, the snapshot carries `effect`. */
+  function seal(root: string, taskId: string, attemptId: string, effect: number): string {
+    const workdir = join(root, attemptId)
+    mkdirSync(join(workdir, '.task'), { recursive: true })
+    mkdirSync(join(workdir, skillPath()), { recursive: true })
+    writeFileSync(join(workdir, '.task', 'token.json'), JSON.stringify({ attemptId, taskId, challengerId: 'c', sample: 0, skill_path: skillPath(), issuedAt: 'now' }))
+    writeFileSync(join(workdir, skillPath(), 'params.json'), JSON.stringify({ effect }))
+    return workdir
+  }
+  const containersOf = (attemptId: string) => execFileSync('docker', ['ps', '-aq', '--filter', `label=samsara.attempt=${attemptId}`], { encoding: 'utf8' }).trim()
+
+  it('materialize on the host → put → truth in the container → score on the host; the same attempt on local is the same coin; the facts carry the digest', { timeout: 600_000 }, async () => {
+    const root = tmp()
+    const provider = new DockerEnvironmentProvider({ spawn: realSpawn, baseDir: join(root, 'base') })
+    const tasks = def.taskSets.smoke.tasks.slice(0, 3)
+    const opened: Environment[] = []
+    const designs = new Set<string>()
+    try {
+      for (const [i, task] of tasks.entries()) {
+        const attemptId = `docker-${task.task_id.replace('/', '_')}-0`
+        const effect = i === 2 ? 1 : 0
+        // the runner's spec: the pack's block, the pack dir mounted read-only at its own path because truth runs inside
+        const spec = environmentSpecOf(def, task.environment ?? def.manifest.environment, attemptId, { maxMinutes: 1 })
+        expect(spec).toEqual({ attemptId, image: { ref: 'node:22-slim' }, resources: { timeoutS: 60 }, network: 'none', env: {}, mounts: [{ from: def.dir, to: def.dir, readOnly: true }] })
+        const env = await provider.open(spec)
+        opened.push(env)
+        expect(env.workdir).toBe(`/workspace/${attemptId}`)
+        const short = containersOf(attemptId)
+        expect(short).not.toBe('')
+        expect(env.id.startsWith(short)).toBe(true)
+
+        const local = seal(root, task.task_id, attemptId, effect)
+        const [mat] = await runCommand(def, 'materialize', [{ task_id: task.task_id, workdir: local }])
+        expect(mat).toEqual({ task_id: task.task_id, ok: true, files: ['task.json'] })
+        for (const entry of readdirSync(local).sort()) await env.put(join(local, entry), entry)
+
+        // inside: node from the image, the pack dir at its own path, nothing reaches out
+        const probe = await env.exec(['sh', '-c', `node --version && ls tasks && pwd && (node -e "fetch('https://example.com').then(() => process.exit(0), () => process.exit(3))" || echo offline $?)`], { cwd: def.dir, timeoutMs: 60_000 })
+        expect(probe.code).toBe(0)
+        expect(probe.stdout).toMatch(/^v22\./)
+        expect(probe.stdout).toContain('holdout.jsonl')
+        expect(probe.stdout).toContain(`${def.dir}\n`)
+        expect(probe.stdout).toMatch(/offline 3\n$/)
+
+        // truth is in_environment: the runner's binding, from the pack dir, the same jsonl; the host's variables never enter
+        const exec: CommandExec = (argv, stdin, o) => env.exec(argv, { cwd: def.dir, ...o, stdin })
+        const [inside] = await runCommand(def, 'truth', [{ task_id: task.task_id, workdir: env.workdir }], { exec, env: {} })
+        expect(inside).toMatchObject({ task_id: task.task_id, status: 'settled', truth_sha: expect.stringMatching(SHA_RE) })
+        const passed = (inside!.truth as { passed: number }).passed
+        expect([0, 1]).toContain(passed)
+        if (effect === 1) expect(passed).toBe(1)
+
+        // the same attempt under the local provider (its own path for the pack dir too) is the same coin: the provider is no input of truth
+        const hostSpec = { ...spec, workdir: local }
+        delete hostSpec.image
+        const mirror = await new LocalEnvironmentProvider({ spawn: realSpawn }).open(hostSpec)
+        try {
+          const [onHost] = await runCommand(def, 'truth', [{ task_id: task.task_id, workdir: mirror.workdir }], { exec: (argv, stdin, o) => mirror.exec(argv, { cwd: def.dir, ...o, stdin }) })
+          expect(onHost).toEqual(inside)
+        } finally {
+          await mirror.dispose()
+        }
+
+        // score stays on the host
+        const scores = await runCommand(def, 'score', [{ task_id: task.task_id, truth: inside!.truth, output: { usage: { input_tokens: 0, output_tokens: 0, cost_usd: null } } }])
+        expect(scores).toEqual([
+          { task_id: task.task_id, metric: 'pass_rate', value: passed, kind: 'reality', stratum: task['stratum'] },
+          { task_id: task.task_id, metric: 'cost_usd', value: 0, kind: 'mechanical', stratum: task['stratum'] },
+        ])
+
+        // what ran, as the row records it: the image by digest, no network; one design across the three attempts (rule 0)
+        expect(env.facts()).toEqual({ provider: 'docker', version: env.facts().version, image: { ref: 'node:22-slim', digest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/) }, resources: { timeoutS: 60 }, network: 'none' })
+        designs.add(environmentSha(env.facts()))
+      }
+      expect(designs.size).toBe(1)
+    } finally {
+      await Promise.all(opened.map((env) => env.dispose()))
+    }
+    // E4: dispose is the kill, nothing lingers
+    for (const task of tasks) expect(containersOf(`docker-${task.task_id.replace('/', '_')}-0`)).toBe('')
   })
 })
 

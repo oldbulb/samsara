@@ -23,6 +23,9 @@
       "path": "packages/sandbox"
     },
     {
+      "path": "packages/environments"
+    },
+    {
       "path": "packages/loops-dsh"
     },
     {

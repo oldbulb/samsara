@@ -96,6 +96,16 @@ Fidelity is part of `facts_sha`, so it is a ledger coordinate the gate already h
 
 A proxy is only as good as its stand-in. The SDK version is in the hash because a preset changes between versions; a loop whose stand-in can drift without a version change must say so in `harnessFacts` rather than report `proxy`.
 
+## Host-side and installed loops (planned)
+
+With the `environments` seam (`architecture.md` § Plugins) `AttemptSpec` gains
+`environment: Environment`, and loops split by where the agent runs:
+
+- **host-side loops** — the in-process dsh agent (`loops-dsh`) and the Claude Agent SDK on the host (`loops-claude-code`) — run the agent on the host against the workdir and require the `local` provider; an in-process dsh loop cannot run inside a remote environment.
+- **installed loops** run the agent inside the environment: `loops-installed` invokes `dsh` headless, `claude`, `codex`, … through `Environment.exec` and reads the transcript and usage back with `get`. `loops-harbor` is an installed loop that delegates to Harbor's `BaseInstalledAgent` implementations through the Harbor shim, so every agent Harbor supports is a samsara loop and `certify` compares a skill across all of them.
+
+Under both, the loop reports the same events with the same `HarnessFacts`, and the environment's own facts (provider@version, image digest, resources, network) join the attempt's `facts_sha`. For a dsh loop in a remote environment, `dsh` headless is installed in the image — the same shape as Harbor's installed agents.
+
 ## What the host does around a loop
 
 1. `workdir.materialize` seals the directory (pack `materialize` + skill snapshot + `.task/token.json` + TMPDIR).

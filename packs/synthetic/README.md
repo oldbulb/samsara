@@ -38,7 +38,7 @@ A **challenger** is a copy of `skill/` with a different `effect` in
 ## Commands (jsonl on stdin, jsonl on stdout)
 
 - `bin/materialize.mjs` — `{task_id, workdir}` → writes `task.json` naming the task; stdout `{task_id, ok:true, files:["task.json"]}`.
-- `bin/truth.mjs` — `{task_id, workdir}` → reads the attempt token (`.task/token.json`: the attempt id, which must be the workdir's own name, the `sample` index and the `skill_path`) and the skill snapshot's `params.json` (at `skill_path`, for `effect`), then `p = clamp(base_rate + effect, 0, 1)` and `passed = 1 iff draw < p`; stdout `{task_id, status:"settled", truth:{passed}, truth_sha}` with `truth_sha` = sha256 of the three task files and the truth code (`bin/lib.mjs`, `bin/truth.mjs`), so a change to `NOISE` or the draw scheme is a new truth snapshot. Deterministic in its inputs.
+- `bin/truth.mjs` (`in_environment: true`, "In a container" below) — `{task_id, workdir}` → reads the attempt token (`.task/token.json`: the attempt id, which must be the workdir's own name, the `sample` index and the `skill_path`) and the skill snapshot's `params.json` (at `skill_path`, for `effect`), then `p = clamp(base_rate + effect, 0, 1)` and `passed = 1 iff draw < p`; stdout `{task_id, status:"settled", truth:{passed}, truth_sha}` with `truth_sha` = sha256 of the three task files and the truth code (`bin/lib.mjs`, `bin/truth.mjs`), so a change to `NOISE` or the draw scheme is a new truth snapshot. Deterministic in its inputs.
 - `bin/score.mjs` — `{task_id, truth, output}` → `pass_rate` (reality, = `passed`) and `cost_usd` (mechanical, from `output.usage.cost_usd`, 0 for the null loop), each with the task's `stratum`.
 
 ### What the loop can reach
@@ -113,6 +113,49 @@ re-debits the reveals the ledger holds), refused once spent
 22 — 20 A/A rounds, the injected round, `control aa` — so a rerun of a step
 on the same ledger needs a fresh `data/ledger/`, and every held-out compare
 row records `holdout_budget_remaining`.
+
+## In a container (`--env docker`)
+
+`pack.yaml` declares where an attempt runs — `environment: { image:
+'node:22-slim', network: none }` — and marks `truth` as `{ run:
+./bin/truth.mjs, in_environment: true }`; `materialize` and `score` stay on
+the host. With the default provider (`--env local`) nothing changes: the image
+is not used and an `in_environment` command is a host subprocess from the pack
+dir, exactly the run above. With `--env docker` the runner opens one
+`node:22-slim` container per attempt (no network), mounts the pack directory
+read-only at its own absolute path so `./bin/truth.mjs` and `tasks/*.jsonl`
+resolve as on the host, puts the sealed workdir into `/workspace/<attemptId>`
+(the token still names the workdir it sits in), runs `truth` inside through
+`docker exec` with the same jsonl on stdin and stdout, and records the image
+digest, resources and network on the attempt row; champion and challenger rows
+carry `environment_sha` (rule 0, `docs/design/notes/environments-harbor-modal-2026-08-26.md`).
+
+The row is off by default; enable it in the profile patch where a daemon is
+reachable, then add `--env docker` to any of the commands above:
+
+```yaml
+- id: environments-docker
+  disabled: false
+```
+
+```sh
+dsh --profile host calibrate --pack packs/synthetic --loop null --set holdin --reruns 5 \
+    --metric pass_rate --parallel 8 --env docker --out data/runs/synthetic-calibrate-docker
+```
+
+The loops that exist today are host-side (`packages/loops/README.md`): the
+null loop writes its submission into the attempt's workdir on this host, which
+under `docker` is a container path, so a CLI run on `docker` ends with the loop
+failing until an installed loop lands. What the container path does run is
+pinned by `tests/synthetic.e2e.test.ts` ("in a docker environment"): three
+smoke attempts, materialize on the host, the sealed workdir put in, `truth`
+inside from the mounted pack dir, `score` on the host, the same coin as the
+same attempt on `local`, one `environment_sha` across the three. It skips
+without a daemon; CI runs it on ubuntu:
+
+```sh
+pnpm vitest run tests/synthetic.e2e.test.ts -t docker
+```
 
 ## The two controls
 

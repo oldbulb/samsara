@@ -14,7 +14,10 @@ holdout:
   budget: 24
 surfaces:
   skill: { globs: ["skill/**"] }
+# Where an attempt runs under `--env docker` (README "In a container"); under
+# `--env local` (the default) the image is not used and truth is a host subprocess.
+environment: { image: 'node:22-slim', network: none }
 commands:
-  truth: ./bin/truth.mjs
+  truth: { run: ./bin/truth.mjs, in_environment: true }
   score: ./bin/score.mjs
   materialize: ./bin/materialize.mjs

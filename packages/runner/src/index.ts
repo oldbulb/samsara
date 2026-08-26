@@ -12,6 +12,7 @@ import { dirname, resolve } from 'node:path'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { Schema, type Context } from '@oldbulb/samsara-kernel'
 import type {} from '@oldbulb/samsara-loops'
+import type {} from '@oldbulb/samsara-environments'
 import { backupSqlite, type ConsentRow } from '@oldbulb/samsara-ledger'
 import type {} from '@oldbulb/samsara-scope'
 import type {} from '@oldbulb/samsara-gate'
@@ -38,7 +39,8 @@ import { createAdapter as createCommandAdapter } from '@oldbulb/samsara-proposer
 
 export const name = 'samsara-runner'
 // subprocess: `propose --proposer ./command` spawns through the kernel's seam (E4) from this plugin's own context.
-export const inject = [SAMSARA_RUN_SERVICE, 'loops', 'agentDefaultModel', 'ledger', 'lifecycle', 'subprocess']
+// environments: one environment per attempt is opened on the registry (`--env`, local by default).
+export const inject = [SAMSARA_RUN_SERVICE, 'loops', 'agentDefaultModel', 'ledger', 'lifecycle', 'subprocess', 'environments']
 
 export interface Config {
   /** Per-attempt base URL handed to the loop (route.baseUrl); empty = provider default. */
@@ -63,7 +65,7 @@ export const Config: Schema<Config> = Schema.object({
   baseUrlKind: Schema.union(['direct', 'proxy'] as const),
 })
 
-export { runSet, readSubmit, submitToolName, sanitizeId, newRunId, championProposal, envLockOf, writeEnvLock, PACK_STAGE_CAP, HEARTBEAT_MS } from './run.ts'
+export { runSet, readSubmit, submitToolName, sanitizeId, newRunId, championProposal, envLockOf, writeEnvLock, environmentSpecOf, declaredEnvironmentSha, PACK_STAGE_CAP, HEARTBEAT_MS } from './run.ts'
 export { Semaphore, WriterQueue, runPool } from './pool.ts'
 export { STEPS, STEPS_DIR, RUN_RECORD, readStep, writeStep, completedSteps, isComplete, readRunRecord, writeRunRecord, stepPath } from './steps.ts'
 export type { Step, StepMarker, StepData, RunRecord } from './steps.ts'
@@ -318,6 +320,14 @@ async function run(ctx: Context, config: Config, io: Io): Promise<void> {
   if (req.command !== 'certify' && loops.get(req.loop) === undefined) {
     throw new Error(`no loop provider named "${req.loop}" is registered (is its plugin enabled in the profile?)`)
   }
+  // Where the attempts run: the registry the bundle mounts, the provider `--env` names (local by default).
+  const environments = ctx.get('environments')
+  const envName = req.env ?? 'local'
+  if (environments === undefined) {
+    if (req.env !== undefined) throw new Error(`--env ${req.env}: no environments registry is mounted (is its row enabled in the profile?)`)
+  } else if (environments.get(envName) === undefined) {
+    throw new Error(`no environment provider named "${envName}" is registered (is its plugin enabled in the profile?)`)
+  }
   const controller = new AbortController()
   // dsh's own SIGINT handler disposes the tree; an async disposer makes that
   // disposal wait for the in-flight rows (and the summary) to land first.
@@ -341,6 +351,7 @@ async function run(ctx: Context, config: Config, io: Io): Promise<void> {
     signal: controller.signal,
     log: (line: string) => io.stderr.write(line + '\n'),
     ...(championSkillDir !== undefined ? { championSkillDir } : {}),
+    ...(environments !== undefined ? { environments } : {}),
   }
   if (championSkillDir !== undefined) deps.log(`champion skill: ${championSkillDir}`)
   // The commands that transition rows do so through the service; the gate is read for the policy `--gate-policy` names.

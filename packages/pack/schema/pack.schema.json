@@ -75,18 +75,51 @@
         }
       }
     },
+    "environment": {
+      "type": "object", "additionalProperties": false,
+      "description": "where the attempts and the commands marked in_environment run; a task row may carry an `environment` column of the same shape that overrides it; undeclared, the provider's default (local: the host)",
+      "properties": {
+        "image": { "type": "string", "description": "image reference the environment provider pulls" },
+        "dockerfile": { "type": "string", "description": "pack-relative directory holding the Dockerfile to build from (image takes precedence when both are given)" },
+        "resources": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "cpus": { "type": "number", "exclusiveMinimum": 0 },
+            "memory_mb": { "type": "integer", "minimum": 1 },
+            "timeout_s": { "type": "integer", "minimum": 1, "description": "the environment's lifetime; also bounds an in_environment command the caller gives no timeout" }
+          }
+        },
+        "network": { "enum": ["none", "allowlist", "public"] },
+        "allowed_hosts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "commands": {
       "type": "object", "required": ["truth", "score"], "additionalProperties": false,
       "properties": {
-        "truth": { "type": "string" },
-        "score": { "type": "string" },
-        "data": { "type": "string" },
-        "materialize": { "type": "string" }
+        "truth": { "$ref": "#/$defs/command" },
+        "score": { "$ref": "#/$defs/command" },
+        "data": { "$ref": "#/$defs/command" },
+        "materialize": { "$ref": "#/$defs/command" }
       }
     },
     "guards": {
       "type": "object", "additionalProperties": false,
       "properties": { "deny_patterns": { "type": "array", "items": { "type": "string" } } }
+    }
+  },
+  "$defs": {
+    "command": {
+      "description": "a shell line run on the host (string), or `{ run, in_environment }` where in_environment: true runs it inside the pack's environment over the same jsonl on stdin/stdout",
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object", "required": ["run"], "additionalProperties": false,
+          "properties": {
+            "run": { "type": "string" },
+            "in_environment": { "type": "boolean" }
+          }
+        }
+      ]
     }
   }
 }

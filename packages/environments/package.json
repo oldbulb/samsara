@@ -1,0 +1,61 @@
+{
+  "name": "@oldbulb/samsara-environments",
+  "version": "0.1.0",
+  "description": "The environment seam: a registry of environment providers (where an attempt runs) and the EnvironmentSpec/Environment contract every provider speaks, with local and docker providers",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oldbulb/samsara.git",
+    "directory": "packages/environments"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "samsara",
+    "rsi",
+    "agent-evaluation"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./local": {
+      "types": "./lib/types/local.d.ts",
+      "default": "./lib/local.js"
+    },
+    "./docker": {
+      "types": "./lib/types/docker.d.ts",
+      "default": "./lib/docker.js"
+    },
+    "./plugin-local": {
+      "types": "./lib/types/plugin-local.d.ts",
+      "default": "./lib/plugin-local.js"
+    },
+    "./plugin-docker": {
+      "types": "./lib/types/plugin-docker.d.ts",
+      "default": "./lib/plugin-docker.js"
+    }
+  },
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run --root ../.. packages/environments/tests"
+  },
+  "dependencies": {
+    "@oldbulb/samsara-kernel": "workspace:*",
+    "@oldbulb/samsara-sandbox": "workspace:*"
+  }
+}

@@ -371,6 +371,22 @@ describe('run', () => {
     expect(h.ledger.compares.size).toBe(0)
   })
 
+  it('the run invariant holds pair by pair: facts that differ per task (a task row with its own environment) agree between the arms; one pair apart is invalid', async () => {
+    const h = await openLifecycle()
+    const round = await openRound(h)
+    h.executor.facts = (_c, taskId) => sha(taskId)
+    const a = await runOne(h, round.id, 'a', 0.9)
+    expect(h.ledger.challenger(a)?.status).toBe('running')
+    expect(new Set(h.ledger.attemptsOf(a).map((x) => x.facts_sha)).size).toBe(4)
+    const { id: b } = await h.lifecycle.propose(challengerProposal(round.champion_id, 'b'), { roundId: round.id })
+    await h.lifecycle.open(b)
+    h.executor.facts = (c, taskId) => (c === b && taskId === 'h2' ? sha('other') : sha(taskId))
+    expect((await h.lifecycle.run(b, 'holdin', runOptions(out()))).invalid).toBe('coordinates:facts')
+    expect(h.ledger.challenger(b)).toMatchObject({ status: 'judged', verdict: { value: 'invalid', by: 'lifecycle', rule: 'coordinates:facts' } })
+    // the same check at judge time: the pairs agree, the gate gets no single facts sha
+    expect((await h.lifecycle.judge(a, 'holdin')).verdict.value).not.toBe('invalid')
+  })
+
   it('the holdout budget the pack declares is debited per reveal and refused once spent', async () => {
     const h = await openLifecycle()
     await calibrate(h)

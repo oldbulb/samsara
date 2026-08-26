@@ -30,6 +30,8 @@ export const challengerCoordsSchema = z.object({
     base_url_kind: z.string(),
   }),
   optimizer_config_sha: sha,
+  /** Rule 0 over where the attempts ran: `environmentSha` of the environment facts (image digest, resources, network — not the provider). Absent on rows recorded before the field existed and on host-side rows. */
+  environment_sha: sha.optional(),
 })
 export type ChallengerCoords = z.infer<typeof challengerCoordsSchema>
 
@@ -96,7 +98,10 @@ export type ChallengerProposal = Omit<ChallengerRow, 'id' | 'status' | 'proposed
 
 export function challengerId(coords: ChallengerCoords): string {
   const c = challengerCoordsSchema.parse(coords)
-  return keyOf(c.parent_ids, c.patch_sha, c.harness_sha, c.env_sha, c.skill_sha, c.taskset_sha, c.route, c.optimizer_config_sha)
+  const tuple = [c.parent_ids, c.patch_sha, c.harness_sha, c.env_sha, c.skill_sha, c.taskset_sha, c.route, c.optimizer_config_sha]
+  // Joins the tuple only when present, so every id computed before the coordinate existed is unchanged.
+  if (c.environment_sha !== undefined) tuple.push(c.environment_sha)
+  return keyOf(...tuple)
 }
 
 /** The fields of a challenger row on the judge's side that can move a score (architecture.md § Evaluation configuration). */
@@ -123,6 +128,17 @@ export const ATTEMPT_STATUSES = ['COMPLETED', 'TRUNCATED', 'ABORTED', 'FAILED'] 
 export const attemptStatusSchema = z.enum(ATTEMPT_STATUSES)
 export type AttemptStatus = z.infer<typeof attemptStatusSchema>
 
+/** The environment an attempt ran in, as its provider reported it (the shape of `EnvironmentFacts` in `@oldbulb/samsara-environments`, kept here so the ledger imports nothing of it). */
+export const attemptEnvironmentSchema = z.object({
+  provider: z.string(),
+  version: z.string(),
+  image: z.object({ ref: z.string().optional(), digest: z.string().optional() }).optional(),
+  resources: z.object({ cpus: z.number().optional(), memoryMb: z.number().optional(), timeoutS: z.number() }),
+  network: z.enum(['none', 'allowlist', 'public']),
+  allowedHosts: z.array(z.string()).optional(),
+})
+export type AttemptEnvironment = z.infer<typeof attemptEnvironmentSchema>
+
 export const attemptRowSchema = z.object({
   id: z.string().min(1),
   challenger_id: z.string().min(1),
@@ -135,11 +151,14 @@ export const attemptRowSchema = z.object({
   stop_reason: z.string(),
   facts_sha: z.string(),
   usage: z.object({ input_tokens: z.number(), output_tokens: z.number() }).passthrough(),
-  cost: z.object({ tokens: z.number().optional(), wall_s: z.number().optional(), usd: z.number().optional() }),
+  /** `usd` is the loop's (tokens); `wall_s` the agent's wall time in its environment; `compute_usd` the environment provider's charge for the attempt where it reports one (S8: the cost ratio between arms on different providers is wrong without it). */
+  cost: z.object({ tokens: z.number().optional(), wall_s: z.number().optional(), usd: z.number().optional(), compute_usd: z.number().optional() }),
   output: z.object({ source: z.string(), valid: z.boolean() }),
   artifacts: z.array(z.object({ name: z.string(), sha: z.string(), path: z.string().optional() })),
   ephemeral_tools: z.array(z.string()).optional(),
   skill_utilization: z.record(z.string(), z.unknown()).optional(),
+  /** Where the attempt ran; the provider is evidence here, not a coordinate (rule 0). Absent on host-side attempts and on rows recorded before the field existed. */
+  environment: attemptEnvironmentSchema.optional(),
 })
 export type AttemptRow = z.infer<typeof attemptRowSchema>
 

@@ -69,6 +69,7 @@
   "dependencies": {
     "@oldbulb/samsara-book": "workspace:*",
     "@oldbulb/samsara-champion": "workspace:*",
+    "@oldbulb/samsara-environments": "workspace:*",
     "@oldbulb/samsara-gate": "workspace:*",
     "@oldbulb/samsara-gate-catalog": "workspace:*",
     "@oldbulb/samsara-kernel": "workspace:*",

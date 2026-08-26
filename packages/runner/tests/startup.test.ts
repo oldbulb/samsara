@@ -26,6 +26,13 @@ describe('samsara-run-startup', () => {
     const { values } = parse(['run', '--pack', 'p', '--loop', 'claude-code', '--set', 'holdout', '--limit', '3', '--stratum', 'rust, go', '--repeat', '2', '--parallel', '4', '--out', '/o', '--max-turns', '7', '--max-minutes', '1.5', '--allow', 'read, bash,,edit'])
     expect(values).toEqual({ command: 'run', pack: 'p', loop: 'claude-code', set: 'holdout', limit: 3, stratum: ['rust', 'go'], repeat: 2, parallel: 4, out: '/o', maxTurns: 7, maxMinutes: 1.5, allow: ['read', 'bash', 'edit'] })
   })
+  it('parses --env on the running commands; absent, nothing is set (the runner defaults to local)', () => {
+    expect(parse(['run', '--pack', 'p', '--loop', 'l', '--set', 'smoke', '--env', 'docker']).values).toMatchObject({ command: 'run', env: 'docker' })
+    expect(parse(['calibrate', '--pack', 'p', '--loop', 'l', '--metric', 'm', '--env', 'docker']).values).toMatchObject({ command: 'calibrate', env: 'docker' })
+    expect(parse(['control', 'aa', '--pack', 'p', '--loop', 'l', '--metric', 'm', '--env', 'docker']).values).toMatchObject({ command: 'control', env: 'docker' })
+    expect(parse(['certify', '--pack', 'p', '--skill-dir', '/s', '--loops', 'a,b', '--set', 'smoke', '--metric', 'm', '--env', 'docker']).values).toMatchObject({ command: 'certify', env: 'docker' })
+    expect('env' in parse(['run', '--pack', 'p', '--loop', 'l', '--set', 'smoke']).values).toBe(false)
+  })
   it('rejects a bad set, a missing required option, and repeat < 1', () => {
     expect(parse(['run', '--pack', 'p', '--loop', 'l', '--set', 'live']).error).toMatch(/--set must be one of/)
     expect(parse(['run', '--pack', 'p', '--set', 'smoke']).error).toMatch(/--loop/)

@@ -158,6 +158,7 @@ function withRunOptions(cmd: Command, opts: { loop?: boolean; resumable?: boolea
     .option('--max-turns <n>', 'per-attempt turn limit', int('--max-turns'), DEFAULTS.maxTurns)
     .option('--max-minutes <m>', 'per-attempt wall-clock limit', num('--max-minutes'), DEFAULTS.maxMinutes)
     .option('--allow <tools>', 'comma-separated tool allowlist (default: provider default)', list)
+    .option('--env <provider>', 'environment provider the attempts run in (as registered on ctx.environments; default local)')
 }
 
 function runRequestOf(opts: Record<string, unknown>): RunRequest {
@@ -173,6 +174,7 @@ function runRequestOf(opts: Record<string, unknown>): RunRequest {
     ...(opts['limit'] !== undefined ? { limit: opts['limit'] as number } : {}),
     ...(opts['stratum'] !== undefined ? { stratum: opts['stratum'] as string[] } : {}),
     ...(opts['allow'] !== undefined ? { allow: opts['allow'] as string[] } : {}),
+    ...(opts['env'] !== undefined ? { env: opts['env'] as string } : {}),
   }
 }
 
