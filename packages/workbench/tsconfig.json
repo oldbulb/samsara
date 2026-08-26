@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": "src", "outDir": "lib", "declarationDir": "lib/types" },
+  "include": ["src"],
+  "references": [
+    { "path": "../kernel" },
+    { "path": "../book" },
+    { "path": "../champion" },
+    { "path": "../gate" },
+    { "path": "../gate-catalog" },
+    { "path": "../ledger" },
+    { "path": "../lifecycle" },
+    { "path": "../loops" },
+    { "path": "../pack" },
+    { "path": "../proposers" },
+    { "path": "../runner" },
+    { "path": "../sandbox" },
+    { "path": "../signoff" },
+    { "path": "../workdir" }
+  ]
+}

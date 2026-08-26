@@ -1,0 +1,44 @@
+# Template for `profiles/workbench/cordis.patch.yml` — copy it, fill in your gateway.
+#
+# The real file is gitignored: it holds one deployment's facts (gateway URL,
+# credential reference) and the champion plugin rewrites it on promote/demote,
+# so it is mutable state, not source. The route rows have the same shape as
+# `profiles/host/cordis.patch.example.yml`; what differs here is the champion
+# row, which must own this profile's file, and the absence of samsara-runner
+# (the workbench bundle disables it; the CLI stays in `host`).
+#
+#   cp profiles/workbench/cordis.patch.example.yml profiles/workbench/cordis.patch.yml
+
+# LLM route: DeepSeek's official API (dsh ships the adapter). For any other
+# OpenAI/Anthropic-compatible gateway see the `llm-pi-ai` shape in
+# profiles/host/cordis.patch.example.yml.
+- id: llm-deepseek
+  config:
+    apiKeyEnv: DEEPSEEK_API_KEY
+    baseURL: https://api.deepseek.com
+
+- id: agent-default-model
+  config:
+    provider: deepseek-official
+    model: deepseek-v4-flash
+
+# Price table for cost attribution on the in-process loop (USD per Mtok).
+- id: loops-dsh
+  config:
+    pricePerMtok: { input: 0.44, output: 1.32, cacheRead: 0.014 }
+
+# Proposer claude-p: the anthropic-messages wire. A patch replaces the row's
+# whole config, so command/model are restated here.
+- id: proposer-claude-p
+  config:
+    command: claude
+    model: deepseek-v4-flash
+    baseUrl: https://api.deepseek.com/anthropic
+    credentialRef: DEEPSEEK_API_KEY
+
+# The champion owns the generated section at the end of THIS file (E7 recomposes
+# this profile), so the row points at this profile, not at `host`.
+- id: champion
+  config:
+    profileDir: profiles/workbench
+    skillStore: data/skills

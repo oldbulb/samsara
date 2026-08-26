@@ -1,0 +1,73 @@
+# The samsara-workbench bundle patch: layered over @deepseek-ai/dsh-base,
+# @deepseek-ai/dsh-web-app and @oldbulb/samsara by `profiles/workbench/package.json`
+# (dsh.profile.bundles). Every row is plain data (E3). The samsara bundle's
+# rows stay as they are — ledger, gate, loops, proposers, scopes, signoff,
+# champion, lifecycle, samsara-ui — and the rows below turn the CLI host into
+# the conversation host.
+
+# The one-shot argv parser cannot coexist with dsh-web-app's startup row
+# (docs/dsh-plugin-notes.md B4): the CLI stays in the `host` profile.
+- id: samsara-run-startup
+  disabled: true
+
+- id: samsara-runner
+  disabled: true
+
+# The samsara bundle's own webserver row; dsh-web-app brings one under the
+# same service (`webserver`), bound from its startup flags.
+- id: samsara-webserver
+  disabled: true
+
+# The samsara bundle's own storage hub and domain facility; dsh-web-app brings
+# both (`storage`, `storage-domain`, json-backed). The ledger keeps its sqlite
+# backend: the bundle's `storage-sqlite` row registers on dsh-web-app's hub,
+# and its facility routes the ledger domain there (a patch replaces the whole
+# config, so `backend` is restated).
+- id: samsara-storage
+  disabled: true
+
+- id: samsara-storage-domain
+  disabled: true
+
+- id: storage-domain
+  config:
+    backend: json
+    routes:
+      samsara_ledger: sqlite
+
+# A new conversation starts on the operator preset. `roots` is left to the
+# CLI, which overwrites it last; `default` survives its spread.
+- id: agent-presets
+  config:
+    default: samsara-operator
+
+- insert:
+    # The attempt executor ctx.lifecycle runs through: the runner row's on the
+    # CLI profile, provided here for the life of the host (never by a
+    # per-session row).
+    - id: workbench-executor
+      name: '@oldbulb/samsara-workbench/executor'
+
+    # The /samsara … commands: the human's channel (predict, approve, demote,
+    # gate, reveal, budget, stop). Global: every session sees them.
+    - id: workbench-commands
+      name: '@oldbulb/samsara-workbench/commands'
+      inject: [commands, lifecycle, ledger, signoff, champion]
+
+    # Mirrors samsara_* tool calls/results and samsara command run/done into
+    # the ledger's notebook table.
+    - id: workbench-notebook
+      name: '@oldbulb/samsara-workbench/notebook'
+      inject: [ledger]
+
+    # Rounds left open with a running sibling are listed on start (a round
+    # names no owner, so it may be another host's live one); the person
+    # closes one with /samsara reconcile <round-id>.
+    - id: workbench-startup
+      name: '@oldbulb/samsara-workbench/startup'
+      inject: [lifecycle, ledger]
+
+    # Installs the shipped samsara-operator preset into the user preset root
+    # (`<dsh home>/.agent-presets`), refreshed by hash, never over a person's own.
+    - id: workbench-presets
+      name: '@oldbulb/samsara-workbench/presets'

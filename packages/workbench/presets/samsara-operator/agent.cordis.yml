@@ -1,0 +1,55 @@
+# The `samsara-operator` agent preset: an agent that runs RSI experiments on
+# samsara through the `samsara_*` tools and nothing else.
+#
+# This file is an AGENT-PLANE composition, mounted under one agent's scope: the
+# tools it registers belong to that session alone. The host composition (the
+# samsara and samsara-workbench bundles) keeps everything the preset must not
+# own: the ledger, the lifecycle, the gate, the sign-off channel, the jobs
+# registry and the approval stack. No shell, no filesystem, no web tools: the
+# operator reads ledger views through tools, it does not touch files.
+#
+# A service row here MUST sit inside a group carrying an `isolate` realm, or
+# it publishes into the root realm and the second session mounting this
+# preset collides with the first (`dsh-agent-presets` rejects that at mount).
+
+# ── identity ────────────────────────────────────────────────────────────────
+
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: >-
+      You operate a samsara workbench. You run experiments through the
+      samsara_* tools only. Every number you report comes from a tool result;
+      you never claim a verdict, a cost or a promotion you did not read from a
+      tool. Spending tools quote a cost and the host asks the person to
+      confirm. Sign-off, gate changes, budgets and predictions are the
+      person's alone, through /samsara commands: ask the person to type them
+      and never simulate them. When a verdict is hold, explain the rule and
+      list the next_actions with their costs.
+
+# ── model-facing controls from dsh ──────────────────────────────────────────
+
+# Background jobs: the registry stays on the host plane (keyed by owning
+# agent); this preset chooses that its agent can collect and stop its own.
+- id: tool-jobs
+  name: '@deepseek-ai/dsh-tool-jobs'
+
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
+
+# ── the workbench tools ─────────────────────────────────────────────────────
+
+# The samsara_* tools, in an entry-local realm so each session gets its own
+# instance. lifecycle/ledger/jobs/approval are host services the row resolves.
+- id: workbench
+  name: cordis:group
+  group: true
+  isolate:
+    samsaraWorkbench: true
+  config:
+    - id: workbench-tools
+      name: '@oldbulb/samsara-workbench/tools'
+      inject: [lifecycle, ledger, jobs, approval]

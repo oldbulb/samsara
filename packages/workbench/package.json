@@ -1,0 +1,95 @@
+{
+  "name": "@oldbulb/samsara-workbench",
+  "version": "0.1.0",
+  "description": "The samsara workbench: the operator preset with its samsara_* tools, the /samsara commands, the notebook mirror and the startup reconciliation, as one dsh bundle over dsh-web-app",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oldbulb/samsara.git",
+    "directory": "packages/workbench"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "samsara",
+    "rsi",
+    "agent-evaluation"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./tools": {
+      "types": "./lib/types/tools.d.ts",
+      "default": "./lib/tools.js"
+    },
+    "./commands": {
+      "types": "./lib/types/commands.d.ts",
+      "default": "./lib/commands.js"
+    },
+    "./notebook": {
+      "types": "./lib/types/notebook.d.ts",
+      "default": "./lib/notebook.js"
+    },
+    "./startup": {
+      "types": "./lib/types/startup.d.ts",
+      "default": "./lib/startup.js"
+    },
+    "./presets": {
+      "types": "./lib/types/presets.d.ts",
+      "default": "./lib/presets.js"
+    },
+    "./executor": {
+      "types": "./lib/types/executor.d.ts",
+      "default": "./lib/executor.js"
+    },
+    "./errors": {
+      "types": "./lib/types/errors.d.ts",
+      "default": "./lib/errors.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "presets",
+    "cordis.patch.yml"
+  ],
+  "engines": {
+    "node": ">=22.19"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run --root ../.. packages/workbench/tests"
+  },
+  "dependencies": {
+    "@oldbulb/samsara-book": "workspace:*",
+    "@oldbulb/samsara-champion": "workspace:*",
+    "@oldbulb/samsara-gate": "workspace:*",
+    "@oldbulb/samsara-gate-catalog": "workspace:*",
+    "@oldbulb/samsara-kernel": "workspace:*",
+    "@oldbulb/samsara-ledger": "workspace:*",
+    "@oldbulb/samsara-lifecycle": "workspace:*",
+    "@oldbulb/samsara-loops": "workspace:*",
+    "@oldbulb/samsara-pack": "workspace:*",
+    "@oldbulb/samsara-proposers": "workspace:*",
+    "@oldbulb/samsara-runner": "workspace:*",
+    "@oldbulb/samsara-sandbox": "workspace:*",
+    "@oldbulb/samsara-signoff": "workspace:*",
+    "@oldbulb/samsara-workdir": "workspace:*",
+    "yaml": "2.9.0"
+  }
+}

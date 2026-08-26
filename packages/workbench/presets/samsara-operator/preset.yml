@@ -1,0 +1,3 @@
+name: samsara operator
+description: runs RSI experiments on samsara through tools; consent stays in /samsara commands
+order: 50

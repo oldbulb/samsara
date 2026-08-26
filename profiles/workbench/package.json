@@ -1,0 +1,30 @@
+{
+  "name": "dsh-profile-workbench",
+  "private": true,
+  "dependencies": {
+    "@oldbulb/samsara-champion": "link:../../packages/champion",
+    "@oldbulb/samsara-gate": "link:../../packages/gate",
+    "@oldbulb/samsara-ledger": "link:../../packages/ledger",
+    "@oldbulb/samsara-lifecycle": "link:../../packages/lifecycle",
+    "@oldbulb/samsara-loops": "link:../../packages/loops",
+    "@oldbulb/samsara-loops-claude-code": "link:../../packages/loops-claude-code",
+    "@oldbulb/samsara-loops-dsh": "link:../../packages/loops-dsh",
+    "@oldbulb/samsara-proposers": "link:../../packages/proposers",
+    "@oldbulb/samsara-runner": "link:../../packages/runner",
+    "@oldbulb/samsara-scope": "link:../../packages/scope",
+    "@oldbulb/samsara-signoff": "link:../../packages/signoff",
+    "@oldbulb/samsara-ui": "link:../../packages/ui",
+    "@oldbulb/samsara-workbench": "link:../../packages/workbench",
+    "@oldbulb/samsara": "link:../../packages/bundle"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app",
+        "@oldbulb/samsara",
+        "@oldbulb/samsara-workbench"
+      ]
+    }
+  }
+}

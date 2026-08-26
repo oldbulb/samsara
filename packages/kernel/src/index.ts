@@ -48,7 +48,8 @@ import '@deepseek-ai/dsh-system-prompt'
 
 export type { Agent, AgentHandle, AgentOptions, CreateAgentOptions, AgentSetup } from '@deepseek-ai/dsh-agent'
 export type { ToolDefinition, ToolRunContext, ToolRestriction, ToolExecution, PreToolDecision } from '@deepseek-ai/dsh-tools'
-export { ToolArgsError } from '@deepseek-ai/dsh-tools'
+export type { ParameterSchemaSpec, InferArgs, JsonValue } from '@deepseek-ai/dsh-tools'
+export { ToolArgsError, defineTool } from '@deepseek-ai/dsh-tools'
 export type { Session, SessionEvent, SessionId as SessionIdType } from '@deepseek-ai/dsh-session'
 export { SessionId } from '@deepseek-ai/dsh-session'
 export { createUserMessage } from '@deepseek-ai/dsh-llm/message'
@@ -69,6 +70,74 @@ export {
 } from '@deepseek-ai/node-addon-landlock-run'
 export type { LandlockEnforcement, LauncherGrants as LandlockGrants } from '@deepseek-ai/node-addon-landlock-run'
 export { Command } from 'commander'
+
+// ---------------------------------------------------------------------------
+// Interaction seams the workbench sits on: human commands (`ctx.commands`),
+// spend approval (`ctx.approval`), the dsh home directory. Importing installs
+// the Context augmentations.
+import '@deepseek-ai/dsh-commands'
+import '@deepseek-ai/dsh-user-approval'
+
+export type { CommandDefinition, CommandInvocation, CommandResult, CommandId } from '@deepseek-ai/dsh-commands'
+export type { ApprovalRequest, ApprovalOutcome, ApprovalService } from '@deepseek-ai/dsh-user-approval'
+export { dshHomePath } from '@deepseek-ai/dsh-home-paths'
+
+// Jobs (`ctx.jobs`): @deepseek-ai/dsh-jobs is not in the offline store at this
+// pin, so its seam is mirrored structurally from the package's `types.ts` (the
+// shapes a producer starts, reads and kills jobs with); replace with the
+// package's own exports on the next re-pin.
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { SessionId as SessionIdBrand } from '@deepseek-ai/dsh-session'
+export type JobId = string & { readonly __brand: 'JobId' }
+export function JobId(id: string): JobId {
+  return id as JobId
+}
+export type JobStatus = 'running' | 'stopping' | 'completed' | 'killed' | 'failed'
+export interface JobOutcome {
+  status: 'completed' | 'killed' | 'failed'
+  detail?: string
+  output?: string
+}
+export interface JobHooks {
+  cancel(reason?: string): void
+  done: Promise<JobOutcome>
+  readOutput?(): string
+}
+export interface JobStart {
+  kind: string
+  label: string
+  outputLimitBytes?: number
+  owner?: Agent
+  run(): JobHooks
+}
+export interface JobSnapshot {
+  id: JobId
+  kind: string
+  label: string
+  outputLimitBytes?: number
+  ownerSession?: SessionIdBrand
+  status: JobStatus
+  detail?: string
+  startedAt: number
+  finishedAt?: number
+  reported: boolean
+}
+export interface JobRead {
+  text: string
+  snapshot: JobSnapshot
+}
+export interface JobRegistry {
+  start(spec: JobStart): JobId
+  list(caller?: Agent): JobSnapshot[]
+  get(id: JobId, caller?: Agent): JobSnapshot
+  read(id: JobId, caller?: Agent): JobRead
+  kill(id: JobId, caller?: Agent, reason?: string): 'requested' | 'already-finished'
+}
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    jobs: JobRegistry
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Storage: the hub (`ctx.storage`), the domain data form (`ctx.storageDomain`)

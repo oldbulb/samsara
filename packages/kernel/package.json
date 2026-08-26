@@ -49,7 +49,9 @@
     "@deepseek-ai/dsh-agent-presets": "0.1.1-rc.2",
     "@deepseek-ai/dsh-app-boot": "0.1.1-rc.2",
     "@deepseek-ai/dsh-cmdline": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-commands": "0.1.1-rc.2",
     "@deepseek-ai/dsh-credentials": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-home-paths": "0.1.1-rc.2",
     "@deepseek-ai/dsh-host-webserver": "0.1.1-rc.2",
     "@deepseek-ai/dsh-invariants": "0.1.1-rc.2",
     "@deepseek-ai/dsh-llm": "0.1.1-rc.2",
@@ -59,7 +61,8 @@
     "@deepseek-ai/dsh-storage-json": "0.1.1-rc.2",
     "@deepseek-ai/dsh-subprocess": "0.1.1-rc.2",
     "@deepseek-ai/dsh-system-prompt": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-tools": "0.1.1-rc.2"
+    "@deepseek-ai/dsh-tools": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-user-approval": "0.1.1-rc.2"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.1",
@@ -70,7 +73,9 @@
     "@deepseek-ai/dsh-agent-presets": "0.1.1-rc.2",
     "@deepseek-ai/dsh-app-boot": "0.1.1-rc.2",
     "@deepseek-ai/dsh-cmdline": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-commands": "0.1.1-rc.2",
     "@deepseek-ai/dsh-credentials": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-home-paths": "0.1.1-rc.2",
     "@deepseek-ai/dsh-host-webserver": "0.1.1-rc.2",
     "@deepseek-ai/dsh-invariants": "0.1.1-rc.2",
     "@deepseek-ai/dsh-llm": "0.1.1-rc.2",
@@ -80,6 +85,7 @@
     "@deepseek-ai/dsh-storage-json": "0.1.1-rc.2",
     "@deepseek-ai/dsh-subprocess": "0.1.1-rc.2",
     "@deepseek-ai/dsh-system-prompt": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-tools": "0.1.1-rc.2"
+    "@deepseek-ai/dsh-tools": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-user-approval": "0.1.1-rc.2"
   }
 }
