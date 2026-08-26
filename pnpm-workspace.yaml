@@ -1,2 +1,7 @@
 packages:
   - packages/*
+# Optional native accelerators pulled in by the modal SDK; it runs without them,
+# and pnpm 11 refuses an install that silently skips a build script.
+ignoredBuiltDependencies:
+  - cbor-extract
+  - protobufjs
