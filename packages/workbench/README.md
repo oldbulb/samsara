@@ -69,7 +69,7 @@ agent    samsara_calibrate { pack: coding-tasks, loop: dsh, set: holdin, reruns:
 host     Allow? calibrate ≈ $2.10 (249 attempts)                       [Allow] [Refuse]
 agent    job j-17 started; I will report sd_paired when it completes.  → /samsara/noise_floors
 you      /samsara predict new "a tighter skill raises pass_rate" --metric pass_rate --direction up --budget-rounds 3   (add --auto-reveal to consent to the held-out reveals here, once, instead of /samsara reveal per round)
-host     experiment e-8b2c… registered. samsara_campaign_start { experiment_id: e-8b2c…, proposer: claude-p, rounds: 3 }
+host     experiment e-8b2c… registered. samsara_campaign_start { experiment_id: e-8b2c…, proposer: claude-p, rounds: 3, holdout_replicates: 6 }
 you      run it
 agent    samsara_campaign_start …  → Allow? campaign ≈ $9.40 (3 rounds, 498 attempts) [Allow]
 agent    round r-02 judged hold:underpowered at holdin (Δ 0.04, MDE 0.14); next: replicate ×3 ≈ $2.10, or drop.
@@ -79,6 +79,15 @@ agent    round r-03: promote at holdout (Δ 0.16, CI [0.05, 0.27]); the campaign
 you      /samsara approve 7d40… --wait 60      (then sign the nonce with the signoff CLI on the socket)
 host     serving s-12: champion 7d40… from 2026-08-26T10:41Z, consent k-3a.
 ```
+
+Two things seen on the first real walk-through (2026-08-26, the synthetic pack;
+the transcript is in `packs/synthetic/README.md` § From the workbench): a
+`/samsara …` command typed into a session that has not sent its first message
+yet is queued by the web app and runs once the session exists, so its card
+appears after the first reply rather than at once; and `holdout_replicates` is
+what powers the held-out test — at the row's default of one replicate every
+held-out verdict on the synthetic pack is `hold:underpowered`, which is the
+gate saying so, not a failure.
 
 Every number the agent says came from a tool result and is in the notebook; the approval and the signature are the person's, on two different channels.
 

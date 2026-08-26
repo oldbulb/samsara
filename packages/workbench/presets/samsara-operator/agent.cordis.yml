@@ -37,8 +37,12 @@
 - id: tool-ask-user
   name: '@deepseek-ai/dsh-tool-ask-user'
 
+# `allowParallelInProgress` is required by the row's schema (a preset row with
+# an invalid config fails the whole mount, and with it every session on it).
 - id: tool-todo
   name: '@deepseek-ai/dsh-tool-todo'
+  config:
+    allowParallelInProgress: true
 
 # ── the workbench tools ─────────────────────────────────────────────────────
 

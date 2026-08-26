@@ -71,6 +71,8 @@ describe('the shipped preset', () => {
     expect(rows.map((r) => r.name)).toEqual(['@deepseek-ai/dsh-persona', '@deepseek-ai/dsh-tool-jobs', '@deepseek-ai/dsh-tool-ask-user', '@deepseek-ai/dsh-tool-todo', 'cordis:group'])
     const persona = (rows[0]!.config as { text: string }).text
     for (const phrase of ['samsara_* tools only', 'comes from a tool result', 'never simulate', '/samsara commands', 'next_actions']) expect(persona).toContain(phrase)
+    // dsh-tool-todo's schema requires it; a preset row with an invalid config fails the whole mount (seen on first boot).
+    expect(rows[3]!.config).toEqual({ allowParallelInProgress: true })
     const group = rows[4]!
     expect(group.isolate).toEqual({ samsaraWorkbench: true })
     expect(group.config).toEqual([{ id: 'workbench-tools', name: '@oldbulb/samsara-workbench/tools', inject: ['lifecycle', 'ledger', 'jobs', 'approval'] }])

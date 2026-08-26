@@ -283,6 +283,18 @@ describe('spending tools', () => {
   })
 
   describe('samsara_campaign_start', () => {
+    it('holdout_replicates sets the held-out design: the quote names it, the campaign runs it, a bad value is refused', async () => {
+      const h = openHarness()
+      await recordFloor(h, 'holdin')
+      const e = await experiment(h, { rounds: 3 })
+      const r = await call(h, 'samsara_campaign_start', { experiment_id: e.id, proposer: 'fake-proposer', rounds: 1, holdout_replicates: 6 }, fakeExec(fakeAgent()))
+      expect(r['quote']).toContain('held-out x6')
+      expect(r['quote']).not.toContain('(20 attempts)')
+      await h.jobs.started[0]!.hooks.done
+      expect(h.lifecycle.campaigns.at(-1)!.input.tiers).toEqual({ holdin: { repeat: 1 }, holdout: { repeat: 6 } })
+      await expect(call(h, 'samsara_campaign_start', { experiment_id: e.id, proposer: 'fake-proposer', rounds: 1, holdout_replicates: 0 }, fakeExec(fakeAgent()))).rejects.toThrow(/holdout_replicates/)
+    })
+
     it('starts the campaign as a job with the operator on the round, the events as output and the consent to ask for as the completion notice', async () => {
       const h = openHarness()
       await recordFloor(h, 'holdin')
@@ -292,7 +304,7 @@ describe('spending tools', () => {
       const r = await call(h, 'samsara_campaign_start', { experiment_id: e.id, proposer: 'fake-proposer', rounds: 2, shadow_gates: ['other@1'] }, fakeExec(agent))
       expect(r).toMatchObject({ job_id: 'samsara-campaign-1', experiment_id: e.id, champion_id: h.championId('holdin'), approval: 'allowed-once', link: `http://127.0.0.1:8080/samsara/experiments/${e.id}` })
       // the person confirms the shadow gates too
-      expect(r['quote']).toBe(`2 round(s) on experiment ${e.id.slice(0, 12)}: fixture/fake by fake-proposer shadow other@1: cost unknown (20 attempts)`)
+      expect(r['quote']).toBe(`2 round(s) on experiment ${e.id.slice(0, 12)}: fixture/fake by fake-proposer, held-out x1 shadow other@1: cost unknown (20 attempts)`)
       const job = h.jobs.started[0]!
       expect(job.spec).toMatchObject({ kind: 'samsara-campaign', owner: agent })
       const done = await job.hooks.done
@@ -338,8 +350,8 @@ describe('spending tools', () => {
       await call(h, 'samsara_campaign_start', { experiment_id: auto.id, proposer: 'fake-proposer', rounds: 2 })
       await call(h, 'samsara_round', { experiment_id: plain.id, proposer: 'fake-proposer' })
       expect(h.approval.requests.map((r) => r.reason)).toEqual([
-        `2 round(s) on experiment ${auto.id.slice(0, 12)}: fixture/fake by fake-proposer, held-out reveal pre-registered (auto_reveal: no /samsara reveal per round): cost unknown (20 attempts)`,
-        `one round on experiment ${plain.id.slice(0, 12)}: fixture/fake by fake-proposer: cost unknown (10 attempts)`,
+        `2 round(s) on experiment ${auto.id.slice(0, 12)}: fixture/fake by fake-proposer, held-out x1, held-out reveal pre-registered (auto_reveal: no /samsara reveal per round): cost unknown (20 attempts)`,
+        `one round on experiment ${plain.id.slice(0, 12)}: fixture/fake by fake-proposer, held-out x1: cost unknown (10 attempts)`,
       ])
       // the reveal stays the person's either way: never an argument of the agent's
       expect(h.lifecycle.campaigns.map((c) => c.input.autoHoldout)).toEqual([false, false])

@@ -228,3 +228,34 @@ for one attempt set or one challenger (`challenge … --set holdout` needs the
 floor of step 4), and the tampering loop `tests/synthetic.e2e.test.ts` mounts
 shows what a loop that rewrites the snapshot gets: `FAILED` attempts that
 never pair.
+
+## From the workbench
+
+The same loop from a `dsh --profile workbench` conversation, as walked through
+on 2026-08-26 (the profile patch carries the `loops-null` submission and the two
+`proposer-effect-*` rows above; the signer's key lives outside the host
+directory):
+
+```
+you    /samsara status                                  → champion (none), noise floors 0
+you    Calibrate the noise floor for the synthetic pack with the null loop on holdin, 5 reruns.
+agent  samsara_calibrate … → Allow? "calibrate synthetic/null on holdin x5: cost unknown (240 attempts)"   [允许一次]
+agent  sd_paired 0.1966, 5 × 48 = 240 attempts, all valid
+you    /samsara predict new "the null diff does not promote" --pack packs/synthetic --metric pass_rate --direction up --budget-rounds 2 --auto-reveal
+you    Start the campaign for experiment <id> with proposer effect-0, 2 rounds.
+agent  samsara_campaign_start … → Allow? "2 round(s) … by effect-0, held-out x1 …"   → two rounds, hold:underpowered twice, no promotion
+you    /samsara predict new "effect 0.15 promotes" --pack packs/synthetic --metric pass_rate --direction up --magnitude 0.15 --budget-rounds 1 --auto-reveal
+you    Start the campaign for experiment <id> with proposer effect-15, 1 round, holdout_replicates 6, stop on promote.
+agent  … → Allow? "1 round(s) … by effect-15, held-out x6 … (632 attempts)"   → holdout: promote, Δ 0.141 [0.118, 0.165]
+agent  the campaign is paused for consent — please type /samsara approve <challenger-id>
+you    /samsara approve <challenger-id> --wait 120
+shell  node packages/signoff/lib/cli.js confirm --socket data/signoff.sock --key ~/.samsara/signoff/signoff.key --row <challenger-id> --action promote --who <name>
+host   promoted <challenger-id> with consent <consent-id> (round <round-id>)   → servings row, champion section in the profile
+```
+
+`holdout_replicates` on `samsara_campaign_start` / `samsara_round` is what
+powers the held-out test (6 here: MDE 0.032 against SESOI 0.05); at the default
+of one replicate every verdict is `hold:underpowered`, as the A/A rounds show.
+After the promotion the floor still belongs to the old champion row, so the next
+campaign is refused with `NO_NOISE_FLOOR` until the new champion is calibrated —
+the agent's error card says so and quotes the calibration.

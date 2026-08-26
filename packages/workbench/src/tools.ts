@@ -475,7 +475,7 @@ export function createTools(deps: ToolDeps, settings: Settings): ToolDefinition[
     exec: ToolRunContext,
     toolName: string,
     kind: 'samsara-campaign' | 'samsara-round',
-    args: { experiment_id: string; proposer: string; loop?: string; rounds: number; stop_on_promote?: boolean; shadow_gates?: string[] },
+    args: { experiment_id: string; proposer: string; loop?: string; rounds: number; stop_on_promote?: boolean; shadow_gates?: string[]; holdout_replicates?: number },
   ) => {
     const agent = exec.agent
     if (!agent) return NO_AGENT
@@ -492,13 +492,15 @@ export function createTools(deps: ToolDeps, settings: Settings): ToolDefinition[
     const championId = challengerId(champion)
     if (!floorOf(champion, metric)) return refusal('NO_NOISE_FLOOR', `no noise floor for ${def.name}/${loop} on ${metric}; a round judged at holdout needs one`, { calibrate: calibrateQuote(def, loop, championId) })
     const { smoke, holdin, holdout } = def.taskSets
-    const perRound = smoke.tasks.length + (holdin.tasks.length + holdout.tasks.length) * settings.repeat
+    const holdoutRepeat = args.holdout_replicates ?? settings.repeat
+    if (!(Number.isInteger(holdoutRepeat) && holdoutRepeat >= 1)) throw new Error(`holdout_replicates must be a positive integer, got ${args.holdout_replicates}`)
+    const perRound = smoke.tasks.length + holdin.tasks.length * settings.repeat + holdout.tasks.length * holdoutRepeat
     const attempts = perRound * args.rounds
     const usd = usdOf(meanUsd(championId, 'holdin'), attempts)
     const shadow = args.shadow_gates?.length ? ` shadow ${args.shadow_gates.join(',')}` : ''
     // The person confirms what the experiment pre-registered: with auto_reveal the held-out tier runs without a reveal consent per row.
     const reveal = experiment.auto_reveal ? ', held-out reveal pre-registered (auto_reveal: no /samsara reveal per round)' : ''
-    const reason = quote(`${kind === 'samsara-round' ? 'one round' : `${args.rounds} round(s)`} on experiment ${short(experiment.id)}: ${def.name}/${loop} by ${adapter.name}${shadow}${reveal}`, attempts, usd)
+    const reason = quote(`${kind === 'samsara-round' ? 'one round' : `${args.rounds} round(s)`} on experiment ${short(experiment.id)}: ${def.name}/${loop} by ${adapter.name}, held-out x${holdoutRepeat}${shadow}${reveal}`, attempts, usd)
     const refused = await ask(exec, agent, toolName, reason, { experiment, usd })
     if (refused) return refused
 
@@ -522,7 +524,7 @@ export function createTools(deps: ToolDeps, settings: Settings): ToolDefinition[
       metric,
       nEffFloor: settings.nEffFloor,
       set: 'holdin',
-      tiers: { holdin: { repeat: settings.repeat }, holdout: { repeat: settings.repeat } },
+      tiers: { holdin: { repeat: settings.repeat }, holdout: { repeat: holdoutRepeat } },
       stop: { maxRounds: args.rounds, maxConsecutiveHolds: args.rounds, stopOnPromote: args.stop_on_promote ?? kind === 'samsara-round' },
       // Never: a held-out reveal is the person's — the holdout_reveal consent (/samsara reveal) or the experiment's pre-registered auto_reveal — not an argument of the agent's.
       autoHoldout: false,
@@ -550,6 +552,7 @@ export function createTools(deps: ToolDeps, settings: Settings): ToolDefinition[
     proposer: { type: 'string', description: 'A proposer adapter registered on the host (samsara_status lists none; the profile does).', required: true },
     loop: { type: 'string', description: 'The loop the attempts run on; defaults to the configured one.' },
     shadow_gates: { type: 'array', items: { type: 'string' }, description: 'name@version of mounted gate policies judged beside the promotion gate; their rows set no verdict.' },
+    holdout_replicates: { type: 'integer', description: 'Replicates per held-out task (the design the held-out test is powered for; the MDE shrinks with its square root). Defaults to the configured repeat.' },
   } as const
 
   return [
