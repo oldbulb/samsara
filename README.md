@@ -5,7 +5,7 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-6d28d9"></a>
-  <img alt="tests offline" src="https://img.shields.io/badge/tests-offline-6d28d9">
+  <a href="https://github.com/oldbulb/samsara/actions/workflows/ci.yml"><img alt="ci" src="https://github.com/oldbulb/samsara/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/deepseek-ai/deepseek-harness"><img alt="built on DeepSeek Harness" src="https://img.shields.io/badge/built%20on-DeepSeek%20Harness-0e7490"></a>
   <img alt="pre-release" src="https://img.shields.io/badge/status-pre--release-b45309">
 </p>
@@ -48,12 +48,10 @@ points are never surfaces.
 ## Why
 
 By mid-2026 the field says out loud that it cannot separate signal from
-selection. Harness evolution gains 7–10 points on its search set and ~0 held out
-([2607.12227](https://arxiv.org/abs/2607.12227)); a system reports a 31.7-point
-proxy-to-held-out gap ([DarwinX](https://arxiv.org/abs/2608.07545)); greedy
-keep-if-better is uncontrolled adaptive multiple testing
-([PACE](https://arxiv.org/abs/2606.08106)); 78% of runs iterated past their
-peak end worse than it ([RSIBench](https://arxiv.org/abs/2607.25886)).
+selection. Harness evolution gains 7–10 points on its search set and ~0 held
+out[^1]; a system reports a 31.7-point proxy-to-held-out gap[^2]; greedy
+keep-if-better is uncontrolled adaptive multiple testing[^3]; 78% of runs
+iterated past their peak end worse than it[^4].
 
 And five systems report a run five incompatible ways, so nobody ever audited the
 field's most-cited improvement curve. There was no artifact to audit.
@@ -107,10 +105,10 @@ The optimizer may be optimized. The judge and the right to sign may not.
 
 | | |
 |:---|:---|
-| **pack** | supplies reality — tasks, truth, a score — through `pack.yaml` and the stdout of its commands, which are always subprocesses. Three ship: `coding-tasks` (148 Exercism exercises in four languages, closed-book), `synthetic` (a biased coin with a known answer: the injected effect must promote, the A/A rerun must not — the whole loop at zero cost) and `harbor-hello` (generated from a Harbor task; `import harbor` also lands a Harbor job's trials as attempts). |
-| **loop** | runs one attempt of one task under one configuration: dsh's own agent, Claude Code, or an installed agent inside an **environment** — a local directory, a Docker container, a Modal sandbox — each recording what actually ran. |
-| **lifecycle** | owns every transition. An **experiment** pre-registers a hypothesis, a prediction and a budget; a **campaign** runs rounds through smoke, held-in and held-out; a **control** (`aa` / `inject`) checks the gate against a known answer; `calibrate` measures the noise floor the gate's power is computed from. The CLI, the workbench and the UI are three entry points to the one service. |
-| **gate** | decides with paired, entity-clustered statistics against that noise floor — and says `hold:underpowered` when the design cannot see the effect the pack declared. Replacing it is one patch row and one signed `gate change`. |
+| **pack** | supplies reality — tasks, truth, a score — through `pack.yaml` and the stdout of its commands, which are always subprocesses. Three ship:<br>`coding-tasks` — 148 Exercism exercises in four languages, closed-book<br>`synthetic` — a biased coin with a known answer: the injected effect must promote, the A/A rerun must not; the whole loop at zero cost<br>`harbor-hello` — generated from a Harbor task; `import harbor` also lands a Harbor job's trials as attempts |
+| **loop** | runs one attempt of one task under one configuration: dsh's own agent, Claude Code, or an installed agent inside an **environment** — a local directory, a Docker container, a Modal sandbox.<br>Each records what actually ran. |
+| **lifecycle** | owns every transition.<br>**experiment** — pre-registers a hypothesis, a prediction and a budget<br>**campaign** — runs rounds through smoke, held-in and held-out<br>**control** (`aa` / `inject`) — checks the gate against a known answer<br>`calibrate` — measures the noise floor the gate's power is computed from<br>The CLI, the workbench and the UI are three entry points to the one service. |
+| **gate** | decides with paired, entity-clustered statistics against that noise floor — and says `hold:underpowered` when the design cannot see the effect the pack declared.<br>Replacing it is one patch row and one signed `gate change`. |
 
 <br>
 
@@ -363,3 +361,8 @@ and the DCO sign-off that is the whole agreement.
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 MIT — see [`LICENSE`](LICENSE).
+
+[^1]: Harness evolution gains 7–10 points on its search set and ~0 on held-out tasks — [arXiv:2607.12227](https://arxiv.org/abs/2607.12227).
+[^2]: DarwinX reports its own proxy-to-held-out gap at 31.7 points — [arXiv:2608.07545](https://arxiv.org/abs/2608.07545).
+[^3]: PACE: Anytime-Valid Acceptance Tests for Self-Evolving Agents — [arXiv:2606.08106](https://arxiv.org/abs/2606.08106).
+[^4]: RSIBench: 78% of runs iterated past their peak end worse than it — [arXiv:2607.25886](https://arxiv.org/abs/2607.25886).

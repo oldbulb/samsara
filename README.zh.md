@@ -5,7 +5,7 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-6d28d9"></a>
-  <img alt="测试离线" src="https://img.shields.io/badge/tests-offline-6d28d9">
+  <a href="https://github.com/oldbulb/samsara/actions/workflows/ci.yml"><img alt="ci" src="https://github.com/oldbulb/samsara/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/deepseek-ai/deepseek-harness"><img alt="构建在 DeepSeek Harness 上" src="https://img.shields.io/badge/built%20on-DeepSeek%20Harness-0e7490"></a>
   <img alt="未发布" src="https://img.shields.io/badge/status-pre--release-b45309">
 </p>
@@ -37,7 +37,7 @@ samsara 是 agent harness 递归自改进的底座，也是裁决"自改进"的�
 
 ## 为什么
 
-2026 年年中，这个领域公开承认自己分不清信号与选择效应。harness 进化在搜索集上涨 7–10 点、held-out 上约 0（[2607.12227](https://arxiv.org/abs/2607.12227)）；有系统自曝 proxy 与 held-out 相差 31.7 点（[DarwinX](https://arxiv.org/abs/2608.07545)）；贪心的"变好就留"是不受控的自适应多重检验（[PACE](https://arxiv.org/abs/2606.08106)）；越过峰值继续迭代，78% 的运行最终比峰值更差（[RSIBench](https://arxiv.org/abs/2607.25886)）。
+2026 年年中，这个领域公开承认自己分不清信号与选择效应。harness 进化在搜索集上涨 7–10 点、held-out 上约 0[^1]；有系统自曝 proxy 与 held-out 相差 31.7 点[^2]；贪心的"变好就留"是不受控的自适应多重检验[^3]；越过峰值继续迭代，78% 的运行最终比峰值更差[^4]。
 
 而五个系统用五种互不相容的口径报告一次运行，所以没人审计过这个领域被引最多的那条改进曲线。没有可审计的产物。
 
@@ -83,10 +83,10 @@ optimizer 可以被优化。裁判和签字权不行。
 
 | | |
 |:---|:---|
-| **pack** | 提供现实——任务、真值、评分——只经 `pack.yaml` 和它的命令的 stdout，命令永远是子进程。带三个：`coding-tasks`（四种语言的 148 道 Exercism 题，closed-book）、`synthetic`（一枚带已知偏差的硬币：注入的效应必须晋升、A/A 重跑必须不晋升——整个回路零花费跑通）、`harbor-hello`（从一个 Harbor 任务生成；`import harbor` 还能把 Harbor job 的 trial 直接落成 attempt）。 |
-| **loop** | 在一个配置下跑一道题的一次 attempt：dsh 自己的 agent、Claude Code、或者装在 **environment** 里的 agent——本机目录、Docker 容器、Modal 沙箱——每种都记录实际跑的是什么。 |
-| **lifecycle** | 拥有每一次状态迁移。**experiment** 预注册假设、预测和预算；**campaign** 把 round 推过 smoke、held-in、held-out；**control**（`aa` / `inject`）拿已知答案检验 gate；`calibrate` 测出 gate 计算功效所依据的噪声底。CLI、workbench、UI 是同一个 service 的三个入口。 |
-| **gate** | 用配对、按 entity 聚类的统计对着噪声底裁决——当设计看不见 pack 声明的效应时，它说 `hold:underpowered`。换 gate = 一行 patch + 一次签字的 `gate change`。 |
+| **pack** | 提供现实——任务、真值、评分——只经 `pack.yaml` 和它的命令的 stdout，命令永远是子进程。带三个：<br>`coding-tasks`——四种语言的 148 道 Exercism 题，closed-book<br>`synthetic`——一枚带已知偏差的硬币：注入的效应必须晋升、A/A 重跑必须不晋升；整个回路零花费跑通<br>`harbor-hello`——从一个 Harbor 任务生成；`import harbor` 还能把 Harbor job 的 trial 直接落成 attempt |
+| **loop** | 在一个配置下跑一道题的一次 attempt：dsh 自己的 agent、Claude Code、或者装在 **environment** 里的 agent——本机目录、Docker 容器、Modal 沙箱。<br>每种都记录实际跑的是什么。 |
+| **lifecycle** | 拥有每一次状态迁移。<br>**experiment**——预注册假设、预测和预算<br>**campaign**——把 round 推过 smoke、held-in、held-out<br>**control**（`aa` / `inject`）——拿已知答案检验 gate<br>`calibrate`——测出 gate 计算功效所依据的噪声底<br>CLI、workbench、UI 是同一个 service 的三个入口。 |
+| **gate** | 用配对、按 entity 聚类的统计对着噪声底裁决——当设计看不见 pack 声明的效应时，它说 `hold:underpowered`。<br>换 gate = 一行 patch + 一次签字的 `gate change`。 |
 
 <br>
 
@@ -311,3 +311,8 @@ ledger 路径相对于工作目录（`<cwd>/data/ledger/samsara_ledger.sqlite`�
 [`SECURITY.md`](SECURITY.md) · [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) · [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 
 MIT——见 [`LICENSE`](LICENSE)。
+
+[^1]: harness 进化在搜索集上涨 7–10 点、held-out 上约 0——[arXiv:2607.12227](https://arxiv.org/abs/2607.12227)。
+[^2]: DarwinX 自报 proxy 与 held-out 相差 31.7 点——[arXiv:2608.07545](https://arxiv.org/abs/2608.07545)。
+[^3]: PACE：自进化 agent 的 anytime-valid 接受检验——[arXiv:2606.08106](https://arxiv.org/abs/2606.08106)。
+[^4]: RSIBench：越过峰值继续迭代，78% 的运行最终比峰值更差——[arXiv:2607.25886](https://arxiv.org/abs/2607.25886)。
