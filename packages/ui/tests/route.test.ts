@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context, HttpServer, Include, Loader, Service } from '@oldbulb/samsara-kernel'
 import * as Ui from '../src/index.ts'
-import { CHAL, fakeDeps } from './fixtures.ts'
+import { CHAL, ROUND2, fakeDeps } from './fixtures.ts'
 
 const deps = fakeDeps()
 
@@ -28,6 +28,11 @@ class FakeSignoff extends Service {
   constructor(ctx: Context) { super(ctx, 'signoff') }
   config = { socketPath: deps.signoff.socketPath }
   pending = deps.signoff.pending
+}
+class FakeLifecycle extends Service {
+  constructor(ctx: Context) { super(ctx, 'lifecycle') }
+  status = deps.lifecycle!.status
+  nextActions = deps.lifecycle!.nextActions
 }
 
 let root: string | undefined
@@ -55,6 +60,8 @@ async function loadComposition(): Promise<Context> {
     "  name: '@oldbulb/samsara-ui'",
     '  config:',
     '    refreshMs: 1000',
+    // Mounted after the ui row: the page looks lifecycle up per request.
+    '- name: fake-lifecycle',
     '',
   ].join('\n'))
 
@@ -67,6 +74,7 @@ async function loadComposition(): Promise<Context> {
     ['fake-ledger', FakeLedger],
     ['fake-champion', FakeChampion],
     ['fake-signoff', FakeSignoff],
+    ['fake-lifecycle', FakeLifecycle],
     ['@oldbulb/samsara-ui', Ui],
   ])
   context.loader.internal = {
@@ -86,6 +94,15 @@ async function request(port: number, path: string, init?: RequestInit) {
   return { status: response.status, type: response.headers.get('content-type'), body: await response.text() }
 }
 
+/** The event stream never ends on its own: read its first chunk, then abort like a client going away. */
+async function openStream(port: number, path: string) {
+  const controller = new AbortController()
+  const response = await fetch(`http://127.0.0.1:${String(port)}${path}`, { signal: controller.signal })
+  const first = await response.body!.getReader().read()
+  controller.abort()
+  return { status: response.status, type: response.headers.get('content-type'), first: new TextDecoder().decode(first.value) }
+}
+
 describe('real Loader composition', () => {
   it('serves the page and the API on the prefix route, 404/405 elsewhere, and releases the route on dispose', { timeout: 60_000 }, async () => {
     const loaded = await loadComposition()
@@ -98,6 +115,14 @@ describe('real Loader composition', () => {
     expect(page.type).toBe('text/html; charset=utf-8')
     expect(page.body).toContain('Champion')
     expect((await request(port, '/samsara/?challenger=abc')).status).toBe(200)
+    expect((await request(port, `/samsara/challengers/${CHAL}`)).body).toContain('Coordinates')
+    const stream = await openStream(port, `/samsara/rounds/${ROUND2}/events`)
+    expect(stream.status).toBe(200)
+    expect(stream.type).toBe('text/event-stream; charset=utf-8')
+    expect(stream.first).toMatch(/^retry: 1000\n\n/)
+    const twin = await request(port, `/samsara/rounds/${ROUND2}.json`)
+    expect(twin.type).toBe('application/json; charset=utf-8')
+    expect(JSON.parse(twin.body).sources).toContain(ROUND2)
 
     const summary = await request(port, '/samsara/api/summary')
     expect(summary.status).toBe(200)
