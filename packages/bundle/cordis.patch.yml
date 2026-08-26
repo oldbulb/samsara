@@ -126,6 +126,17 @@
       config:
         docker: docker
 
+    # A Modal sandbox per environment through the `modal` SDK. Off by default:
+    # it needs a Modal account — credentials from MODAL_TOKEN_ID /
+    # MODAL_TOKEN_SECRET or ~/.modal.toml, or the variable names in config
+    # (tokenIdEnv / tokenSecretEnv); `app` names the Modal App.
+    - id: environments-modal
+      name: '@oldbulb/samsara-environments/plugin-modal'
+      inject: [environments]
+      disabled: true
+      config:
+        app: samsara
+
     # ctx.proposers: the registry every proposer adapter registers on.
     - id: proposers
       name: '@oldbulb/samsara-proposers'

@@ -12,6 +12,7 @@ import type { Environment, EnvironmentProvider, EnvironmentSpec } from './types.
 export * from './types.ts'
 export { LocalEnvironmentProvider, LocalEnvironment, type LocalEnvironmentOptions, type SpawnFn } from './local.ts'
 export { DockerEnvironmentProvider, DockerEnvironment, envFileText, runArgv, type DockerEnvironmentOptions } from './docker.ts'
+export { ModalEnvironmentProvider, ModalEnvironment, createParams as modalCreateParams, pinnedDigest, type ModalClientLike, type ModalEnvironmentOptions } from './modal.ts'
 
 declare module '@oldbulb/samsara-kernel' {
   interface Context {

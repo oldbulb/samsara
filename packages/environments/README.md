@@ -97,9 +97,109 @@ the `DOCKER_*` variables, so it finds its config and its daemon.
 
 Tests run the provider against a fake `docker` script that records every argv
 and answers canned output; a describe against a real daemon skips with a
-reason when `docker info` fails, as does the synthetic pack's container run
-(`pnpm vitest run tests/synthetic.e2e.test.ts -t docker`, the CI step
-`synthetic pack in docker`).
+reason when `docker info` fails, as does the container run of the pack
+end-to-end under `tests/` (`-t docker`, the CI step that runs a pack in
+docker).
+
+## The modal provider (`modal.ts`, row `environments-modal`, off by default)
+
+A [Modal](https://modal.com) sandbox per environment through the `modal` SDK
+(pinned to `0.9.0`, the version `facts().version` reports; the V2
+`experimentalCreate` API is not used). The plugin builds the client from
+credentials named by environment variable — `config.tokenIdEnv` /
+`config.tokenSecretEnv` hold variable *names* (E5), never values — and with
+none configured the SDK resolves them itself: `MODAL_TOKEN_ID` /
+`MODAL_TOKEN_SECRET`, else the active profile of `~/.modal.toml`
+(`MODAL_CONFIG_PATH` moves it, `MODAL_PROFILE` picks one). Sandboxes live in
+the Modal App `config.app` (default `samsara`, created when missing):
+
+| step | modal |
+|---|---|
+| image | `images.fromRegistry(ref)`, built by the first `sandboxes.create` and reused by every environment of the provider |
+| open | `sandboxes.create(app, image, { timeoutMs: (2*timeoutS + 600)*1000, workdir, cpu, cpuLimit, memoryMiB, memoryLimitMiB, secrets: [fromObject(env)], blockNetwork \| outboundDomainAllowlist })`, then the workdir is made and the mounts copied in |
+| exec | `sandbox.exec(argv, { workdir, timeoutMs, env })`, stdin written and closed; the deadline and the abort signal end the call (`code: null` + `SIGKILL`) |
+| put / get | `filesystem.copyFromLocal` / `copyToLocal` per file (directories walked with `makeDirectory` / `listFiles`; `get` makes a symlink again from its `symlinkTarget`); a relative remote path is under the workdir |
+| snapshot | `snapshotFilesystem()` → the new image id as `ref` and `digest` |
+| dispose | `terminate({ wait: true })` |
+
+The environment's `env` reaches the sandbox as an in-memory `Secret` the SDK
+turns into an ephemeral server-side secret; an exec's extras go in the exec
+request body. Neither is ever on a command line. `network: 'none'` is the
+SDK's `blockNetwork`; `'allowlist'` becomes `outboundDomainAllowlist` (the
+spec's `allowedHosts`, wildcard prefixes allowed — empty means nothing
+outbound), so `facts().network` and `allowedHosts` are what the spec asked
+for; `'public'` opens the sandbox. `cpus` is set as the SDK's `cpu`
+reservation and its `cpuLimit` both, `memoryMb` as `memoryMiB` and
+`memoryLimitMiB`: the declared numbers bound the sandbox as docker's
+`--cpus`/`--memory` bound a container, so one `environment_sha` is one design
+on either provider (rule 0). `timeoutS` is the callers' deadline, as it is for
+docker (the loop's limit, the bound of an `in_environment` command), not the
+sandbox's lifetime: the lifetime is a backstop for a host that never disposes
+(E4 is the kill), set to twice `timeoutS` plus ten minutes so the deadlines
+inside end an attempt before Modal does — the loop and a command can each run
+to `timeoutS`, and open (first contact included), the copies and what follows
+take the headroom. The lifetime is in the environment's `notes`; `facts()`
+carry the spec's `timeoutS`. The default workdir is `/workspace/<attemptId>`,
+as for docker.
+
+The SDK takes an exec's timeout in whole seconds and the worker ends the
+process at it, within the second of the caller's deadline; the call then
+answers with what the process wrote before the kill (the streams the worker
+closed are drained, within a grace, so output still in flight at the deadline
+is not dropped). An abort ends the call only — the SDK has no kill for an exec — so the process
+inside runs until the sandbox's lifetime or dispose; the environment's
+`notes` say so. `put` restores the executable bit with `chmod` (the
+filesystem API carries no modes) and follows symlinks (the API cannot make one
+in the sandbox); `get` carries a symlink back as a link with the target it has
+inside, as docker's `cp` and the local provider do, so a tree fetched back is
+whole. A mount is a copy made before `open` returns, and read-only is not
+enforced (the sandbox runs as root) — `notes` again. `user` is not honoured. `snapshot` gives a Modal image
+id (kept 30 days by default), which a later spec can name as `image.ref`
+only through a registry: the provider builds from registries, not from ids.
+
+**Image identity (rule 0).** `facts().image.digest` is the registry digest
+when the ref pins one (`repo@sha256:…`) — the identity the docker provider
+reports for the same image, so an attempt on Modal and one in local docker
+share `environment_sha` and are one design. An unpinned tag gets the Modal
+image id instead: stable per workspace and image-builder version, but no
+registry identity, so such attempts never pool with docker's. Pin by digest
+when arms run on different providers. `image.dockerfileDir` is refused: the
+SDK builds from Dockerfile *commands* without a build context (it rejects
+`COPY` from local files), which cannot reproduce a directory build — publish
+the image and name it with `image.ref`.
+
+`usage()` on a `ModalEnvironment` (not part of the seam) is the wall seconds
+since the sandbox was created — what Modal bills, with the resources. The
+SDK does not report a charge, so `cost.compute_usd` (S8) needs the account's
+price list on top.
+
+**First contact.** A fresh sandbox's command router can stay unreachable
+for longer than the SDK's own retry budget (about ten seconds; a proxy in
+front of the host stretches the first connection), and the SDK then reports
+the sandbox as unavailable — "The Sandbox is unavailable" — while it is
+running. The provider retries the first call into it (the workdir's
+`makeDirectory`) for up to a minute while `poll` says the sandbox still
+runs, noting in the environment's `notes` how many tries it took; a sandbox
+that has exited fails at once.
+
+Tests run the provider against a fake client that records every call and
+answers canned `ContainerProcess`-like objects. A describe against Modal
+itself (it opens `alpine:3.20` in the App `samsara-test` and takes about a
+minute) is opt-in, as is the pack end-to-end's modal run under `tests/`
+(`-t modal`): it runs only with `SAMSARA_TEST_MODAL=1` *and* credentials the
+SDK will resolve (`MODAL_TOKEN_ID`, else `MODAL_CONFIG_PATH` or
+`~/.modal.toml`), and skips with a reason otherwise — a config file on the
+machine does not by itself put a plain `pnpm test` on the network or spend
+sandbox time.
+
+To run attempts on Modal, enable the row in the profile patch and pass
+`--env modal`; the pack's `environment` block must name an image by `ref`:
+
+```yaml
+- id: environments-modal
+  disabled: false
+  config: { app: samsara, tokenIdEnv: MODAL_TOKEN_ID, tokenSecretEnv: MODAL_TOKEN_SECRET }
+```
 
 ## Running attempts in docker (`--env docker`)
 
@@ -127,5 +227,5 @@ disposes the environment with the attempt and with the challenger's scope
 (E4). Champion and challenger rows carry `environment_sha` (rule 0). The
 loops shipped today are host-side (`@oldbulb/samsara-loops` README) and need
 `local`; a container provider is for the pack's commands until an installed
-loop lands. The synthetic pack is the worked example (`packs/synthetic/README.md`,
-"In a container").
+loop lands. The worked example is the pack under `packs/` whose `truth` is
+`in_environment` (its README, "In a container" and "Running on Modal").

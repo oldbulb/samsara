@@ -157,6 +157,57 @@ without a daemon; CI runs it on ubuntu:
 pnpm vitest run tests/synthetic.e2e.test.ts -t docker
 ```
 
+## Running on Modal (`--env modal`)
+
+The same block runs on [Modal](https://modal.com) through the modal provider
+(`packages/environments/README.md`, "The modal provider"): one sandbox per
+attempt from `node:22-slim` with the network blocked, the pack directory
+copied in at its own absolute path (the sandbox filesystem API moves files, so
+the mount is a copy), the sealed workdir put into `/workspace/<attemptId>`,
+`truth` inside through the sandbox's exec, `score` on the host. Enable the row
+where a Modal account is reachable (credentials from `~/.modal.toml` or
+`MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET`); the profile patch is deployment
+state, so a `--patch` overlay does as well:
+
+```yaml
+# modal-overlay.yml
+- id: environments-modal
+  disabled: false
+  config: { app: samsara }
+```
+
+```sh
+dsh --profile host --patch ./modal-overlay.yml run --pack packs/synthetic --loop null --set smoke \
+    --limit 3 --parallel 3 --env modal --out data/runs/synthetic-modal
+```
+
+Every row carries `environment: { provider: modal, version: 0.9.0, image:
+{ ref: node:22-slim, digest: im-… }, resources: { timeoutS: 1200 }, network:
+none }` (`timeoutS` is the attempt's deadline, from `--max-minutes`; the
+sandbox's lifetime is a backstop past it, in the environment's notes) and the
+three share one `facts_sha`; `truth_sha` is the one the local and docker runs
+report, and the token `truth` read sits under `/workspace/<attemptId>`, a
+path that exists only in the sandbox. As a rough order of magnitude — one
+run on 2026-08-26 from a laptop behind an HTTP proxy, its output not kept —
+the three attempts took about 50 s wall, 40–45 s of it per attempt from
+`open` to the sealed workdir being in (the App and the image resolved once,
+the sandbox created in under a second, its command router reached a few
+seconds later, then one exec per file for the pack directory and the
+workdir), `truth` inside in a second or two. Two things to know: the null
+loop still submits nothing here (`valid: false`, as on docker — a canned
+`submit` would be written to the container path on the host), so leave
+`loops-null` at `submit: null` for a modal run until an installed loop
+lands; and an unpinned tag gets the Modal image id as its digest, so these
+rows do not pool with docker's (rule 0) — pin `node:22-slim@sha256:…` in the
+pack's `environment.image` when arms run on both. The same three attempts are
+pinned by `tests/synthetic.e2e.test.ts` ("in a modal environment"), opt-in:
+it runs only with `SAMSARA_TEST_MODAL=1` and credentials, and skips
+otherwise — `~/.modal.toml` alone does not make `pnpm test` spend sandboxes:
+
+```sh
+SAMSARA_TEST_MODAL=1 pnpm vitest run tests/synthetic.e2e.test.ts -t modal
+```
+
 ## The two controls
 
 | control | challenger `effect` | expected verdict on holdout |

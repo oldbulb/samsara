@@ -8,11 +8,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { Context, DomainFacility, Storage, storageBackendServiceKey, type KvUnit, type StorageBackend } from '../packages/kernel/src/index.ts'
 import { createBook, type Task, type TaskSet } from '../packages/book/src/index.ts'
-import { DockerEnvironmentProvider, Environments, LocalEnvironmentProvider, environmentSha, type Environment } from '../packages/environments/src/index.ts'
+import { DockerEnvironmentProvider, Environments, LocalEnvironmentProvider, ModalEnvironmentProvider, environmentSha, type Environment } from '../packages/environments/src/index.ts'
+import { MODAL_SDK_VERSION } from '../packages/environments/src/modal.ts'
+import { createClient as createModalClient } from '../packages/environments/src/plugin-modal.ts'
+import { MODAL_SKIP_REASON, modalOptedIn } from '../packages/environments/tests/fixtures/modal-opt-in.ts'
 import { realSpawn } from '../packages/environments/tests/fixtures/real-spawn.ts'
 import { gateDefault, GATE_DEFAULT_NAME, GATE_DEFAULT_VERSION, type CompareRequest, type GatePolicyProvider } from '../packages/gate/src/index.ts'
 import { Ledger, sha256, type ConsentRow, type ExperimentRow, type NoiseFloorRow } from '../packages/ledger/src/index.ts'
@@ -584,17 +587,18 @@ function dockerAvailable(): boolean {
  * its own path, score on the host. CI runs this describe on ubuntu
  * (`-t docker`); anywhere without a daemon it skips.
  */
+const skillPath = () => `.agents/skills/${def.manifest.skill.name}`
+/** Sealed on the host the way @oldbulb/samsara-workdir seals: the token names the attempt, the snapshot carries `effect`. */
+function seal(root: string, taskId: string, attemptId: string, effect: number): string {
+  const workdir = join(root, attemptId)
+  mkdirSync(join(workdir, '.task'), { recursive: true })
+  mkdirSync(join(workdir, skillPath()), { recursive: true })
+  writeFileSync(join(workdir, '.task', 'token.json'), JSON.stringify({ attemptId, taskId, challengerId: 'c', sample: 0, skill_path: skillPath(), issuedAt: 'now' }))
+  writeFileSync(join(workdir, skillPath(), 'params.json'), JSON.stringify({ effect }))
+  return workdir
+}
+
 describe.skipIf(!dockerAvailable())('in a docker environment (skipped: docker is not on PATH or the daemon is down)', () => {
-  const skillPath = () => `.agents/skills/${def.manifest.skill.name}`
-  /** Sealed on the host the way @oldbulb/samsara-workdir seals: the token names the attempt, the snapshot carries `effect`. */
-  function seal(root: string, taskId: string, attemptId: string, effect: number): string {
-    const workdir = join(root, attemptId)
-    mkdirSync(join(workdir, '.task'), { recursive: true })
-    mkdirSync(join(workdir, skillPath()), { recursive: true })
-    writeFileSync(join(workdir, '.task', 'token.json'), JSON.stringify({ attemptId, taskId, challengerId: 'c', sample: 0, skill_path: skillPath(), issuedAt: 'now' }))
-    writeFileSync(join(workdir, skillPath(), 'params.json'), JSON.stringify({ effect }))
-    return workdir
-  }
   const containersOf = (attemptId: string) => execFileSync('docker', ['ps', '-aq', '--filter', `label=samsara.attempt=${attemptId}`], { encoding: 'utf8' }).trim()
 
   it('materialize on the host → put → truth in the container → score on the host; the same attempt on local is the same coin; the facts carry the digest', { timeout: 600_000 }, async () => {
@@ -666,6 +670,90 @@ describe.skipIf(!dockerAvailable())('in a docker environment (skipped: docker is
     }
     // E4: dispose is the kill, nothing lingers
     for (const task of tasks) expect(containersOf(`docker-${task.task_id.replace('/', '_')}-0`)).toBe('')
+  })
+})
+
+// ----------------------------------------------------------------- modal
+
+/**
+ * The same three smoke attempts on Modal, in parallel as `--parallel 3` runs
+ * them: one sandbox each from the pack's `node:22-slim`, opened by the modal
+ * provider on the spec the runner composes — the pack dir copied in at its
+ * own path, the sealed workdir put in, truth (`in_environment`) through the
+ * sandbox's exec, score on the host, the same coin as the same attempt on
+ * `local`, one design across the three. Needs a Modal account (`~/.modal.toml`
+ * or MODAL_TOKEN_ID) and spends about a minute of a default sandbox per
+ * attempt in the App `samsara-test`, so it is opt-in: SAMSARA_TEST_MODAL=1
+ * on top of the credentials, else it skips.
+ */
+describe.skipIf(!modalOptedIn(process.env, homedir()))(`in a modal environment (${MODAL_SKIP_REASON})`, () => {
+  it('materialize on the host → put → truth in the sandbox → score on the host; the same attempt on local is the same coin; the facts carry the image id', { timeout: 600_000 }, async () => {
+    const root = tmp()
+    const provider = new ModalEnvironmentProvider({ client: createModalClient({}), app: 'samsara-test' })
+    const tasks = def.taskSets.smoke.tasks.slice(0, 3)
+    const opened: Environment[] = []
+    const designs = new Set<string>()
+    try {
+      await Promise.all(tasks.map(async (task, i) => {
+        const attemptId = `modal-${task.task_id.replace('/', '_')}-0`
+        const effect = i === 2 ? 1 : 0
+        // the runner's spec; timeoutS is the sandbox's lifetime on Modal, so five minutes, not the docker run's one
+        const spec = environmentSpecOf(def, task.environment ?? def.manifest.environment, attemptId, { maxMinutes: 5 })
+        expect(spec).toEqual({ attemptId, image: { ref: 'node:22-slim' }, resources: { timeoutS: 300 }, network: 'none', env: {}, mounts: [{ from: def.dir, to: def.dir, readOnly: true }] })
+        const env = await provider.open(spec)
+        opened.push(env)
+        expect(env.workdir).toBe(`/workspace/${attemptId}`)
+        expect(env.id).toMatch(/^sb-/)
+
+        const local = seal(root, task.task_id, attemptId, effect)
+        const [mat] = await runCommand(def, 'materialize', [{ task_id: task.task_id, workdir: local }])
+        expect(mat).toEqual({ task_id: task.task_id, ok: true, files: ['task.json'] })
+        for (const entry of readdirSync(local).sort()) await env.put(join(local, entry), entry)
+
+        // inside: Linux whatever the host, node from the image, the pack dir at its own path, nothing reaches out
+        const probe = await env.exec(['sh', '-c', `uname -s && node --version && ls tasks && pwd && (node -e "fetch('https://example.com').then(() => process.exit(0), () => process.exit(3))" || echo offline $?)`], { cwd: def.dir, timeoutMs: 60_000 })
+        expect(probe.code).toBe(0)
+        expect(probe.stdout).toMatch(/^Linux\nv22\./)
+        expect(probe.stdout).toContain('holdout.jsonl')
+        expect(probe.stdout).toContain(`${def.dir}\n`)
+        expect(probe.stdout).toMatch(/offline 3\n$/)
+
+        // truth is in_environment: the runner's binding, from the pack dir, the same jsonl
+        const exec: CommandExec = (argv, stdin, o) => env.exec(argv, { cwd: def.dir, ...o, stdin })
+        const [inside] = await runCommand(def, 'truth', [{ task_id: task.task_id, workdir: env.workdir }], { exec, env: {} })
+        expect(inside).toMatchObject({ task_id: task.task_id, status: 'settled', truth_sha: expect.stringMatching(SHA_RE) })
+        const passed = (inside!.truth as { passed: number }).passed
+        expect([0, 1]).toContain(passed)
+        if (effect === 1) expect(passed).toBe(1)
+
+        // the same attempt under the local provider is the same coin: the provider is no input of truth
+        const hostSpec = { ...spec, workdir: local }
+        delete hostSpec.image
+        const mirror = await new LocalEnvironmentProvider({ spawn: realSpawn }).open(hostSpec)
+        try {
+          const [onHost] = await runCommand(def, 'truth', [{ task_id: task.task_id, workdir: mirror.workdir }], { exec: (argv, stdin, o) => mirror.exec(argv, { cwd: def.dir, ...o, stdin }) })
+          expect(onHost).toEqual(inside)
+        } finally {
+          await mirror.dispose()
+        }
+
+        // score stays on the host
+        const scores = await runCommand(def, 'score', [{ task_id: task.task_id, truth: inside!.truth, output: { usage: { input_tokens: 0, output_tokens: 0, cost_usd: null } } }])
+        expect(scores).toEqual([
+          { task_id: task.task_id, metric: 'pass_rate', value: passed, kind: 'reality', stratum: task['stratum'] },
+          { task_id: task.task_id, metric: 'cost_usd', value: 0, kind: 'mechanical', stratum: task['stratum'] },
+        ])
+
+        // what ran, as the row records it: an unpinned tag gets the Modal image id as digest, no network; one design across the three
+        expect(env.facts()).toEqual({ provider: 'modal', version: MODAL_SDK_VERSION, image: { ref: 'node:22-slim', digest: expect.stringMatching(/^im-/) }, resources: { timeoutS: 300 }, network: 'none' })
+        designs.add(environmentSha(env.facts()))
+      }))
+      expect(designs.size).toBe(1)
+    } finally {
+      await Promise.all(opened.map((env) => env.dispose()))
+    }
+    // E4: dispose is the kill; the sandbox takes no more calls
+    for (const env of opened) await expect(env.exec(['true'], { timeoutMs: 1_000 })).rejects.toThrow(/disposed/)
   })
 })
 

@@ -51,7 +51,7 @@ it from the token or the token grows a field.
 Today every attempt and every pack command runs on the host, in a sealed
 directory. The `environments` seam (`architecture.md` § Plugins) puts a
 provider between the two — `local` (today's directory, the default), `docker`,
-and, planned, `modal` and `harbor` — and a pack says what it needs of it:
+`modal`, and, planned, `harbor` — and a pack says what it needs of it:
 
 ```yaml
 environment:                    # the pack's default; absent → the host (`local`)
