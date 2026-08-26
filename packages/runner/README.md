@@ -29,7 +29,7 @@ dsh --profile host run --resume <runDir>        # re-enter the run recorded in <
 
 Defaults: `--repeat 1`, `--parallel 1`, `--out data/runs`, `--max-turns 50`, `--max-minutes 20`; no `--allow` means the provider's default tool set (`tools.allow: []`).
 
-### Environments (`--env`; docs/design/notes/environments-harbor-modal-2026-08-26.md)
+### Environments (`--env`; docs/design/architecture.md § Coordinates, `environment_sha`)
 
 Every attempt runs in one environment opened on `ctx.environments` (`@oldbulb/samsara-environments`) by the provider
 `--env` names (`local` by default: a directory on this host; `docker` where the row is enabled). The spec comes from

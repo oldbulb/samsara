@@ -3,7 +3,7 @@
 `ctx.environments` — the registry of environment providers, and the contract
 every provider speaks: where one attempt runs (a directory on this host, a
 container, a remote sandbox), what it may see, and what actually ran
-(`docs/design/notes/environments-harbor-modal-2026-08-26.md`).
+(`docs/design/architecture.md` § Plugins, the `environments` row, and § Coordinates for `environment_sha`).
 
 ## The seam (`types.ts`)
 

@@ -225,7 +225,14 @@ export class DockerEnvironment implements Environment {
     if (opts.stdin !== undefined) call.stdin = opts.stdin
     if (opts.signal !== undefined) call.signal = opts.signal
     const { result, terminated } = await this.client.call(args, call)
-    if (terminated && !this.disposed) await this.restart(opts.signal?.aborted ? 'aborted' : `timed out after ${opts.timeoutMs}ms`)
+    if (terminated) {
+      // The deadline (or the abort) ended this call, whatever exit the docker
+      // client reported on its way out (it answers SIGTERM with code 1): a
+      // timed-out exec has no exit code, like a timed-out host subprocess.
+      result.code = null
+      result.signal ??= 'SIGKILL'
+      if (!this.disposed) await this.restart(opts.signal?.aborted ? 'aborted' : `timed out after ${opts.timeoutMs}ms`)
+    }
     return result
   }
 
