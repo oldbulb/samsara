@@ -128,7 +128,7 @@ resolve as on the host, puts the sealed workdir into `/workspace/<attemptId>`
 (the token still names the workdir it sits in), runs `truth` inside through
 `docker exec` with the same jsonl on stdin and stdout, and records the image
 digest, resources and network on the attempt row; champion and challenger rows
-carry `environment_sha` (rule 0, `docs/design/notes/environments-harbor-modal-2026-08-26.md`).
+carry `environment_sha` (rule 0, `docs/design/architecture.md` § Coordinates).
 
 The row is off by default; enable it in the profile patch where a daemon is
 reachable, then add `--env docker` to any of the commands above:

@@ -376,7 +376,8 @@ describe.skipIf(realDocker === false)('DockerEnvironmentProvider against a real 
       expect(merged.stdout).toBe('a.txt\n')
       const hung = await env.exec(['sleep', '30'], { timeoutMs: 1000 })
       expect(hung.code).toBeNull()
-      const left = await env.exec(['sh', '-c', 'pgrep -f "sleep 30" || echo none'], { timeoutMs: 30_000 })
+      // -x matches the process name exactly: `-f "sleep 30"` would match this very shell's command line
+      const left = await env.exec(['sh', '-c', 'pgrep -x sleep || echo none'], { timeoutMs: 30_000 })
       expect(left.stdout).toBe('none\n')
       expect((await env.exec(['cat', 'f.txt'], { timeoutMs: 30_000 })).stdout).toBe('payload')
       const offline = await env.exec(['sh', '-c', 'wget -q -T 3 -O /dev/null http://example.com/ 2>/dev/null; echo $?'], { timeoutMs: 30_000 })
