@@ -1,3 +1,4 @@
+<p align="center"><img src="docs/assets/mark.svg" width="72" alt=""></p>
 <h1 align="center">samsara</h1>
 
 <p align="center"><strong>A harness that improves itself, under evidence it cannot fake.</strong></p>
@@ -184,7 +185,8 @@ write_proposal(args.out,
     skill_dir=skill)
 ```
 
-Measure the gate before you trust it; dry-run the proposer before you spend:
+> [!TIP]
+> Measure the gate before you trust it, and dry-run the proposer before you spend anything — both are one command and neither touches a model.
 
 ```sh
 dsh --profile host gate bench --attempts noise.jsonl \
@@ -203,9 +205,10 @@ are the seams we write ourselves — they require knowing the harness.
 
 ## Quick start
 
-Node ≥ 22.19, pnpm 11.7, the dsh CLI. The packages are not on npm yet, so the
-profile is the checkout's own `profiles/host`, linked into dsh's profile
-directory.
+Node ≥ 22.19, pnpm 11.7, the dsh CLI.
+
+> [!NOTE]
+> The packages are not on npm yet. Until they are, the profile is the checkout's own `profiles/host`, linked into dsh's profile directory — `dsh plugin --profile host add @oldbulb/samsara` is the install path once they ship.
 
 ```sh
 npm i -g @deepseek-ai/dsh@0.1.1-rc.2
@@ -297,12 +300,11 @@ a measured noise floor.
 > 51%, DGM's rule 72–100%. At the held-out tier's 29 entities the bootstrap runs
 > ≈1.5× nominal.
 
-What is honestly not there yet:
+> [!IMPORTANT]
+> **No promotion on a real pack yet.** coding-tasks can detect ≈0.14 pass rate at 3 reruns against a declared SESOI of 0.05, so every real comparison ends `hold:underpowered` — right in kind, unfalsified in fact. The controls hold only on the synthetic coin. This is the first item on the roadmap.
 
-- **No promotion on a real pack.** coding-tasks can detect ≈0.14 pass rate at
-  3 reruns against a declared SESOI of 0.05, so every real comparison ends
-  `hold:underpowered` — right in kind, unfalsified in fact. The controls hold
-  only on the synthetic coin.
+What else is honestly not there yet:
+
 - **coding-tasks' truth is partly self-graded**: agent-written tests are
   counted with the hidden ones (`solved` is unaffected).
 - **Delayed truth has no consumer**, and the `live` tier (mSPRT) is not built.
